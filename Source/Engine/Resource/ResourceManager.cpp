@@ -81,6 +81,7 @@ void GResourceManager::Initialize(GDevice* InDevice)
     RegisterDefaultPrimitives(InDevice);
     RegisterTexturePrimitives(InDevice);
     RegisterDefaultRenderResources();
+    RegisterDefaultRasterizerStates();
 }
 
 FMeshResource* GResourceManager::CreateMesh(const FName& MeshName,
@@ -234,6 +235,8 @@ void GResourceManager::Shutdown()
     WireframePixelShader.Reset();
     ShaderCache.Empty();
     SamplerCache.Empty();
+    RasterizerStateCache.Empty();
+
     Device = nullptr;
 
 }
@@ -582,4 +585,69 @@ void GResourceManager::RegisterDefaultRenderResources()
         Device->GetDevice()->CreateBuffer(
             &Desc, nullptr, TextureMaterialConstantBuffer.GetAddressOf()),
         "CreateTextureMaterialConstantBuffer");
+}
+
+void GResourceManager::RegisterRasterizerState(const FName& Name, const D3D11_RASTERIZER_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Rasterizer device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid rasterizer state name");
+    }
+
+    if (RasterizerStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Rasterizer state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> State;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateRasterizerState(
+            &Desc, State.GetAddressOf()),
+        "CreateRasterizerState");
+
+    if (!RasterizerStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register rasterizer state");
+    }
+}
+
+ID3D11RasterizerState* GResourceManager::GetRasterizerState(const FName& Name) const
+{
+    const auto* Found = RasterizerStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+
+void GResourceManager::RegisterDefaultRasterizerStates()
+{
+    // 일반 메시: 뒷면 컬링
+    D3D11_RASTERIZER_DESC SolidDesc{};
+    SolidDesc.FillMode = D3D11_FILL_SOLID;
+    SolidDesc.CullMode = D3D11_CULL_BACK;
+    SolidDesc.ScissorEnable = TRUE;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidBack"), SolidDesc);
+
+    // 양면 렌더링
+    D3D11_RASTERIZER_DESC CullNoneDesc = SolidDesc;
+    CullNoneDesc.CullMode = D3D11_CULL_NONE;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidNone"), CullNoneDesc);
+
+    // 하이라이트: 앞면 컬링
+    D3D11_RASTERIZER_DESC CullFrontDesc = SolidDesc;
+    CullFrontDesc.CullMode = D3D11_CULL_FRONT;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidFront"),CullFrontDesc);
+
+    // 와이어프레임: 일반 메시와 같은 컬링
+    D3D11_RASTERIZER_DESC WireDesc = SolidDesc;
+    WireDesc.FillMode = D3D11_FILL_WIREFRAME;
+
+    RegisterRasterizerState(FName("Rasterizer.WireBack"), WireDesc);
 }

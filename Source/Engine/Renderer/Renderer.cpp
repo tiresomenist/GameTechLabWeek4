@@ -269,53 +269,29 @@ void FRenderer::ReleaseConstantBuffer()
 
 void FRenderer::CreateRasterizerState()
 {
-	// 일반 메시: 뒷면 컬링
-	D3D11_RASTERIZER_DESC SolidDesc = {};
-	SolidDesc.FillMode = D3D11_FILL_SOLID;
-	SolidDesc.CullMode = D3D11_CULL_BACK;
-	
-	SolidDesc.ScissorEnable = TRUE; // Scissor를 위해 추가
+	GResourceManager& Resources = *GResourceManager::GetInstance();
 
-	CheckHR(D3DDevice->CreateRasterizerState(&SolidDesc, &DefaultRasterizerState));
+	DefaultRasterizerState = Resources.GetRasterizerState(FName("Rasterizer.SolidBack"));
 
-	// 그리드: 양면 다 그림
-	D3D11_RASTERIZER_DESC CullNoneDesc = SolidDesc;
-	CullNoneDesc.CullMode = D3D11_CULL_NONE;
-	CheckHR(D3DDevice->CreateRasterizerState(&CullNoneDesc, &CullNoneRasterizerState));
+	CullNoneRasterizerState = Resources.GetRasterizerState(FName("Rasterizer.SolidNone"));
 
-	// 하이라이트 외곽선: 1.05배로 부풀린 껍데기의 뒷면만 그린다 (inverted hull)
-	D3D11_RASTERIZER_DESC CullFrontDesc = SolidDesc;
-	CullFrontDesc.CullMode = D3D11_CULL_FRONT;
-	CheckHR(D3DDevice->CreateRasterizerState(&CullFrontDesc, &CullFrontRasterizerState));
+	CullFrontRasterizerState = Resources.GetRasterizerState(FName("Rasterizer.SolidFront"));
 
-	// 와이어프레임 뷰 모드: 채우기만 끄고 컬링은 일반 메시와 동일
-	D3D11_RASTERIZER_DESC WireDesc = SolidDesc;
-	WireDesc.FillMode = D3D11_FILL_WIREFRAME;
-	CheckHR(D3DDevice->CreateRasterizerState(&WireDesc, &WireframeRasterizerState));
+	WireframeRasterizerState = Resources.GetRasterizerState(FName("Rasterizer.WireBack"));
+
+	if (!DefaultRasterizerState || !CullNoneRasterizerState || !CullFrontRasterizerState || !WireframeRasterizerState)
+	{
+		throw std::runtime_error("Required rasterizer states are missing");
+	}
 }
 
 void FRenderer::ReleaseRasterizerState()
 {
-	if (DefaultRasterizerState)
-	{
-		DefaultRasterizerState->Release();
-		DefaultRasterizerState = nullptr;
-	}
-	if (CullNoneRasterizerState)
-	{
-		CullNoneRasterizerState->Release();
-		CullNoneRasterizerState = nullptr;
-	}
-	if (CullFrontRasterizerState)
-	{
-		CullFrontRasterizerState->Release();
-		CullFrontRasterizerState = nullptr;
-	}
-	if (WireframeRasterizerState)
-	{
-		WireframeRasterizerState->Release();
-		WireframeRasterizerState = nullptr;
-	}
+	// 공유 자원은 ResourceManager가 해제한다.
+	DefaultRasterizerState = nullptr;
+	CullNoneRasterizerState = nullptr;
+	CullFrontRasterizerState = nullptr;
+	WireframeRasterizerState = nullptr;
 }
 
 void FRenderer::CreateAlphaBlendState()

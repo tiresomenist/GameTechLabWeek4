@@ -51,6 +51,7 @@ public:
 	ID3D11Device* D3DDevice = nullptr;
 	FLineBatcher LineBatcher;
 
+	// ResourceManager 소유 자원의 비소유 참조
 	ID3D11RasterizerState* DefaultRasterizerState = nullptr;
 	ID3D11RasterizerState* CullFrontRasterizerState = nullptr;
 	ID3D11RasterizerState* CullNoneRasterizerState = nullptr;
