@@ -7,13 +7,15 @@ class UObject;
 struct FObjectSlot
 {
     UObject* Object = nullptr;
-    bool Reserved = false;
+	int32 NextFreeSlot = -1; // >= 0: 다음 빈 슬롯 인덱스, -1: 사용 중 또는 빈 마지막 슬롯, -2: 예약됨
 };
 
 class GObjectStatics
 {
     inline static TArray<uint32> NextUUID = TArray<uint32>(static_cast<size_t>(EObjectDomain::MAX_ITEMS));
     inline static TArray<FObjectSlot> Slots;
+    inline static int32 FirstFreeSlot = -1;
+
 public:
     static uint32 GenerateUUID(EObjectDomain Domain);
     static uint32 GetNextUUID(EObjectDomain Domain) { return NextUUID[static_cast<size_t>(Domain)]; }

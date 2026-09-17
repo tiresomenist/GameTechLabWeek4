@@ -19,39 +19,76 @@ void GObjectStatics::SetNextUUID(EObjectDomain Domain, uint32 UUID)
 
 uint32 GObjectStatics::ReserveSlot()
 {
-    for (size_t I = 0; I < Slots.Num(); ++I)
-        if (!Slots[I].Reserved)
+    if (FirstFreeSlot == -1)
+    {
+        if (Slots.Num() >= (std::numeric_limits<int32>::max)())
         {
-            Slots[I].Reserved = true;
-            return static_cast<uint32>(I);
+            throw std::overflow_error("Object slot limit");
         }
-    if (Slots.Num() >= static_cast<size_t>((std::numeric_limits<int>::max)()))
-        throw std::overflow_error("Object slot limit");
-    const uint32 Index = static_cast<uint32>(Slots.Num());
-    Slots.Add(FObjectSlot{nullptr, true});
-    return Index;
+
+		const uint32 Index = static_cast<uint32>(Slots.Num());
+		Slots.Add(FObjectSlot{ .NextFreeSlot = -2 });
+		return Index;
+    }
+
+	const int32 FreeSlot = FirstFreeSlot;
+	FirstFreeSlot = Slots[FreeSlot].NextFreeSlot;
+    Slots[FreeSlot].NextFreeSlot = -2;
+    return FreeSlot;
 }
 
 void GObjectStatics::CommitSlot(uint32 Index, UObject* Object)
 {
-    Slots[Index].Object = Object;
+	if (Object == nullptr)
+	{
+		throw std::invalid_argument("Object is nullptr");
+	}
+	if (Index >= Slots.Num())
+	{
+		throw std::out_of_range("Index out of range");
+	}
+	if (Slots[Index].NextFreeSlot != -2)
+	{
+		throw std::logic_error("Slot not reserved");
+	}
+	Slots[Index] = FObjectSlot{
+		.Object = Object, 
+		.NextFreeSlot = -1,
+	};
 }
 
 void GObjectStatics::CancelSlot(uint32 Index) noexcept
 {
-    if (Index < Slots.Num() && Slots[Index].Object == nullptr)
-        Slots[Index] = FObjectSlot{};
+    if (Index < Slots.Num() &&
+    	Slots[Index].Object == nullptr &&
+    	Slots[Index].NextFreeSlot == -2)
+    {
+	    Slots[Index] = FObjectSlot{
+		    .NextFreeSlot = FirstFreeSlot
+	    };
+        FirstFreeSlot = Index;
+    }
 }
 
 void GObjectStatics::Unregister(uint32 Index, UObject* Object) noexcept
 {
-    if (Index < Slots.Num() && Slots[Index].Object == Object)
-        Slots[Index] = FObjectSlot{};
+    if (Object != nullptr &&
+    	Index < Slots.Num() &&
+    	Slots[Index].Object == Object)
+    {
+	    Slots[Index] = FObjectSlot{
+		    .NextFreeSlot = FirstFreeSlot,
+	    };
+		FirstFreeSlot = Index;
+    }
 }
 
 void GObjectStatics::Release()
 {
-    for (size_t I = 0; I < Slots.Num(); ++I)
-        delete Slots[I].Object;
+    for (int32 i = 0; i < Slots.Num(); ++i)
+    {
+	    delete Slots[i].Object;
+    }
     Slots.Empty();
+    FirstFreeSlot = -1;
 }
