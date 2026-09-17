@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Core/Container/TArray.h"
-#include "Core/Container/FString.h"
-#include "Engine/Resource/FMeshNames.h"
+#include "Core/Container/Array.h"
+#include "Core/Container/String.h"
+#include "Engine/Resource/MeshNames.h"
 #include "ImGui/imgui.h"
 
 namespace MeshSelection

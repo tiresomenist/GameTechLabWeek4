@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Core/Container/TArray.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Core/Container/Array.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 // XY 평면의 사각형에 텍스처 전체를 매핑하는 정점 데이터
 inline const TArray<FVertexTexture> flame_vertices =

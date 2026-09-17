@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Core/Container/TArray.h"
-#include "Engine/Renderer/Text/FWorldTextItem.h"
-#include "Engine/Renderer/Line/FLineBatcher.h"
-#include "Engine/Renderer/Line/FLineDrawRequest.h"
+#include "Core/Container/Array.h"
+#include "Engine/Renderer/Text/WorldTextItem.h"
+#include "Engine/Renderer/Line/LineBatcher.h"
+#include "Engine/Renderer/Line/LineDrawRequest.h"
 class UScene;
 class FEditor;
 class UCameraComponent;

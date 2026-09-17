@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 // Unit circle in local XY; +Z is the rotation axis. LINELIST index pairs.
 inline const FVertexSimple rotate_green_vertices[] = {

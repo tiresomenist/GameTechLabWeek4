@@ -1,7 +1,7 @@
 
-#include "Engine/GEngine.h"
-#include "Engine/FConsole.h"
-#include "Core/Container/FString.h"
+#include "Engine/Engine.h"
+#include "Engine/Console.h"
+#include "Core/Container/String.h"
 
 #include <format>
 #include <utility>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 // Blender에서 내보낸 경량화 PePe OBJ를 텍스처 정점 배열로 변환함
 // 기존 메시 방향을 유지하도록 위치를 (-Y, X, Z)로 변환함

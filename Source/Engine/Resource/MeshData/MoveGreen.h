@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 // Local +Z axis. Index pairs describe a LINELIST.
 inline const FVertexSimple move_green_vertices[] = {

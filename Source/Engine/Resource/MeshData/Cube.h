@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 inline const FVertexSimple cube_vertices[] = {
 	{ -1.000000f, -1.000000f, -1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f },
