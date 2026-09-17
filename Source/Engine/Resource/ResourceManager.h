@@ -16,15 +16,9 @@
 #include "Engine/Renderer/Text/FontAtlas.h"
 #include "Core/Container/Map.h"
 #include "Core/Name/Name.h"
+#include "Engine/Resource/ShaderResource.h"
 
 class FTextureResource;
-struct FShaderResource
-{
-	ID3D11VertexShader* VertexShader = nullptr;
-	ID3D11PixelShader* PixelShader = nullptr;
-	ID3D11InputLayout* InputLayout = nullptr;
-};
-
 
 class GResourceManager
 {

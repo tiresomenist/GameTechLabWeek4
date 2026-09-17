@@ -2,18 +2,14 @@
 
 #include <d3d11.h>
 #include "Core/Math/Vector.h"
+#include "Engine/Renderer/Material.h"
 
 struct FMatrix; 
+
 enum class EPrimitivePipeline : uint32
 {
 	Color,
 	Texture,
-};
-
-enum class EPrimitiveBlendMode : uint32
-{
-	Opaque,
-	Additive,
 };
 
 // HLSL의 float2 크기와 float2 오프셋에 대응하는 16바이트 상수
@@ -41,7 +37,6 @@ struct FTextureDrawConstants
 	float Padding[3]{};
 };
 static_assert(sizeof(FTextureDrawConstants) == 48);
-
 
 struct FPrimitiveRenderData
 {
