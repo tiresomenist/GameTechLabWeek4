@@ -171,17 +171,6 @@ bool FRenderer::CreateShaders()
 	WireframePixelShader = SharedWireframe;
 	return true;
 }
-bool FRenderer::CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, const LPCSTR ShaderModel, ID3DBlob** OutBlob)
-{
-	if (!OutBlob) return false;
-	*OutBlob = nullptr;
-	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
-	const HRESULT Hr = D3DCompileFromFile(FilePath, nullptr, nullptr, EntryPoint, ShaderModel,
-		0, 0, OutBlob, ErrorBlob.GetAddressOf());
-	if (ErrorBlob)
-		UE_LOG("Shader diagnostic: {}", static_cast<const char*>(ErrorBlob->GetBufferPointer()));
-	return SUCCEEDED(Hr);
-}
 
 void FRenderer::ReleaseShaders()
 {
@@ -476,33 +465,21 @@ void FRenderer::ReleaseDepthStencilStates()
 
 void FRenderer::CreateTextResources()
 {
-	// 텍스트 셰이더
-	Microsoft::WRL::ComPtr<ID3DBlob> ShaderBlob;
-	if (!CompileShader(L"Assets/Shaders/TextShader.hlsl", "mainVS_Text", "vs_5_0", ShaderBlob.ReleaseAndGetAddressOf()))
-		throw std::runtime_error("Text VS compile failed");
-	CheckHR(D3DDevice->CreateVertexShader(ShaderBlob->GetBufferPointer(), ShaderBlob->GetBufferSize(), nullptr, &TextVertexShader));
+	// 텍스트 셰이더, 샘플러를 GResource매니저에서 받아옴
+	GResourceManager& Resources = *GResourceManager::GetInstance();
 
-	D3D11_INPUT_ELEMENT_DESC Layout[] =
+	const FShaderResource* SharedTextShader = Resources.GetShader(FName("Editor.Text"));
+
+	ID3D11SamplerState* SharedFontSampler = Resources.GetSampler(FName("Font.LinearClamp"));
+
+	if (!SharedTextShader ||!SharedTextShader->VertexShader ||!SharedTextShader->PixelShader ||
+		!SharedTextShader->InputLayout ||!SharedFontSampler)
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	CheckHR(D3DDevice->CreateInputLayout(Layout, ARRAYSIZE(Layout), ShaderBlob->GetBufferPointer(), ShaderBlob->GetBufferSize(), &TextInputLayout));
-	ShaderBlob.Reset();
+		throw std::runtime_error("Required text render resources are missing");
+	}
 
-	if (!CompileShader(L"Assets/Shaders/TextShader.hlsl", "mainPS_Text", "ps_5_0", ShaderBlob.ReleaseAndGetAddressOf()))
-		throw std::runtime_error("Text PS compile failed");
-	CheckHR(D3DDevice->CreatePixelShader(ShaderBlob->GetBufferPointer(), ShaderBlob->GetBufferSize(), nullptr, &TextPixelShader));
-
-	// 샘플러 (기존 프로젝트에 샘플러가 하나도 없어서 신규 생성)
-	D3D11_SAMPLER_DESC SamplerDesc = {};
-	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	CheckHR(D3DDevice->CreateSamplerState(&SamplerDesc, &FontSamplerState));
+	TextShader = SharedTextShader;
+	FontSamplerState = SharedFontSampler;
 
 	// 깊이 검사는 하되(오브젝트에 가려지게) 기록은 안 함(라벨끼리 겹칠 때 z-fight 방지)
 	D3D11_DEPTH_STENCIL_DESC DSDesc = {};
@@ -544,13 +521,13 @@ void FRenderer::CreateTextResources()
 
 void FRenderer::ReleaseTextResources()
 {
+	// 공유 자원은 참조만 비운다.
+	TextShader = nullptr;
+	FontSamplerState = nullptr;
+
 	if (TextVertexBuffer) { TextVertexBuffer->Release(); TextVertexBuffer = nullptr; }
 	if (TextIndexBuffer) { TextIndexBuffer->Release(); TextIndexBuffer = nullptr; }
 	if (TextDepthStencilState) { TextDepthStencilState->Release(); TextDepthStencilState = nullptr; }
-	if (FontSamplerState) { FontSamplerState->Release(); FontSamplerState = nullptr; }
-	if (TextInputLayout) { TextInputLayout->Release(); TextInputLayout = nullptr; }
-	if (TextPixelShader) { TextPixelShader->Release(); TextPixelShader = nullptr; }
-	if (TextVertexShader) { TextVertexShader->Release(); TextVertexShader = nullptr; }
 }
 
 void FRenderer::UpdateTextVertexBuffer(TArray<FVertexTexture>& Vertices)
@@ -571,22 +548,26 @@ void FRenderer::RenderText(UINT IndexCount)
 
 	UINT Stride = sizeof(FVertexTexture);
 	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(TextInputLayout);
+
+	DeviceContext->IASetInputLayout(TextShader->InputLayout.Get());
 	DeviceContext->IASetVertexBuffers(0, 1, &TextVertexBuffer, &Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(TextIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	DeviceContext->VSSetShader(TextVertexShader, nullptr, 0);
+	DeviceContext->VSSetShader(TextShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
-	DeviceContext->PSSetShader(TextPixelShader, nullptr, 0);
-	FFontAtlas* FontAtlas = GResourceManager::GetInstance()->GetDefaultFont();
+	DeviceContext->PSSetShader(TextShader->PixelShader.Get(), nullptr, 0);
+
+	FFontAtlas* FontAtlas =	GResourceManager::GetInstance()->GetDefaultFont();
 	if (!FontAtlas) return;
+
 	ID3D11ShaderResourceView* SRV = FontAtlas->GetSRV();
 	DeviceContext->PSSetShaderResources(0, 1, &SRV);
 	DeviceContext->PSSetSamplers(0, 1, &FontSamplerState);
 
 	DeviceContext->RSSetState(CullNoneRasterizerState);
+
 	float BlendFactor[4] = { 0, 0, 0, 0 };
 	DeviceContext->OMSetBlendState(AlphaBlendState, BlendFactor, 0xffffffff);
 	DeviceContext->OMSetDepthStencilState(TextDepthStencilState, 0);

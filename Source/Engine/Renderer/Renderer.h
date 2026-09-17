@@ -3,7 +3,6 @@
 
 // D3D11 headers
 #include <d3d11.h>
-#include <d3dcompiler.h>
 
 //#include "UEngine"
 #include "Engine/Renderer/PrimitiveRenderData.h"
@@ -83,10 +82,7 @@ public:
 	const FShaderResource* BatchLineShader = nullptr;
 
 	// ---- Text Billboard ----
-	ID3D11VertexShader* TextVertexShader = nullptr;
-	ID3D11PixelShader* TextPixelShader = nullptr;
-	ID3D11InputLayout* TextInputLayout = nullptr;
-
+	const FShaderResource* TextShader = nullptr;
 	ID3D11SamplerState* FontSamplerState = nullptr;
 	ID3D11DepthStencilState* TextDepthStencilState = nullptr;
 
@@ -111,7 +107,6 @@ public:
 	const D3D11_VIEWPORT& GetViewport() const;
 
 	bool CreateShaders();
-	bool CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, const LPCSTR ShaderModel, ID3DBlob** OutBlob);
 	void PrepareRTVDSV();
 	void ReleaseShaders();
 

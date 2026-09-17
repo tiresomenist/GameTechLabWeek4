@@ -550,7 +550,7 @@ void GResourceManager::RegisterDefaultRenderResources()
     };
 
     RegisterShader(FName("Mesh.Texture"),L"Assets/Shaders/TextureShader.hlsl","mainVS","mainPS",TextureLayout);
-
+    RegisterShader(FName("Editor.Text"), L"Assets/Shaders/TextShader.hlsl","mainVS_Text","mainPS_Text",TextureLayout);
     D3D11_SAMPLER_DESC SamplerDesc{};
     SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -561,6 +561,17 @@ void GResourceManager::RegisterDefaultRenderResources()
     SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
     RegisterSampler(FName("LinearClamp"), SamplerDesc);
+
+    D3D11_SAMPLER_DESC FontSamplerDesc{};
+    FontSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    FontSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    FontSamplerDesc.MinLOD = 0.0f;
+    FontSamplerDesc.MaxLOD = 0.0f;
+
+    RegisterSampler(FName("Font.LinearClamp"), FontSamplerDesc);
 
     D3D11_BUFFER_DESC Desc{};
     Desc.ByteWidth = sizeof(FTextureDrawConstants);
