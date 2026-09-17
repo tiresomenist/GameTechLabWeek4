@@ -136,10 +136,10 @@ FPrimitiveRenderData UFlipbookComponent::CreateRenderData(bool bSelected) const
     FPrimitiveRenderData Data = Super::CreateRenderData(bSelected);
 
     Data.bTwoSided = true;
-    Data.Pipeline = EPrimitivePipeline::Texture;
-    Data.Material = Texture->GetSRV();
+    Data.Material = GResourceManager::GetInstance()->CreateTextureMaterial(
+        Texture->GetSRV());
     Data.UVTransform = GetUVTransform();
-    Data.BlendMode = EPrimitiveBlendMode::Additive;
+    Data.Material.BlendMode = EPrimitiveBlendMode::Additive;
     return Data;
 }
 

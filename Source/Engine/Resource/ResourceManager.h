@@ -17,6 +17,8 @@
 #include "Core/Container/Map.h"
 #include "Core/Name/Name.h"
 #include "Engine/Resource/ShaderResource.h"
+#include "Engine/Renderer/Material.h"
+#include <wrl/client.h>
 
 class FTextureResource;
 
@@ -37,10 +39,13 @@ public:
 		const char* PSEntry,const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout);
 
 	const FShaderResource* GetShader(const FName& Name) const;
+	ID3D11PixelShader* GetWireframePixelShader() const;
 
 	void RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc);
 
 	ID3D11SamplerState* GetSampler(const FName& Name) const;
+	FMaterial CreateColorMaterial() const;
+	FMaterial CreateTextureMaterial(ID3D11ShaderResourceView* SRV) const;
 	void RegisterDefaultPrimitives(GDevice* InDevice);
 	void RegisterTexturePrimitives(GDevice* InDevice);
 private:
@@ -51,6 +56,8 @@ private:
 	void RegisterDefaultRenderResources();
 	TMap<FName, FShaderResource> ShaderCache;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11SamplerState>> SamplerCache;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> TextureMaterialConstantBuffer;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> WireframePixelShader;
 	GDevice* Device = nullptr;
 
 	TMap<FName, FMeshResource*> PrimitiveCache;

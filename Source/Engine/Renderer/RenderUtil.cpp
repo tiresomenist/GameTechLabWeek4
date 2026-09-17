@@ -66,7 +66,7 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 				FPrimitiveRenderData Data =	SpotLight->BuildIconRenderData(Camera, bSelected);
 
 				// 유효한 렌더 데이터만 목록에 추가함
-				if (Data.VertexBuffer && Data.IndexBuffer && Data.Material && Data.WorldMatrix && Data.IndexCount > 0)
+				if (Data.VertexBuffer && Data.IndexBuffer && Data.Material.SRV && Data.WorldMatrix && Data.IndexCount > 0)
 				{
 					RenderList.Add(Data);
 				}

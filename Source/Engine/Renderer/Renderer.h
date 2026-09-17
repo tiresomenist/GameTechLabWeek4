@@ -78,12 +78,9 @@ public:
 	ID3D11InputLayout* SimpleInputLayout = nullptr;
 
 	ID3D11PixelShader* WireframePixelShader = nullptr;
-	ID3D11VertexShader* HighlightVertexShader = nullptr;
-	ID3D11PixelShader* HighlightPixelShader = nullptr;
-	ID3D11VertexShader* GridVertexShader = nullptr;
-	ID3D11PixelShader* GridPixelShader = nullptr;
-	ID3D11VertexShader* BatchLineVertexShader = nullptr;
-	ID3D11PixelShader* BatchLinePixelShader = nullptr;
+	const FShaderResource* HighlightShader = nullptr;
+	const FShaderResource* GridShader = nullptr;
+	const FShaderResource* BatchLineShader = nullptr;
 
 	// ---- Text Billboard ----
 	ID3D11VertexShader* TextVertexShader = nullptr;
@@ -98,7 +95,6 @@ public:
 	static const UINT MaxTextVertices = 8192;
 
 	// ---- Texture ----
-    ID3D11Buffer* TextureUVConstantBuffer = nullptr;
 	ID3D11DepthStencilState* TranslucentDepthStencilState = nullptr;
 
 	// ---- 블렌드 스테이트 모드 ----
@@ -153,11 +149,6 @@ public:
 	void UpdateTextVertexBuffer(TArray<FVertexTexture>& Vertices);
 	void RenderText(UINT IndexCount);
 
-	void CreateTextureResources();
-	void ReleaseTextureResources();
-
-	void RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil = false);
-
 private:
 	void RenderView(FEditor* Editor, UScene* Scene, const FRenderView& View);
 	bool CreateSwapChain(HWND HWnd, uint32 Width, uint32 Height);
@@ -172,10 +163,7 @@ private:
 
 	void SwapBuffer();
 	bool BindMaterial(const FMaterial& Material);
-
-	// 공유 자원과 Renderer 소유 버퍼를 참조하는 기본 바인딩 값.
-	FMaterial DefaultColorMaterial{};
-	FMaterial DefaultTextureMaterial{};
+	void UpdateMaterialConstants(const FPrimitiveRenderData& Data);
 
 	Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameBuffer;

@@ -4,6 +4,7 @@
 #endif
 
 #include "ResourceManager.h"
+#include "Engine/Renderer/PrimitiveRenderData.h"
 #include "Engine/Renderer/VertexSimple.h"
 #include "Engine/Resource/MeshData/Sphere.h"
 #include "Engine/Resource/MeshData/Cube.h"
@@ -229,6 +230,8 @@ void GResourceManager::Shutdown()
     TextureCache.Empty();
     PrimitiveCache.Empty();
     DefaultFont.Release();
+    TextureMaterialConstantBuffer.Reset();
+    WireframePixelShader.Reset();
     ShaderCache.Empty();
     SamplerCache.Empty();
     Device = nullptr;
@@ -342,6 +345,11 @@ const FShaderResource* GResourceManager::GetShader(const FName& Name) const
     return ShaderCache.Find(Name);
 }
 
+ID3D11PixelShader* GResourceManager::GetWireframePixelShader() const
+{
+    return WireframePixelShader.Get();
+}
+
 void GResourceManager::RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc)
 {
     if (!Device || !Device->GetDevice())
@@ -378,6 +386,28 @@ ID3D11SamplerState* GResourceManager::GetSampler(const FName& Name) const
 {
     const auto* Found = SamplerCache.Find(Name);
     return Found ? Found->Get() : nullptr;
+}
+
+FMaterial GResourceManager::CreateColorMaterial() const
+{
+    static const FName ShaderName("Mesh.Color");
+
+    FMaterial Material{};
+    Material.Shader = GetShader(ShaderName);
+    return Material;
+}
+
+FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV) const
+{
+    static const FName ShaderName("Mesh.Texture");
+    static const FName SamplerName("LinearClamp");
+
+    FMaterial Material{};
+    Material.SRV = SRV;
+    Material.Shader = GetShader(ShaderName);
+    Material.Sampler = GetSampler(SamplerName);
+    Material.ConstantBuffer = TextureMaterialConstantBuffer.Get();
+    return Material;
 }
 
 void GResourceManager::RegisterDefaultPrimitives(GDevice* InDevice)
@@ -487,6 +517,22 @@ void GResourceManager::RegisterDefaultRenderResources()
 
     RegisterShader(FName("Mesh.Color"),L"Assets/Shaders/MainShader.hlsl","mainVS","mainPS",ColorLayout);
 
+    RegisterShader(FName("Editor.Highlight"), L"Assets/Shaders/MainShader.hlsl",
+        "VS_Highlight", "PS_Highlight", ColorLayout);
+    RegisterShader(FName("Editor.Grid"), L"Assets/Shaders/GridShader.hlsl",
+        "VS_Grid", "PS_Grid", ColorLayout);
+    RegisterShader(FName("Editor.BatchLine"), L"Assets/Shaders/BatchLineShader.hlsl",
+        "mainVS", "mainPS", ColorLayout);
+
+    // 와이어프레임은 메시의 VS를 유지하고 PS만 교체하므로 별도로 소유한다.
+    const auto WireframeBlob = CompileResourceShader(
+        L"Assets/Shaders/WireframeShader.hlsl", "mainPS", "ps_5_0");
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreatePixelShader(
+            WireframeBlob->GetBufferPointer(), WireframeBlob->GetBufferSize(),
+            nullptr, WireframePixelShader.GetAddressOf()),
+        "CreateWireframePixelShader");
+
     const TArray<D3D11_INPUT_ELEMENT_DESC> TextureLayout
     {
         {
@@ -515,4 +561,14 @@ void GResourceManager::RegisterDefaultRenderResources()
     SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
     RegisterSampler(FName("LinearClamp"), SamplerDesc);
+
+    D3D11_BUFFER_DESC Desc{};
+    Desc.ByteWidth = sizeof(FTextureDrawConstants);
+    Desc.Usage = D3D11_USAGE_DEFAULT;
+    Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateBuffer(
+            &Desc, nullptr, TextureMaterialConstantBuffer.GetAddressOf()),
+        "CreateTextureMaterialConstantBuffer");
 }

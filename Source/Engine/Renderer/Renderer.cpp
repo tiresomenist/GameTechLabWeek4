@@ -68,12 +68,11 @@ void FRenderer::Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height
 	}
 
 	CreateRasterizerState();
-	if (!CreateShaders()) throw std::runtime_error("Shader compilation failed");
+	if (!CreateShaders()) throw std::runtime_error("Required render shaders are missing");
 	CreateConstantBuffer();
 	CreateAlphaBlendState();
 	CreateDepthStencilStates();
 	CreateTextResources();
-	CreateTextureResources();
 	IMGUI_CHECKVERSION();
 	if (!ImGui::CreateContext()) throw std::runtime_error("ImGui context failed");
 	bImGuiContextCreated = true;
@@ -105,7 +104,6 @@ void FRenderer::Shutdown()
 	ReleaseAlphaBlendState();
 	ReleaseDepthStencilStates();
 	ReleaseTextResources();
-	ReleaseTextureResources();
 
 	if (bImGuiDX11Initialized){ImGui_ImplDX11_Shutdown();}
 
@@ -142,8 +140,23 @@ bool FRenderer::CreateShaders()
 	GResourceManager& Resources = *GResourceManager::GetInstance();
 
 	const FShaderResource* ColorShader = Resources.GetShader(FName("Mesh.Color"));
+	const FShaderResource* SharedHighlight = Resources.GetShader(FName("Editor.Highlight"));
+	const FShaderResource* SharedGrid = Resources.GetShader(FName("Editor.Grid"));
+	const FShaderResource* SharedBatchLine = Resources.GetShader(FName("Editor.BatchLine"));
+	ID3D11PixelShader* SharedWireframe = Resources.GetWireframePixelShader();
 
-	if (!ColorShader || !ColorShader->VertexShader || !ColorShader->PixelShader || !ColorShader->InputLayout)
+	const TArray<const FShaderResource*> RequiredShaders
+	{
+		ColorShader, SharedHighlight, SharedGrid, SharedBatchLine
+	};
+	for (const FShaderResource* Shader : RequiredShaders)
+	{
+		if (!Shader || !Shader->VertexShader || !Shader->PixelShader || !Shader->InputLayout)
+		{
+			return false;
+		}
+	}
+	if (!SharedWireframe)
 	{
 		return false;
 	}
@@ -152,49 +165,10 @@ bool FRenderer::CreateShaders()
 	SimpleVertexShader = ColorShader->VertexShader.Get();
 	SimplePixelShader = ColorShader->PixelShader.Get();
 	SimpleInputLayout = ColorShader->InputLayout.Get();
-
-	DefaultColorMaterial.Shader = ColorShader;
-
-	Microsoft::WRL::ComPtr<ID3DBlob> shaderBlob;
-
-	// Wireframe 셰이더는 이번 이전 대상에 포함하지 않는다.
-	if (!CompileShader(L"Assets/Shaders/WireframeShader.hlsl","mainPS","ps_5_0",shaderBlob.ReleaseAndGetAddressOf()))
-	{
-		return false;
-	}
-
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(),shaderBlob->GetBufferSize(),nullptr,	&WireframePixelShader));
-
-	shaderBlob.Reset();
-
-	// Highlight Shader (VS & PS)
-	if (!CompileShader(L"Assets/Shaders/MainShader.hlsl", "VS_Highlight", "vs_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &HighlightVertexShader));
-	shaderBlob.Reset();
-
-	if (!CompileShader(L"Assets/Shaders/MainShader.hlsl", "PS_Highlight", "ps_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &HighlightPixelShader));
-	shaderBlob.Reset();
-
-	// Grid Shader (VS & PS)
-	if (!CompileShader(L"Assets/Shaders/GridShader.hlsl", "VS_Grid", "vs_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &GridVertexShader));
-	shaderBlob.Reset();
-
-	if (!CompileShader(L"Assets/Shaders/GridShader.hlsl", "PS_Grid", "ps_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &GridPixelShader));
-	shaderBlob.Reset();
-
-	if (!CompileShader(L"Assets/Shaders/BatchLineShader.hlsl", "mainVS", "vs_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &BatchLineVertexShader));
-	shaderBlob.Reset();
-
-	if (!CompileShader(L"Assets/Shaders/BatchLineShader.hlsl", "mainPS", "ps_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &BatchLinePixelShader));
-	shaderBlob.Reset();
-
-
-
+	HighlightShader = SharedHighlight;
+	GridShader = SharedGrid;
+	BatchLineShader = SharedBatchLine;
+	WireframePixelShader = SharedWireframe;
 	return true;
 }
 bool FRenderer::CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, const LPCSTR ShaderModel, ID3DBlob** OutBlob)
@@ -211,47 +185,13 @@ bool FRenderer::CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, co
 
 void FRenderer::ReleaseShaders()
 {
-	DefaultColorMaterial = {};
-
 	SimpleInputLayout = nullptr;
 	SimplePixelShader = nullptr;
 	SimpleVertexShader = nullptr;
-
-	if (WireframePixelShader)
-	{
-		WireframePixelShader->Release();
-		WireframePixelShader = nullptr;
-	}
-	if (HighlightVertexShader)
-	{
-		HighlightVertexShader->Release();
-		HighlightVertexShader = nullptr;
-	}
-	if (HighlightPixelShader)
-	{
-		HighlightPixelShader->Release();
-		HighlightPixelShader = nullptr;
-	}
-	if (GridVertexShader)
-	{
-		GridVertexShader->Release();
-		GridVertexShader = nullptr;
-	}
-	if (GridPixelShader)
-	{
-		GridPixelShader->Release();
-		GridPixelShader = nullptr;
-	}
-	if (BatchLineVertexShader)
-	{
-		BatchLineVertexShader->Release();
-		BatchLineVertexShader = nullptr;
-	}
-	if (BatchLinePixelShader)
-	{
-		BatchLinePixelShader->Release();
-		BatchLinePixelShader = nullptr;
-	}
+	WireframePixelShader = nullptr;
+	HighlightShader = nullptr;
+	GridShader = nullptr;
+	BatchLineShader = nullptr;
 }
 void FRenderer::SwapBuffer()
 {
@@ -654,63 +594,37 @@ void FRenderer::RenderText(UINT IndexCount)
 	DeviceContext->DrawIndexed(IndexCount, 0, 0);
 }
 
-void FRenderer::CreateTextureResources()
+void FRenderer::UpdateMaterialConstants(const FPrimitiveRenderData& Data)
 {
-	GResourceManager& Resources = *GResourceManager::GetInstance();
-
-	const FShaderResource* TextureShader = Resources.GetShader(FName("Mesh.Texture"));
-
-	ID3D11SamplerState* Sampler = Resources.GetSampler(FName("LinearClamp"));
-
-	if (!TextureShader || !TextureShader->VertexShader || !TextureShader->PixelShader ||
-		!TextureShader->InputLayout || !Sampler)
-	{
-		throw std::runtime_error("Required texture render resources are missing");
-	}
-
-	D3D11_BUFFER_DESC UVDesc{};
-	UVDesc.ByteWidth = sizeof(FTextureDrawConstants);
-	UVDesc.Usage = D3D11_USAGE_DEFAULT;
-	UVDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-
-	CheckHR(D3DDevice->CreateBuffer(&UVDesc, nullptr, &TextureUVConstantBuffer));
-
-	DefaultTextureMaterial.Shader = TextureShader;
-	DefaultTextureMaterial.Sampler = Sampler;
-	DefaultTextureMaterial.ConstantBuffer = TextureUVConstantBuffer;
-}
-
-void FRenderer::ReleaseTextureResources()
-{
-	// 버퍼를 해제하기 전에 기본 Material의 참조를 비운다.
-	DefaultTextureMaterial = {};
-
-	if (TextureUVConstantBuffer)
-	{
-		TextureUVConstantBuffer->Release();
-		TextureUVConstantBuffer = nullptr;
-	}
-}
-
-void FRenderer::RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil)
-{
-	FMaterial Material = DefaultTextureMaterial;
-	Material.SRV = Data.Material;
-	Material.BlendMode = Data.BlendMode;
-
-	if (!Data.VertexBuffer || !Data.IndexBuffer || !Material.SRV || !Material.ConstantBuffer || Data.IndexCount == 0)
-	{ return; }
-	if (!BindMaterial(Material))
+	if (!Data.Material.ConstantBuffer)
 	{
 		return;
 	}
+
+	// 현재 머티리얼 b1 버퍼는 모두 FTextureDrawConstants 레이아웃을 사용한다.
 	FTextureDrawConstants Constants{};
 	Constants.UV = Data.UVTransform;
 	Constants.Tint = Data.TextureTint;
 	Constants.AlphaCutoff = Data.AlphaCutoff;
 
-	DeviceContext->UpdateSubresource(Material.ConstantBuffer,0,nullptr,&Constants,0,0);
-	
+	DeviceContext->UpdateSubresource(
+		Data.Material.ConstantBuffer, 0, nullptr, &Constants, 0, 0);
+}
+
+void FRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex InViewMode, bool bWriteStencil)
+{
+	if (!Data.VertexBuffer || !Data.IndexBuffer || Data.IndexCount == 0)
+	{
+		return;
+	}
+
+	if (!BindMaterial(Data.Material))
+	{
+		return;
+	}
+
+	UpdateMaterialConstants(Data);
+
 	const UINT Offset = 0;
 
 	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
@@ -719,19 +633,19 @@ void FRenderer::RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewMo
 
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
-	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;	
+	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;
 	if (bWireframe)
 	{
 		//Wireframe일때 셰이더 연결
 		DeviceContext->PSSetShader(WireframePixelShader, nullptr, 0);
 	}
 
-	// 구형 텍스처는 백페이스 컬링 / 플립북,빌보드 는 none 컬링
+	// 메시별 양면 설정과 View의 와이어프레임 모드를 적용한다.
 	ID3D11RasterizerState* RasterizerState = bWireframe ? WireframeRasterizerState : (Data.bTwoSided ? CullNoneRasterizerState : DefaultRasterizerState);
 	DeviceContext->RSSetState(RasterizerState);
 
 	//블렌드 모드에 따라 가산블렌딩으로 변환
-	const bool bAdditive = Data.BlendMode == EPrimitiveBlendMode::Additive;
+	const bool bAdditive = Data.Material.BlendMode == EPrimitiveBlendMode::Additive;
 
 	if (bAdditive)
 	{
@@ -816,7 +730,7 @@ void FRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& View
 		}
 		if (bShowPrimitives) 
 		{
-			if (Item.BlendMode == EPrimitiveBlendMode::Additive)
+			if (Item.Material.BlendMode == EPrimitiveBlendMode::Additive)
 			{
 				AdditiveRenderList.Add(&Item);
 			}
@@ -937,59 +851,22 @@ void FRenderer::UpdateGridConstantBuffer(const FGridConstants& GridConstants)
 	}
 }
 
-void FRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex InViewMode, bool bWriteStencil)
-{
-	if (Data.Pipeline == EPrimitivePipeline::Texture) {
-		RenderTexturedPrimitive(Data, InViewMode, bWriteStencil);
-		return;
-	}
-	if (!BindMaterial(DefaultColorMaterial)) { return; }
-	UINT Offset = 0;
-	
-	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->IASetPrimitiveTopology(Data.Topology);
-
-	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
-
-	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;
-
-	// 광원 구현 전까지 Lit은 ULit 파이프라인 사용중
-	DeviceContext->RSSetState(bWireframe ? WireframeRasterizerState : DefaultRasterizerState);
-
-	if (bWireframe)
-	{
-		DeviceContext->PSSetShader(WireframePixelShader, nullptr, 0);
-	}
-
-	if (bWriteStencil)
-	{
-		DeviceContext->OMSetDepthStencilState(StencilWriteDepthStencilState, 1);
-	}
-	else
-	{
-		DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
-	}
-
-	DeviceContext->DrawIndexed(Data.IndexCount, 0, 0);
-}
-
 void FRenderer::RenderOutline(const FPrimitiveRenderData& Data)
 {
 	UINT Offset = 0;
 	// 두 레이아웃 모두 POSITION(0), COLOR(12) 배치라 VS_Highlight와 호환됨
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
+	DeviceContext->IASetInputLayout(HighlightShader->InputLayout.Get());
 	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(Data.Topology);
 
-	DeviceContext->VSSetShader(HighlightVertexShader, nullptr, 0);
+	DeviceContext->VSSetShader(HighlightShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
 	// 안쪽은 스텐실이 가려주므로 컬링 불필요 (Plane처럼 한 면짜리도 처리)
 	DeviceContext->RSSetState(CullNoneRasterizerState);
 
-	DeviceContext->PSSetShader(HighlightPixelShader, nullptr, 0);
+	DeviceContext->PSSetShader(HighlightShader->PixelShader.Get(), nullptr, 0);
 
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 	DeviceContext->OMSetDepthStencilState(OutlineDepthStencilState, 1);
@@ -1002,17 +879,17 @@ void FRenderer::RenderOutline(const FPrimitiveRenderData& Data)
 void FRenderer::RenderHighlight(const FPrimitiveRenderData& Data)
 {
 	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
+	DeviceContext->IASetInputLayout(HighlightShader->InputLayout.Get());
 	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(Data.Topology);
 
-	DeviceContext->VSSetShader(HighlightVertexShader, nullptr, 0);
+	DeviceContext->VSSetShader(HighlightShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
 	DeviceContext->RSSetState(CullFrontRasterizerState);
 
-	DeviceContext->PSSetShader(HighlightPixelShader, nullptr, 0);
+	DeviceContext->PSSetShader(HighlightShader->PixelShader.Get(), nullptr, 0);
 
 	DeviceContext->OMSetDepthStencilState(HighlightDepthStencilState, 0);
 
@@ -1025,18 +902,18 @@ void FRenderer::RenderGrid(FMeshResource* Data)
 	ID3D11Buffer* VertexBuffer = Data->GetVertexBuffer();
 	const UINT Stride = Data->GetStride();
 	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
+	DeviceContext->IASetInputLayout(GridShader->InputLayout.Get());
 	DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(Data->GetIndexBuffer(), DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	DeviceContext->VSSetShader(GridVertexShader, nullptr, 0);
+	DeviceContext->VSSetShader(GridShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 	DeviceContext->VSSetConstantBuffers(1, 1, &GridConstantBuffer);
 
 	DeviceContext->RSSetState(CullNoneRasterizerState);
 
-	DeviceContext->PSSetShader(GridPixelShader, nullptr, 0);
+	DeviceContext->PSSetShader(GridShader->PixelShader.Get(), nullptr, 0);
 	DeviceContext->PSSetConstantBuffers(1, 1, &GridConstantBuffer);
 
 	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -1091,17 +968,17 @@ void FRenderer::RenderBatchLine(const FMatrix& ViewProj)
 	UINT Stride = sizeof(FVertexSimple);
 	UINT Offset = 0;
 
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
+	DeviceContext->IASetInputLayout(BatchLineShader->InputLayout.Get());
 	DeviceContext->IASetVertexBuffers(0, 1, &VB, &Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(IB, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 
-	DeviceContext->VSSetShader(BatchLineVertexShader, nullptr, 0);
+	DeviceContext->VSSetShader(BatchLineShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
 	DeviceContext->RSSetState(DefaultRasterizerState);
 
-	DeviceContext->PSSetShader(BatchLinePixelShader, nullptr, 0);
+	DeviceContext->PSSetShader(BatchLineShader->PixelShader.Get(), nullptr, 0);
 
 	float BlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	UINT SampleMask = 0xffffffff;

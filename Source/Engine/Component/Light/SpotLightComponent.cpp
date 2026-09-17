@@ -135,7 +135,7 @@ FPrimitiveRenderData USpotLightComponent::BuildIconRenderData(const UCameraCompo
 {
     FPrimitiveRenderData Data{};
 
-    if (!Camera || !IconMesh || !IconTexture) { return Data; }
+    if (!Camera || !IconMesh || !IconTexture || !IconTexture->GetSRV()) { return Data; }
 
     // 공유 아이콘 메시의 GPU 버퍼 연결함
     Data.VertexBuffer = IconMesh->GetVertexBuffer();
@@ -145,14 +145,14 @@ FPrimitiveRenderData USpotLightComponent::BuildIconRenderData(const UCameraCompo
     Data.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
     // 공유 텍스처와 컴포넌트 소유 행렬 연결함
-    Data.Material = IconTexture->GetSRV();
+    Data.Material = GResourceManager::GetInstance()->CreateTextureMaterial(
+        IconTexture->GetSRV());
     Data.WorldMatrix = &GetIconWorldMatrix(Camera);
 
     Data.Min = IconMesh->GetBoundsMin();
     Data.Max = IconMesh->GetBoundsMax();
 
-    Data.Pipeline = EPrimitivePipeline::Texture;
-    Data.BlendMode = EPrimitiveBlendMode::Opaque;
+    Data.bTwoSided = true;
 
     // 흰색 아이콘에 광원 색상을 곱함
     Data.TextureTint = FVector4(LightColor.X, LightColor.Y, LightColor.Z, 1.0f);
