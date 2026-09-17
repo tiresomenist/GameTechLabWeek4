@@ -139,26 +139,30 @@ const D3D11_VIEWPORT& FRenderer::GetViewport() const
 
 bool FRenderer::CreateShaders()
 {
+	GResourceManager& Resources = *GResourceManager::GetInstance();
+
+	const FShaderResource* ColorShader = Resources.GetShader(FName("Mesh.Color"));
+
+	if (!ColorShader || !ColorShader->VertexShader || !ColorShader->PixelShader || !ColorShader->InputLayout)
+	{
+		return false;
+	}
+
+	// ResourceManager가 소유한 자원을 참조한다.
+	SimpleVertexShader = ColorShader->VertexShader.Get();
+	SimplePixelShader = ColorShader->PixelShader.Get();
+	SimpleInputLayout = ColorShader->InputLayout.Get();
+
 	Microsoft::WRL::ComPtr<ID3DBlob> shaderBlob;
 
-	// Simple Shader (VS & PS)
-	if (!CompileShader(L"Assets/Shaders/MainShader.hlsl", "mainVS", "vs_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &SimpleVertexShader));
-
-	D3D11_INPUT_ELEMENT_DESC layout[] =
+	// Wireframe 셰이더는 이번 이전 대상에 포함하지 않는다.
+	if (!CompileShader(L"Assets/Shaders/WireframeShader.hlsl","mainPS","ps_5_0",shaderBlob.ReleaseAndGetAddressOf()))
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	CheckHR(D3DDevice->CreateInputLayout(layout, ARRAYSIZE(layout), shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), &SimpleInputLayout));
-	shaderBlob.Reset();
+		return false;
+	}
 
-	if (!CompileShader(L"Assets/Shaders/WireframeShader.hlsl", "mainPS", "ps_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &WireframePixelShader));
-	shaderBlob.Reset();
+	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(),shaderBlob->GetBufferSize(),nullptr,	&WireframePixelShader));
 
-	if (!CompileShader(L"Assets/Shaders/MainShader.hlsl", "mainPS", "ps_5_0", shaderBlob.ReleaseAndGetAddressOf())) return false;
-	CheckHR(D3DDevice->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &SimplePixelShader));
 	shaderBlob.Reset();
 
 	// Highlight Shader (VS & PS)
@@ -205,21 +209,10 @@ bool FRenderer::CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, co
 
 void FRenderer::ReleaseShaders()
 {
-	if (SimpleInputLayout)
-	{
-		SimpleInputLayout->Release();
-		SimpleInputLayout = nullptr;
-	}
-	if (SimplePixelShader)
-	{
-		SimplePixelShader->Release();
-		SimplePixelShader = nullptr;
-	}
-	if (SimpleVertexShader)
-	{
-		SimpleVertexShader->Release();
-		SimpleVertexShader = nullptr;
-	}
+	SimpleInputLayout = nullptr;
+	SimplePixelShader = nullptr;
+	SimpleVertexShader = nullptr;
+
 	if (WireframePixelShader)
 	{
 		WireframePixelShader->Release();
@@ -659,84 +652,45 @@ void FRenderer::RenderText(UINT IndexCount)
 
 void FRenderer::CreateTextureResources()
 {
-	Microsoft::WRL::ComPtr<ID3DBlob> ShaderBlob;
+	GResourceManager& Resources = *GResourceManager::GetInstance();
 
-	// 위치 변환과 UV 전달을 수행하는 버텍스 셰이더 생성
-	if (!CompileShader(L"Assets/Shaders/TextureShader.hlsl","mainVS","vs_5_0",ShaderBlob.ReleaseAndGetAddressOf()))
+	const FShaderResource* TextureShader = Resources.GetShader(FName("Mesh.Texture"));
+
+	ID3D11SamplerState* Sampler = Resources.GetSampler(FName("LinearClamp"));
+
+	if (!TextureShader || !TextureShader->VertexShader || !TextureShader->PixelShader ||
+		!TextureShader->InputLayout || !Sampler)
 	{
-		throw std::runtime_error("Texture VS compile failed");
+		throw std::runtime_error("Required texture render resources are missing");
 	}
 
-	CheckHR(D3DDevice->CreateVertexShader(ShaderBlob->GetBufferPointer(),ShaderBlob->GetBufferSize(),nullptr,&TextureVertexShader));
+	TextureVertexShader = TextureShader->VertexShader.Get();
+	TexturePixelShader = TextureShader->PixelShader.Get();
+	TextureInputLayout = TextureShader->InputLayout.Get();
+	TextureSamplerState = Sampler;
 
-	// FVertexTextureSimple의 메모리 배치와 일치시킴
-	const D3D11_INPUT_ELEMENT_DESC Layout[] =
-	{
-		{ "POSITION", 0,DXGI_FORMAT_R32G32B32_FLOAT,0, 0,D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }, 
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
+	// Draw마다 갱신하는 기존 상수 버퍼는 이번 단계에서 유지한다.
+	D3D11_BUFFER_DESC UVDesc{};
+	UVDesc.ByteWidth = sizeof(FTextureDrawConstants);
+	UVDesc.Usage = D3D11_USAGE_DEFAULT;
+	UVDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-	CheckHR(D3DDevice->CreateInputLayout(Layout, ARRAYSIZE(Layout), ShaderBlob->GetBufferPointer(), ShaderBlob->GetBufferSize(), &TextureInputLayout));
-
-	// 텍스처 RGBA를 출력하는 픽셀 셰이더 생성
-	if (!CompileShader(	L"Assets/Shaders/TextureShader.hlsl",	"mainPS","ps_5_0",ShaderBlob.ReleaseAndGetAddressOf()))
-	{
-		throw std::runtime_error("Texture PS compile failed");
-	}
-
-	CheckHR(D3DDevice->CreatePixelShader(ShaderBlob->GetBufferPointer(),ShaderBlob->GetBufferSize(),nullptr,&TexturePixelShader));
-
-	// 선형 필터링을 사용하고 텍스처 경계 밖에서는 가장자리 값을 사용함
-	D3D11_SAMPLER_DESC SamplerDesc{};
-	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	SamplerDesc.MinLOD = 0.0f;
-	SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-	CheckHR(D3DDevice->CreateSamplerState(&SamplerDesc,&TextureSamplerState));
-
-    // 텍스처 Draw Call마다 교체하는 UV 크기와 오프셋 버퍼
-    D3D11_BUFFER_DESC UVDesc{};
-    UVDesc.ByteWidth = sizeof(FTextureDrawConstants);
-    UVDesc.Usage = D3D11_USAGE_DEFAULT;
-    UVDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    CheckHR(D3DDevice->CreateBuffer(&UVDesc, nullptr, &TextureUVConstantBuffer));
+	CheckHR(D3DDevice->CreateBuffer(&UVDesc, nullptr, &TextureUVConstantBuffer));
 }
 
 void FRenderer::ReleaseTextureResources()
 {
-    if (TextureUVConstantBuffer)
-    {
-        TextureUVConstantBuffer->Release();
-        TextureUVConstantBuffer = nullptr;
-    }
-	if (TextureSamplerState)
+	if (TextureUVConstantBuffer)
 	{
-		TextureSamplerState->Release();
-		TextureSamplerState = nullptr;
+		TextureUVConstantBuffer->Release();
+		TextureUVConstantBuffer = nullptr;
 	}
 
-	if (TextureInputLayout)
-	{
-		TextureInputLayout->Release();
-		TextureInputLayout = nullptr;
-	}
-
-	if (TexturePixelShader)
-	{
-		TexturePixelShader->Release();
-		TexturePixelShader = nullptr;
-	}
-
-	if (TextureVertexShader)
-	{
-		TextureVertexShader->Release();
-		TextureVertexShader = nullptr;
-	}
+	// 공유 자원은 참조만 끊는다.
+	TextureSamplerState = nullptr;
+	TextureInputLayout = nullptr;
+	TexturePixelShader = nullptr;
+	TextureVertexShader = nullptr;
 }
 
 void FRenderer::RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil)

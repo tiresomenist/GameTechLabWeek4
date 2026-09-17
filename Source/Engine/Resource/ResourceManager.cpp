@@ -30,13 +30,42 @@
 #include "Engine/Resource/TextureResource.h"
 #include "GeometryGenerator.h"
 #include "Engine/Resource/MeshNames.h"
+#include "Engine/Log.h"
 
 #include <memory>
 #include <limits>
 #include <stdexcept>
 #include <cmath>
+#include <d3dcompiler.h>
+#include <format>
+namespace
+{
+    void CheckRenderResourceHR(HRESULT Result, const char* Operation)
+    {
+        if (FAILED(Result))
+        {
+            throw std::runtime_error(std::format("{} failed. HRESULT: {}", Operation, Result));
+        }
+    }
 
+    Microsoft::WRL::ComPtr<ID3DBlob> CompileResourceShader(const WCHAR* FilePath,const char* EntryPoint,
+        const char* ShaderModel)
+    {
+        Microsoft::WRL::ComPtr<ID3DBlob> ShaderBlob;
+        Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
 
+        const HRESULT Result = D3DCompileFromFile(FilePath,nullptr,nullptr, EntryPoint, ShaderModel,
+            0,0,ShaderBlob.GetAddressOf(),ErrorBlob.GetAddressOf());
+
+        if (ErrorBlob)
+        {
+            UE_LOG("Shader diagnostic: {}",static_cast<const char*>(ErrorBlob->GetBufferPointer()));
+        }
+
+        CheckRenderResourceHR(Result, "D3DCompileFromFile");
+        return ShaderBlob;
+    }
+}
 GResourceManager* GResourceManager::GetInstance()
 {
 	static GResourceManager Instance;
@@ -50,6 +79,7 @@ void GResourceManager::Initialize(GDevice* InDevice)
 		throw std::runtime_error("Default font atlas build failed");
     RegisterDefaultPrimitives(InDevice);
     RegisterTexturePrimitives(InDevice);
+    RegisterDefaultRenderResources();
 }
 
 FMeshResource* GResourceManager::CreateMesh(const FName& MeshName,
@@ -199,20 +229,10 @@ void GResourceManager::Shutdown()
     TextureCache.Empty();
     PrimitiveCache.Empty();
     DefaultFont.Release();
+    ShaderCache.Empty();
+    SamplerCache.Empty();
     Device = nullptr;
 
-    //for (auto& [path, shader] : ShaderCache)
-    //{
-    //    if (shader->VertexShader) shader->VertexShader->Release();
-    //    if (shader->PixelShader)  shader->PixelShader->Release();
-    //    if (shader->InputLayout)  shader->InputLayout->Release();
-    //    delete shader;
-    //}
-    //ShaderCache.clear();
-
-    //for (auto& [key, state] : RasterizerStateCache)
-    //    state->Release();
-    //RasterizerStateCache.clear();
 }
 
 FMeshResource* GResourceManager::GetPrimitive(const FName& MeshName)
@@ -256,9 +276,108 @@ FTextureResource* GResourceManager::GetOrLoadTexture(const FString& FilePath)
     return NewTexture.release();
 }
 
-FShaderResource* GResourceManager::GetShader(const std::wstring& FilePath, const std::string& VSEntry, const std::string& PSEntry, const D3D11_INPUT_ELEMENT_DESC* Layout, UINT LayoutCount)
+void GResourceManager::RegisterShader(const FName& Name, const WCHAR* FilePath,
+    const char* VSEntry, const char* PSEntry, const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout)
 {
-	return nullptr;
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Shader device is not initialized");
+    }
+
+    if (Name.IsNone() ||!FilePath || !*FilePath ||!VSEntry || !*VSEntry || !PSEntry || !*PSEntry ||Layout.IsEmpty())
+    {
+        throw std::invalid_argument("Invalid shader registration");
+    }
+
+    if (ShaderCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Shader already registered: {}", Name.ToString()));
+    }
+
+    ID3D11Device* NativeDevice = Device->GetDevice();
+
+    FShaderResource Resource;
+
+    const auto VSBlob = CompileResourceShader(FilePath, VSEntry, "vs_5_0");
+
+    //버텍스 셰이더 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreateVertexShader(
+            VSBlob->GetBufferPointer(),
+            VSBlob->GetBufferSize(),
+            nullptr,
+            Resource.VertexShader.GetAddressOf()),
+        "CreateVertexShader");
+
+    // 인풋 레이아웃 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreateInputLayout(
+            Layout.GetData(),
+            static_cast<UINT>(Layout.Num()),
+            VSBlob->GetBufferPointer(),
+            VSBlob->GetBufferSize(),
+            Resource.InputLayout.GetAddressOf()),
+        "CreateInputLayout");
+
+    const auto PSBlob =
+        CompileResourceShader(FilePath, PSEntry, "ps_5_0");
+
+    // 픽셀 셰이더 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreatePixelShader(
+            PSBlob->GetBufferPointer(),
+            PSBlob->GetBufferSize(),
+            nullptr,
+            Resource.PixelShader.GetAddressOf()),
+        "CreatePixelShader");
+
+    if (!ShaderCache.Add(Name, Resource))
+    {
+        throw std::logic_error("Failed to register shader");
+    }
+}
+
+const FShaderResource* GResourceManager::GetShader(const FName& Name) const
+{
+    return ShaderCache.Find(Name);
+}
+
+void GResourceManager::RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Sampler device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid sampler name");
+    }
+
+    if (SamplerCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Sampler already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> Sampler;
+
+    //샘플러 생성 시도
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateSamplerState(
+            &Desc,
+            Sampler.GetAddressOf()),
+        "CreateSamplerState");
+
+    if (!SamplerCache.Add(Name, Sampler))
+    {
+        throw std::logic_error("Failed to register sampler");
+    }
+}
+
+ID3D11SamplerState* GResourceManager::GetSampler(const FName& Name) const
+{
+    const auto* Found = SamplerCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
 }
 
 void GResourceManager::RegisterDefaultPrimitives(GDevice* InDevice)
@@ -350,4 +469,50 @@ void GResourceManager::RegisterTexturePrimitives(GDevice* InDevice)
     {
         throw std::runtime_error("SpotLight icon mesh creation failed");
     }
+}
+
+void GResourceManager::RegisterDefaultRenderResources()
+{
+    const TArray<D3D11_INPUT_ELEMENT_DESC> ColorLayout
+    {
+        {
+            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+    };
+
+    RegisterShader(FName("Mesh.Color"),L"Assets/Shaders/MainShader.hlsl","mainVS","mainPS",ColorLayout);
+
+    const TArray<D3D11_INPUT_ELEMENT_DESC> TextureLayout
+    {
+        {
+            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+            0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+    };
+
+    RegisterShader(FName("Mesh.Texture"),L"Assets/Shaders/TextureShader.hlsl","mainVS","mainPS",TextureLayout);
+
+    D3D11_SAMPLER_DESC SamplerDesc{};
+    SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    SamplerDesc.MinLOD = 0.0f;
+    SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    RegisterSampler(FName("LinearClamp"), SamplerDesc);
 }

@@ -33,13 +33,14 @@ public:
 	FMeshResource* GetPrimitive(const FName& MeshName);
 	FFontAtlas* GetDefaultFont() { return DefaultFont.GetSRV() ? &DefaultFont : nullptr; }
 	FTextureResource* GetOrLoadTexture(const FString& FilePath);
-	FShaderResource* GetShader(
-		const std::wstring& FilePath,
-		const std::string& VSEntry,
-		const std::string& PSEntry,
-		const D3D11_INPUT_ELEMENT_DESC* Layout,
-		UINT LayoutCount
-	);
+	void RegisterShader(const FName& Name,const WCHAR* FilePath,const char* VSEntry,
+		const char* PSEntry,const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout);
+
+	const FShaderResource* GetShader(const FName& Name) const;
+
+	void RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc);
+
+	ID3D11SamplerState* GetSampler(const FName& Name) const;
 	void RegisterDefaultPrimitives(GDevice* InDevice);
 	void RegisterTexturePrimitives(GDevice* InDevice);
 private:
@@ -47,13 +48,13 @@ private:
 	~GResourceManager() = default;
 	GResourceManager(const GResourceManager&) = delete;
 	GResourceManager& operator=(const GResourceManager&) = delete;
-
+	void RegisterDefaultRenderResources();
+	TMap<FName, FShaderResource> ShaderCache;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11SamplerState>> SamplerCache;
 	GDevice* Device = nullptr;
 
 	TMap<FName, FMeshResource*> PrimitiveCache;
 	TMap<FString, FTextureResource*> TextureCache;
 	FFontAtlas DefaultFont;
-	//std::unordered_map<std::string, FShaderResource*> ShaderCache;	// 일단 Renderer에서 - 셰이더 무조건 하나만 쓰니까..
-	//std::map<std::pair<D3D11_FILL_MODE, D3D11_CULL_MODE>, ID3D11RasterizerState*> RasterizerStateCache;
 };
 

@@ -72,10 +72,12 @@ public:
 
 	FLOAT                   ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
 
+	// ResourceManager 소유 자원의 비소유 참조
 	ID3D11VertexShader* SimpleVertexShader = nullptr;
 	ID3D11PixelShader* SimplePixelShader = nullptr;
-	ID3D11PixelShader* WireframePixelShader = nullptr;
 	ID3D11InputLayout* SimpleInputLayout = nullptr;
+
+	ID3D11PixelShader* WireframePixelShader = nullptr;
 	ID3D11VertexShader* HighlightVertexShader = nullptr;
 	ID3D11PixelShader* HighlightPixelShader = nullptr;
 	ID3D11VertexShader* GridVertexShader = nullptr;
@@ -96,6 +98,7 @@ public:
 	static const UINT MaxTextVertices = 8192;
 
 	// ---- Texture ----
+	// ResourceManager 소유 자원의 비소유 참조
 	ID3D11VertexShader* TextureVertexShader = nullptr;
 	ID3D11PixelShader* TexturePixelShader = nullptr;
 	ID3D11InputLayout* TextureInputLayout = nullptr;
