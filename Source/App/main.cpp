@@ -38,14 +38,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         // 창 최소화 시 Width, Height가 0이므로 리사이즈하지 않음
         if (wParam == SIZE_MINIMIZED)
         {
-            GDevice::GetInstance()->OnResize(0, 0);
+            GEngine::GetInstance()->OnResize(0, 0);
             return 0;
         }
 
         const uint32 Width = static_cast<uint32>(LOWORD(lParam));
         const uint32 Height = static_cast<uint32>(HIWORD(lParam));
 
-        try { GDevice::GetInstance()->OnResize(Width, Height); }
+        try { GEngine::GetInstance()->OnResize(Width, Height); }
         catch (...) { PostQuitMessage(EXIT_FAILURE); }
 
         return 0;

@@ -3,7 +3,7 @@
 #include "Engine/Component/SceneComponent.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/MeshNames.h"
-#include "Engine/Renderer/Device.h"
+#include "Engine/Engine.h"
 #include "Engine/Component/CameraComponent.h"
 #include <cmath>
 
@@ -28,7 +28,7 @@ bool UObjectAxisGizmo::UpdateTransform() {
 
 	if (!SelectedObject || !Camera)	return false;
 
-	const auto& Viewport = GDevice::GetInstance()->GetViewport();
+	const auto& Viewport = GEngine::GetInstance()->GetViewport();
 
 	if (!std::isfinite(Viewport.Width) ||!std::isfinite(Viewport.Height) ||	Viewport.Width <= 0.0f ||Viewport.Height <= 0.0f)
 	{

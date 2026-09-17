@@ -17,6 +17,7 @@
 #include "Engine/Renderer/Text/TextMeshBuilder.h"
 #include "Engine/Renderer/ViewSettings.h"
 #include "Engine/Renderer/Line/LineBatcher.h"
+#include <wrl/client.h>
 
 //struct FVertexSimple;
 struct FConstants
@@ -62,7 +63,6 @@ public:
 	ID3D11Buffer* GridConstantBuffer = nullptr;
 
 	FLOAT                   ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
-	D3D11_VIEWPORT          ViewportInfo;
 
 	ID3D11VertexShader* SimpleVertexShader = nullptr;
 	ID3D11PixelShader* SimplePixelShader = nullptr;
@@ -102,8 +102,11 @@ public:
 	bool bImGuiContextCreated = false;
 	bool bImGuiWin32Initialized = false;
 	bool bImGuiDX11Initialized = false;
-	void Create(HWND HWnd, GDevice* InDevice);
+	void Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height);
 	void Shutdown();
+	void OnResize(uint32 Width, uint32 Height);
+	bool IsRenderReady() const;
+	const D3D11_VIEWPORT& GetViewport() const;
 
 	bool CreateShaders();
 	bool CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, const LPCSTR ShaderModel, ID3DBlob** OutBlob);
@@ -147,4 +150,25 @@ public:
 	void ReleaseTextureResources();
 
 	void RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil = false);
+
+private:
+	bool CreateSwapChain(HWND HWnd, uint32 Width, uint32 Height);
+
+	bool CreateFrameBuffer();
+	void ReleaseFrameBuffer();
+
+	bool CreateDepthStencilBuffer(uint32 Width, uint32 Height);
+	void ReleaseDepthStencilBuffer();
+
+	void SwapBuffer();
+	Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameBuffer;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> FrameBufferRTV;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> DepthStencilBuffer;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> DepthStencilView;
+
+	D3D11_VIEWPORT ViewportInfo{};
+	bool bRenderReady = false;
+	bool bGraphicsFailed = false;
+
 };

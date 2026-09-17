@@ -18,6 +18,9 @@ public:
 
 	void Destroy();
 
+	void OnResize(uint32 Width, uint32 Height);
+	const D3D11_VIEWPORT& GetViewport() const;
+
 	FConsole* GetConsole() const { return Console; };
 
 	// 게임 시작 이후 얼마나 흘렀는지 반환합니다.

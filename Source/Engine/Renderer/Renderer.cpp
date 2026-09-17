@@ -26,7 +26,10 @@
 #include <wrl/client.h>
 #include <stdexcept>
 #include <vector>
+#include <utility>
+#include <cstdlib>
 
+using Microsoft::WRL::ComPtr;
 namespace
 {
 	void CheckHR(HRESULT Result)
@@ -37,15 +40,33 @@ namespace
 }
 
 
-void FRenderer::Create(HWND HWnd, GDevice* InDevice)
+void FRenderer::Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height)
 {
 	GContext& Context = *GContext::GetInstance();
-	if (!InDevice || !InDevice->GetDevice() || !Context.IsInitialized())
+	if (Device) {
+		throw std::logic_error("Renderer is Already initialized");
+	}
+	if (!HWnd || Width == 0 || Height == 0)
+	{
+		throw std::invalid_argument("Invalid renderer output parameters");
+	}
+
+	if (!InDevice || !InDevice->GetDevice() || !Context.IsInitialized()) {
 		throw std::runtime_error("Renderer requires an initialized device");
+	}
+	
+	bRenderReady = false;
+	bGraphicsFailed = false;
+
 	Device = InDevice;
 	DeviceContext = Context.GetNative();
 	D3DDevice = InDevice->GetDevice();
-	ViewportInfo = InDevice->GetViewport();
+	if (!CreateSwapChain(HWnd, Width, Height) || !CreateFrameBuffer() || 
+		!CreateDepthStencilBuffer(static_cast<uint32>(ViewportInfo.Width),static_cast<uint32>(ViewportInfo.Height)))
+	{
+		throw std::runtime_error("Failed to create renderer output");
+	}
+
 	CreateRasterizerState();
 	if (!CreateShaders()) throw std::runtime_error("Shader compilation failed");
 	CreateConstantBuffer();
@@ -67,13 +88,17 @@ void FRenderer::Create(HWND HWnd, GDevice* InDevice)
 	if (!bImGuiDX11Initialized) throw std::runtime_error("ImGui DX11 initialization failed");
 	if (!ImGui_ImplDX11_CreateDeviceObjects())
 		throw std::runtime_error("ImGui GPU resource creation failed");
+	bRenderReady = true;
 }
 
 void FRenderer::Shutdown()
 {
+	bRenderReady = false;
+
 	LineBatcher.Release();
 
-	if (DeviceContext) DeviceContext->ClearState();
+	if (DeviceContext){	DeviceContext->ClearState();}
+
 	ReleaseConstantBuffer();
 	ReleaseShaders();
 	ReleaseRasterizerState();
@@ -81,13 +106,35 @@ void FRenderer::Shutdown()
 	ReleaseDepthStencilStates();
 	ReleaseTextResources();
 	ReleaseTextureResources();
-	if (bImGuiDX11Initialized) ImGui_ImplDX11_Shutdown();
-	if (bImGuiWin32Initialized) ImGui_ImplWin32_Shutdown();
-	if (bImGuiContextCreated) ImGui::DestroyContext();
-	bImGuiDX11Initialized = bImGuiWin32Initialized = bImGuiContextCreated = false;
+
+	if (bImGuiDX11Initialized){ImGui_ImplDX11_Shutdown();}
+
+	if (bImGuiWin32Initialized){ImGui_ImplWin32_Shutdown();}
+
+	if (bImGuiContextCreated){ImGui::DestroyContext();}
+
+	bImGuiDX11Initialized = false;
+	bImGuiWin32Initialized = false;
+	bImGuiContextCreated = false;
+
+	ReleaseDepthStencilBuffer();
+	ReleaseFrameBuffer();
+	SwapChain.Reset();
+	ViewportInfo = {};
+
 	DeviceContext = nullptr;
 	D3DDevice = nullptr;
 	Device = nullptr;
+}
+
+bool FRenderer::IsRenderReady() const
+{
+	return bRenderReady && !bGraphicsFailed;
+}
+
+const D3D11_VIEWPORT& FRenderer::GetViewport() const
+{
+	return ViewportInfo;
 }
 
 bool FRenderer::CreateShaders()
@@ -209,19 +256,30 @@ void FRenderer::ReleaseShaders()
 		BatchLinePixelShader = nullptr;
 	}
 }
+void FRenderer::SwapBuffer()
+{
+	if (!IsRenderReady() || !SwapChain.Get()) { return; }
+
+	const HRESULT Result = SwapChain->Present(0, 0);
+
+	if (FAILED(Result))
+	{
+		bRenderReady = false;
+		bGraphicsFailed = true;
+		PostQuitMessage(EXIT_FAILURE);
+	}
+}
 
 void FRenderer::PrepareRTVDSV()
 {
-	ViewportInfo = Device->GetViewport(); // 리사이징 된 현재 뷰포트 복사
-	DeviceContext->RSSetViewports(1, &ViewportInfo);
+	GContext& Context = *GContext::GetInstance();
+
+	Context.SetViewport(ViewportInfo);
 
 	DeviceContext->RSSetState(DefaultRasterizerState);
-
-	ID3D11RenderTargetView* RTV = Device->GetFrameBufferRTV();
-	ID3D11DepthStencilView* DSV = Device->GetDepthStencilView();
-	DeviceContext->ClearRenderTargetView(RTV, ClearColor);
-	DeviceContext->ClearDepthStencilView(DSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-	DeviceContext->OMSetRenderTargets(1, &RTV, DSV);
+	DeviceContext->ClearRenderTargetView(FrameBufferRTV.Get(), ClearColor);
+	DeviceContext->ClearDepthStencilView(DepthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+	Context.SetRenderTargets(FrameBufferRTV.Get(), DepthStencilView.Get());
 
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 }
@@ -761,22 +819,21 @@ void FRenderer::EndFrame()
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-	GDevice::GetInstance()->SwapBuffer();
+	SwapBuffer();
 
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	DeviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
+	GContext::GetInstance()->UnbindRenderTargets();
 }
 
 void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 {
-	if (!Device || !Device->IsRenderReady() || !Editor || !Scene) return;
+	if (!IsRenderReady() || !Editor || !Scene) return;
 
 	BeginFrame();
 	LineBatcher.Clear();
 
 	UCameraComponent* Camera = Editor->GetEditorCamera();
 
-	Camera->SetAspectRatio(Device->GetViewport().Width / Device->GetViewport().Height);
+	Camera->SetAspectRatio(ViewportInfo.Width / ViewportInfo.Height);
 	FMatrix ViewProjMatrix = Camera->GetViewMatrix() * Camera->GetProjectionMatrix();
 	TArray<FPrimitiveRenderData> RenderList = RenderUtil::GetRenderList(Editor, Scene);
 	const bool bShowPrimitives = Editor->IsShowingPrimitives();
@@ -1134,4 +1191,203 @@ void FRenderer::RenderBatchLine(const FMatrix& ViewProj)
 
 	// 나중에 같은 데이터로 여러번 그리려면 Clear() 분리가 필요할 수 있음
 	LineBatcher.Clear();
+}
+
+bool FRenderer::CreateSwapChain(HWND HWnd, uint32 Width, uint32 Height)
+{
+	if (!D3DDevice || !HWnd || Width == 0 || Height == 0)
+	{
+		return false;
+	}
+
+	ComPtr<IDXGIDevice> DxgiDevice;
+	ComPtr<IDXGIAdapter> Adapter;
+	ComPtr<IDXGIFactory> Factory;
+
+	HRESULT Result = D3DDevice->QueryInterface(IID_PPV_ARGS(DxgiDevice.GetAddressOf()));
+
+	if (FAILED(Result)){return false;}
+
+	Result = DxgiDevice->GetAdapter(Adapter.GetAddressOf());
+	if (FAILED(Result))
+	{
+		return false;
+	}
+
+	Result = Adapter->GetParent(IID_PPV_ARGS(Factory.GetAddressOf()));
+
+	if (FAILED(Result))
+	{
+		return false;
+	}
+
+	DXGI_SWAP_CHAIN_DESC Desc{};
+	Desc.BufferDesc.Width = Width;
+	Desc.BufferDesc.Height = Height;
+	Desc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	Desc.SampleDesc.Count = 1;
+	Desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	Desc.BufferCount = 2;
+	Desc.OutputWindow = HWnd;
+	Desc.Windowed = TRUE;
+	Desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+	ComPtr<IDXGISwapChain> NewSwapChain;
+
+	Result = Factory->CreateSwapChain(D3DDevice, &Desc, NewSwapChain.GetAddressOf());
+
+	if (FAILED(Result))
+	{
+		UE_LOG("[FRenderer] Failed to create swap chain. HRESULT: {}\n", Result);
+		return false;
+	}
+
+	Result = NewSwapChain->GetDesc(&Desc);
+	if (FAILED(Result))
+	{
+		return false;
+	}
+
+	SwapChain = std::move(NewSwapChain);
+
+	ViewportInfo = {0.0f,0.0f,static_cast<float>(Desc.BufferDesc.Width),
+		static_cast<float>(Desc.BufferDesc.Height),	0.0f,1.0f};
+
+	return true;
+}
+
+bool FRenderer::CreateFrameBuffer()
+{
+	if (!D3DDevice || !SwapChain.Get())
+	{
+		return false;
+	}
+
+	ComPtr<ID3D11Texture2D> NewFrameBuffer;
+	ComPtr<ID3D11RenderTargetView> NewRTV;
+
+	HRESULT Result = SwapChain->GetBuffer(0, IID_PPV_ARGS(NewFrameBuffer.GetAddressOf()));
+
+	if (FAILED(Result))
+	{
+		UE_LOG("[FRenderer] Failed to get back buffer from SwapChain. HRESULT: {}\n", Result);
+		ReleaseFrameBuffer();
+		return false;
+	}
+
+	D3D11_RENDER_TARGET_VIEW_DESC RTVDesc{};
+	RTVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	RTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+
+	Result = D3DDevice->CreateRenderTargetView(NewFrameBuffer.Get(), &RTVDesc, NewRTV.GetAddressOf());
+
+	if (FAILED(Result))
+	{
+		UE_LOG("[FRenderer] Failed to create Render Target View. HRESULT: {}\n", Result);
+		return false;
+	}
+
+	FrameBuffer = std::move(NewFrameBuffer);
+	FrameBufferRTV = std::move(NewRTV);
+
+	return true;
+}
+
+void FRenderer::ReleaseFrameBuffer()
+{
+	FrameBufferRTV.Reset();
+	FrameBuffer.Reset();
+}
+
+bool FRenderer::CreateDepthStencilBuffer(uint32 Width, uint32 Height)
+{
+	if (!D3DDevice || Width == 0 || Height == 0){ return false; }
+
+	ComPtr<ID3D11Texture2D> NewDepthBuffer;
+	ComPtr<ID3D11DepthStencilView> NewDSV;
+
+	D3D11_TEXTURE2D_DESC DepthStencilDesc{};
+	DepthStencilDesc.Width = Width;
+	DepthStencilDesc.Height = Height;
+	DepthStencilDesc.MipLevels = 1;
+	DepthStencilDesc.ArraySize = 1;
+	DepthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DepthStencilDesc.SampleDesc.Count = 1;
+	DepthStencilDesc.SampleDesc.Quality = 0;
+	DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+	DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	DepthStencilDesc.CPUAccessFlags = 0;
+	DepthStencilDesc.MiscFlags = 0;
+
+	HRESULT Result = D3DDevice->CreateTexture2D(&DepthStencilDesc, nullptr, NewDepthBuffer.GetAddressOf());
+
+	if (FAILED(Result)){ return false; }
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc{};
+	DSVDesc.Format = DepthStencilDesc.Format;
+	DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DSVDesc.Texture2D.MipSlice = 0;
+
+	Result = D3DDevice->CreateDepthStencilView( NewDepthBuffer.Get(),&DSVDesc, NewDSV.GetAddressOf());
+
+	if (FAILED(Result))
+	{
+		UE_LOG("[FRenderer] Failed to create depth stencil view. HRESULT: {}\n",Result);
+		return false;
+	}
+
+	DepthStencilBuffer = std::move(NewDepthBuffer);
+	DepthStencilView = std::move(NewDSV);
+
+	return true;
+}
+
+void FRenderer::ReleaseDepthStencilBuffer()
+{
+	DepthStencilView.Reset();
+	DepthStencilBuffer.Reset();
+}
+
+void FRenderer::OnResize(uint32 Width, uint32 Height)
+{
+	bRenderReady = false;
+
+	GContext& Context = *GContext::GetInstance();
+
+	if (Width == 0 || Height == 0 || !D3DDevice || !Context.IsInitialized() || !SwapChain.Get() || bGraphicsFailed)
+	{ return; }
+
+	Context.UnbindRenderTargets();
+
+	ReleaseDepthStencilBuffer();
+	ReleaseFrameBuffer();
+
+	Context.Flush();
+
+	const HRESULT Result = SwapChain->ResizeBuffers(0,Width,Height,	DXGI_FORMAT_UNKNOWN, 0);
+
+	if (FAILED(Result))
+	{
+		bGraphicsFailed = true;
+		PostQuitMessage(EXIT_FAILURE);
+		return;
+	}
+
+	ViewportInfo = {0.0f,0.0f,static_cast<float>(Width),static_cast<float>(Height),0.0f,1.0f};
+
+	if (!CreateFrameBuffer() || !CreateDepthStencilBuffer(Width, Height))
+	{
+		ReleaseFrameBuffer();
+		ReleaseDepthStencilBuffer();
+
+		bGraphicsFailed = true;
+		PostQuitMessage(EXIT_FAILURE);
+		return;
+	}
+
+	Context.SetRenderTargets(FrameBufferRTV.Get(),DepthStencilView.Get());
+
+	Context.SetViewport(ViewportInfo);
+
+	bRenderReady = true;
 }
