@@ -314,92 +314,44 @@ void FRenderer::ReleaseAlphaBlendState()
 
 void FRenderer::CreateDepthStencilStates()
 {
-	D3D11_DEPTH_STENCIL_DESC DSDesc = {};
-	DSDesc.DepthEnable = TRUE;
-	DSDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	DSDesc.DepthFunc = D3D11_COMPARISON_LESS;
-	DSDesc.StencilEnable = FALSE;
-	CheckHR(D3DDevice->CreateDepthStencilState(&DSDesc, &DefaultDepthStencilState));
+	GResourceManager& Resources = *GResourceManager::GetInstance();
+	DefaultDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Default"));
+	GizmoDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Gizmo"));
+	HighlightDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Highlight"));
+	TranslucentDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Translucent"));
+	TextDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Text"));
+	StencilWriteDepthStencilState = Resources.GetDepthStencilState(FName("Depth.StencilWrite"));
+	OutlineDepthStencilState = Resources.GetDepthStencilState(FName("Depth.Outline"));
+	const TArray<ID3D11DepthStencilState*> RequiredStates
+	{
+		DefaultDepthStencilState,
+		GizmoDepthStencilState,
+		HighlightDepthStencilState,
+		TranslucentDepthStencilState,
+		TextDepthStencilState,
+		StencilWriteDepthStencilState,
+		OutlineDepthStencilState
+	};
 
-	D3D11_DEPTH_STENCIL_DESC GizmoDSDesc = DSDesc;
-	GizmoDSDesc.DepthEnable = FALSE;
-	CheckHR(D3DDevice->CreateDepthStencilState(&GizmoDSDesc, &GizmoDepthStencilState));
-
-	D3D11_DEPTH_STENCIL_DESC HighlightDesc = {};
-	HighlightDesc.DepthEnable = TRUE;  // 깊이 검사는 유지
-	HighlightDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // 깊이 기록 안 함
-	HighlightDesc.DepthFunc = D3D11_COMPARISON_LESS;
-
-	CheckHR(D3DDevice->CreateDepthStencilState(&HighlightDesc, &HighlightDepthStencilState));
-
-	// 선택 오브젝트 본체용: 깊이는 Default와 같고, 덮은 픽셀의 스텐실을 1로 기록
-	D3D11_DEPTH_STENCIL_DESC StencilWriteDesc = DSDesc;
-	StencilWriteDesc.StencilEnable = TRUE;
-	StencilWriteDesc.StencilReadMask = 0xFF;
-	StencilWriteDesc.StencilWriteMask = 0xFF;
-	StencilWriteDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	StencilWriteDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
-	// 가려진 부분도 마스크에 포함해야 외곽선 패스가 가려진 영역을 통째로 칠하지 않음
-	StencilWriteDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_REPLACE;
-	StencilWriteDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	StencilWriteDesc.BackFace = StencilWriteDesc.FrontFace;
-	CheckHR(D3DDevice->CreateDepthStencilState(&StencilWriteDesc, &StencilWriteDepthStencilState));
-
-	// 외곽선용: 깊이 무시(가려져도 보임), 스텐실이 1이 아닌 곳에만 그림
-	D3D11_DEPTH_STENCIL_DESC OutlineDesc = {};
-	OutlineDesc.DepthEnable = FALSE;
-	OutlineDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	OutlineDesc.DepthFunc = D3D11_COMPARISON_LESS;
-	OutlineDesc.StencilEnable = TRUE;
-	OutlineDesc.StencilReadMask = 0xFF;
-	OutlineDesc.StencilWriteMask = 0x00;
-	OutlineDesc.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
-	OutlineDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	OutlineDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-	OutlineDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	OutlineDesc.BackFace = OutlineDesc.FrontFace;
-	CheckHR(D3DDevice->CreateDepthStencilState(&OutlineDesc, &OutlineDepthStencilState));
-
-	D3D11_DEPTH_STENCIL_DESC Desc{};
-	Desc.DepthEnable = TRUE;
-	Desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	Desc.DepthFunc = D3D11_COMPARISON_LESS;
-
-	CheckHR(D3DDevice->CreateDepthStencilState(&Desc, &TranslucentDepthStencilState));
+	for (ID3D11DepthStencilState* State : RequiredStates)
+	{
+		if (!State)
+		{
+			throw std::runtime_error("Required depth stencil states are missing");
+		}
+	}
 }
 
 void FRenderer::ReleaseDepthStencilStates()
 {
-	if (DefaultDepthStencilState)
-	{
-		DefaultDepthStencilState->Release();
-		DefaultDepthStencilState = nullptr;
-	}
-	if (GizmoDepthStencilState)
-	{
-		GizmoDepthStencilState->Release();
-		GizmoDepthStencilState = nullptr;
-	}
-	if (HighlightDepthStencilState)
-	{
-		HighlightDepthStencilState->Release();
-		HighlightDepthStencilState = nullptr;
-	}
-	if (StencilWriteDepthStencilState)
-	{
-		StencilWriteDepthStencilState->Release();
-		StencilWriteDepthStencilState = nullptr;
-	}
-	if (OutlineDepthStencilState)
-	{
-		OutlineDepthStencilState->Release();
-		OutlineDepthStencilState = nullptr;
-	}
-	if (TranslucentDepthStencilState)
-	{
-		TranslucentDepthStencilState->Release();
-		TranslucentDepthStencilState = nullptr;
-	}
+	// 공유 자원은 ResourceManager가 해제한다.
+	DefaultDepthStencilState = nullptr;
+	GizmoDepthStencilState = nullptr;
+	HighlightDepthStencilState = nullptr;
+	TranslucentDepthStencilState = nullptr;
+	TextDepthStencilState = nullptr;
+	StencilWriteDepthStencilState = nullptr;
+	OutlineDepthStencilState = nullptr;
 }
 
 void FRenderer::CreateTextResources()
@@ -419,13 +371,6 @@ void FRenderer::CreateTextResources()
 
 	TextShader = SharedTextShader;
 	FontSamplerState = SharedFontSampler;
-
-	// 깊이 검사는 하되(오브젝트에 가려지게) 기록은 안 함(라벨끼리 겹칠 때 z-fight 방지)
-	D3D11_DEPTH_STENCIL_DESC DSDesc = {};
-	DSDesc.DepthEnable = TRUE;
-	DSDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	DSDesc.DepthFunc = D3D11_COMPARISON_LESS;
-	CheckHR(D3DDevice->CreateDepthStencilState(&DSDesc, &TextDepthStencilState));
 
 	// Vertex Buffer: 매 프레임 내용이 바뀌므로 DYNAMIC, 고정 용량으로 1회만 생성
 	D3D11_BUFFER_DESC VBDesc = {};
@@ -466,7 +411,6 @@ void FRenderer::ReleaseTextResources()
 
 	if (TextVertexBuffer) { TextVertexBuffer->Release(); TextVertexBuffer = nullptr; }
 	if (TextIndexBuffer) { TextIndexBuffer->Release(); TextIndexBuffer = nullptr; }
-	if (TextDepthStencilState) { TextDepthStencilState->Release(); TextDepthStencilState = nullptr; }
 }
 
 void FRenderer::UpdateTextVertexBuffer(TArray<FVertexTexture>& Vertices)

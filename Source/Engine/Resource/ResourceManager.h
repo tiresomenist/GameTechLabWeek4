@@ -52,6 +52,9 @@ public:
 	void RegisterTexturePrimitives(GDevice* InDevice);
 	void RegisterRasterizerState(const FName& Name, const D3D11_RASTERIZER_DESC& Desc);
 	ID3D11RasterizerState* GetRasterizerState(const FName& Name) const;
+	void RegisterDepthStencilState(const FName& Name, const D3D11_DEPTH_STENCIL_DESC& Desc);
+	ID3D11DepthStencilState* GetDepthStencilState(const FName& Name) const;
+
 
 private:
 	GResourceManager() = default;
@@ -61,12 +64,14 @@ private:
 	void RegisterDefaultRenderResources();
 	void RegisterDefaultRasterizerStates();
 	void RegisterDefaultBlendStates();
+	void RegisterDefaultDepthStencilStates();
 	Microsoft::WRL::ComPtr<ID3D11Buffer> TextureMaterialConstantBuffer;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> WireframePixelShader;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11RasterizerState>> RasterizerStateCache;
 	TMap<FName, FShaderResource> ShaderCache;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11SamplerState>> SamplerCache;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11BlendState>> BlendStateCache;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11DepthStencilState>> DepthStencilStateCache;
 	GDevice* Device = nullptr;
 
 	TMap<FName, FMeshResource*> PrimitiveCache;

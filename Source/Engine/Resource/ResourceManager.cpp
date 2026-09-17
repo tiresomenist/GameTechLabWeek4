@@ -83,6 +83,7 @@ void GResourceManager::Initialize(GDevice* InDevice)
     RegisterDefaultRenderResources();
     RegisterDefaultRasterizerStates();
     RegisterDefaultBlendStates();
+    RegisterDefaultDepthStencilStates();
 }
 
 FMeshResource* GResourceManager::CreateMesh(const FName& MeshName,
@@ -238,6 +239,7 @@ void GResourceManager::Shutdown()
     SamplerCache.Empty();
     RasterizerStateCache.Empty();
     BlendStateCache.Empty();
+    DepthStencilStateCache.Empty();
 
     Device = nullptr;
 
@@ -722,4 +724,101 @@ void GResourceManager::RegisterDefaultBlendStates()
     AdditiveTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
     RegisterBlendState(FName("Blend.Additive"), AdditiveDesc);
+}
+
+void GResourceManager::RegisterDepthStencilState(const FName& Name, const D3D11_DEPTH_STENCIL_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Depth stencil device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid depth stencil state name");
+    }
+
+    if (DepthStencilStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Depth stencil state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> State;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateDepthStencilState(
+            &Desc, State.GetAddressOf()),
+        "CreateDepthStencilState");
+
+    if (!DepthStencilStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register depth stencil state");
+    }
+}
+
+ID3D11DepthStencilState* GResourceManager::GetDepthStencilState(const FName& Name) const
+{
+    const auto* Found = DepthStencilStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+
+void GResourceManager::RegisterDefaultDepthStencilStates()
+{
+    // 일반 메시: 깊이 검사·기록
+    D3D11_DEPTH_STENCIL_DESC DefaultDesc{};
+    DefaultDesc.DepthEnable = TRUE;
+    DefaultDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    DefaultDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    DefaultDesc.StencilEnable = FALSE;
+
+    RegisterDepthStencilState(FName("Depth.Default"), DefaultDesc);
+
+    // 기즈모: 깊이 검사 비활성화
+    D3D11_DEPTH_STENCIL_DESC GizmoDesc = DefaultDesc;
+    GizmoDesc.DepthEnable = FALSE;
+
+    RegisterDepthStencilState(FName("Depth.Gizmo"), GizmoDesc);
+
+    // 깊이는 검사하지만 기록하지 않는 상태
+    D3D11_DEPTH_STENCIL_DESC ReadOnlyDesc{};
+    ReadOnlyDesc.DepthEnable = TRUE;
+    ReadOnlyDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    ReadOnlyDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+    RegisterDepthStencilState(FName("Depth.Highlight"), ReadOnlyDesc);
+    RegisterDepthStencilState(FName("Depth.Translucent"), ReadOnlyDesc);
+    RegisterDepthStencilState(FName("Depth.Text"), ReadOnlyDesc);
+
+    // 선택된 메시: 스텐실 마스크 기록
+    D3D11_DEPTH_STENCIL_DESC StencilWriteDesc = DefaultDesc;
+    StencilWriteDesc.StencilEnable = TRUE;
+    StencilWriteDesc.StencilReadMask = 0xFF;
+    StencilWriteDesc.StencilWriteMask = 0xFF;
+
+    StencilWriteDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    StencilWriteDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    StencilWriteDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_REPLACE;
+    StencilWriteDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+
+    StencilWriteDesc.BackFace = StencilWriteDesc.FrontFace;
+
+    RegisterDepthStencilState(FName("Depth.StencilWrite"), StencilWriteDesc);
+
+    // 외곽선: 깊이 검사를 끄고 스텐실 마스크 바깥만 표시
+    D3D11_DEPTH_STENCIL_DESC OutlineDesc{};
+    OutlineDesc.DepthEnable = FALSE;
+    OutlineDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    OutlineDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    OutlineDesc.StencilEnable = TRUE;
+    OutlineDesc.StencilReadMask = 0xFF;
+    OutlineDesc.StencilWriteMask = 0x00;
+
+    OutlineDesc.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+    OutlineDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    OutlineDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    OutlineDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+
+    OutlineDesc.BackFace = OutlineDesc.FrontFace;
+
+    RegisterDepthStencilState(FName("Depth.Outline"), OutlineDesc);
 }
