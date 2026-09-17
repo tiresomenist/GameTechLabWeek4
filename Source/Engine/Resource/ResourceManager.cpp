@@ -82,6 +82,7 @@ void GResourceManager::Initialize(GDevice* InDevice)
     RegisterTexturePrimitives(InDevice);
     RegisterDefaultRenderResources();
     RegisterDefaultRasterizerStates();
+    RegisterDefaultBlendStates();
 }
 
 FMeshResource* GResourceManager::CreateMesh(const FName& MeshName,
@@ -236,6 +237,7 @@ void GResourceManager::Shutdown()
     ShaderCache.Empty();
     SamplerCache.Empty();
     RasterizerStateCache.Empty();
+    BlendStateCache.Empty();
 
     Device = nullptr;
 
@@ -650,4 +652,74 @@ void GResourceManager::RegisterDefaultRasterizerStates()
     WireDesc.FillMode = D3D11_FILL_WIREFRAME;
 
     RegisterRasterizerState(FName("Rasterizer.WireBack"), WireDesc);
+}
+
+void GResourceManager::RegisterBlendState(const FName& Name, const D3D11_BLEND_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Blend state device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid blend state name");
+    }
+
+    if (BlendStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Blend state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11BlendState> State;
+
+    CheckRenderResourceHR(Device->GetDevice()->CreateBlendState(&Desc, State.GetAddressOf()), "CreateBlendState");
+
+    if (!BlendStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register blend state");
+    }
+}
+
+ID3D11BlendState* GResourceManager::GetBlendState(const FName& Name) const
+{
+    const auto* Found = BlendStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+void GResourceManager::RegisterDefaultBlendStates()
+{
+    // 텍스트·그리드·배치 라인에서 사용하는 알파 블렌딩
+    D3D11_BLEND_DESC AlphaDesc{};
+    AlphaDesc.AlphaToCoverageEnable = FALSE;
+    AlphaDesc.IndependentBlendEnable = FALSE;
+
+    auto& AlphaTarget = AlphaDesc.RenderTarget[0];
+    AlphaTarget.BlendEnable = TRUE;
+    AlphaTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    AlphaTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    AlphaTarget.BlendOp = D3D11_BLEND_OP_ADD;
+
+    AlphaTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    AlphaTarget.DestBlendAlpha = D3D11_BLEND_ZERO;
+    AlphaTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    AlphaTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    RegisterBlendState(FName("Blend.Alpha"), AlphaDesc);
+
+    // 불꽃 RGB에 알파를 곱하여 기존 화면 RGB에 더함
+    D3D11_BLEND_DESC AdditiveDesc{};
+    auto& AdditiveTarget = AdditiveDesc.RenderTarget[0];
+
+    AdditiveTarget.BlendEnable = TRUE;
+    AdditiveTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    AdditiveTarget.DestBlend = D3D11_BLEND_ONE;
+    AdditiveTarget.BlendOp = D3D11_BLEND_OP_ADD;
+
+    // 기존 화면 알파 유지
+    AdditiveTarget.SrcBlendAlpha = D3D11_BLEND_ZERO;
+    AdditiveTarget.DestBlendAlpha = D3D11_BLEND_ONE;
+    AdditiveTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    AdditiveTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    RegisterBlendState(FName("Blend.Additive"), AdditiveDesc);
 }

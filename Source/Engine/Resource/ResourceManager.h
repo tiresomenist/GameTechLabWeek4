@@ -37,6 +37,8 @@ public:
 	FTextureResource* GetOrLoadTexture(const FString& FilePath);
 	void RegisterShader(const FName& Name,const WCHAR* FilePath,const char* VSEntry,
 		const char* PSEntry,const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout);
+	void RegisterBlendState(const FName& Name,const D3D11_BLEND_DESC& Desc);
+	ID3D11BlendState* GetBlendState(const FName& Name) const;
 
 	const FShaderResource* GetShader(const FName& Name) const;
 	ID3D11PixelShader* GetWireframePixelShader() const;
@@ -58,11 +60,13 @@ private:
 	GResourceManager& operator=(const GResourceManager&) = delete;
 	void RegisterDefaultRenderResources();
 	void RegisterDefaultRasterizerStates();
+	void RegisterDefaultBlendStates();
+	Microsoft::WRL::ComPtr<ID3D11Buffer> TextureMaterialConstantBuffer;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> WireframePixelShader;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11RasterizerState>> RasterizerStateCache;
 	TMap<FName, FShaderResource> ShaderCache;
 	TMap<FName, Microsoft::WRL::ComPtr<ID3D11SamplerState>> SamplerCache;
-	Microsoft::WRL::ComPtr<ID3D11Buffer> TextureMaterialConstantBuffer;
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> WireframePixelShader;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11BlendState>> BlendStateCache;
 	GDevice* Device = nullptr;
 
 	TMap<FName, FMeshResource*> PrimitiveCache;

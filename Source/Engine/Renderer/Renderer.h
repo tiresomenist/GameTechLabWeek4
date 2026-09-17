@@ -57,14 +57,13 @@ public:
 	ID3D11RasterizerState* CullNoneRasterizerState = nullptr;
 	ID3D11RasterizerState* WireframeRasterizerState = nullptr;
 
-	//EViewModeIndex ViewMode = EViewModeIndex::VMI_Unlit;
-
 	ID3D11DepthStencilState* DefaultDepthStencilState = nullptr;
 	ID3D11DepthStencilState* GizmoDepthStencilState = nullptr;
 	ID3D11DepthStencilState* HighlightDepthStencilState = nullptr;
 	ID3D11DepthStencilState* StencilWriteDepthStencilState = nullptr;	// 선택 오브젝트 본체: 스텐실에 1 기록
 	ID3D11DepthStencilState* OutlineDepthStencilState = nullptr;		// 외곽선: 스텐실 != 1 인 곳만 통과
-
+	
+	// ResourceManager 소유 자원의 비소유 참조
 	ID3D11BlendState* AlphaBlendState = nullptr;
 
 	ID3D11Buffer* TransformConstantBuffer = nullptr;
@@ -95,6 +94,7 @@ public:
 	ID3D11DepthStencilState* TranslucentDepthStencilState = nullptr;
 
 	// ---- 블렌드 스테이트 모드 ----
+	// ResourceManager 소유 자원의 비소유 참조
 	ID3D11BlendState* AdditiveBlendState = nullptr;
 
 

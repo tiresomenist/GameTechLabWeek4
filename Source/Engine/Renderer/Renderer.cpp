@@ -296,57 +296,20 @@ void FRenderer::ReleaseRasterizerState()
 
 void FRenderer::CreateAlphaBlendState()
 {
-	D3D11_BLEND_DESC blendDesc = {};
-	blendDesc.AlphaToCoverageEnable = FALSE;
-	blendDesc.IndependentBlendEnable = FALSE;
-
-	// 0번째 렌더 타겟(메인 화면)
-	blendDesc.RenderTarget[0].BlendEnable = TRUE;
-	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;       // 새로 그릴 픽셀의 알파값 비중
-	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;  // 이미 그려진 픽셀의 비중 (1 - SrcAlpha)
-	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;           // 두 색상을 더함
-
-	// 알파 채널 자체를 섞는다
-	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-
-	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
-	CheckHR(D3DDevice->CreateBlendState(&blendDesc, &AlphaBlendState));
-
-	D3D11_BLEND_DESC Desc{};
-	auto& Target = Desc.RenderTarget[0];
-
-	Target.BlendEnable = TRUE;
-
-	// 불꽃 RGB에 알파를 곱하여 기존 화면 RGB에 더함
-	Target.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	Target.DestBlend = D3D11_BLEND_ONE;
-	Target.BlendOp = D3D11_BLEND_OP_ADD;
-
-	// 기존 화면 알파 유지
-	Target.SrcBlendAlpha = D3D11_BLEND_ZERO;
-	Target.DestBlendAlpha = D3D11_BLEND_ONE;
-	Target.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-
-	Target.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
-	CheckHR(D3DDevice->CreateBlendState(&Desc,&AdditiveBlendState));
+	GResourceManager& Resources = *GResourceManager::GetInstance();
+	AlphaBlendState = Resources.GetBlendState(FName("Blend.Alpha"));
+	AdditiveBlendState = Resources.GetBlendState(FName("Blend.Additive"));
+	if (!AlphaBlendState || !AdditiveBlendState)
+	{
+		throw std::runtime_error("Required blend states are missing");
+	}
 }
 
 void FRenderer::ReleaseAlphaBlendState()
 {
-	if (AlphaBlendState)
-	{
-		AlphaBlendState->Release();
-		AlphaBlendState = nullptr;
-	}
-	if (AdditiveBlendState)
-	{
-		AdditiveBlendState->Release();
-		AdditiveBlendState = nullptr;
-	}
+	// 공유 자원은 ResourceManager가 해제한다.
+	AlphaBlendState = nullptr;
+	AdditiveBlendState = nullptr;
 }
 
 void FRenderer::CreateDepthStencilStates()
