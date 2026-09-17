@@ -98,11 +98,6 @@ public:
 	static const UINT MaxTextVertices = 8192;
 
 	// ---- Texture ----
-	// ResourceManager 소유 자원의 비소유 참조
-	ID3D11VertexShader* TextureVertexShader = nullptr;
-	ID3D11PixelShader* TexturePixelShader = nullptr;
-	ID3D11InputLayout* TextureInputLayout = nullptr;
-	ID3D11SamplerState* TextureSamplerState = nullptr;
     ID3D11Buffer* TextureUVConstantBuffer = nullptr;
 	ID3D11DepthStencilState* TranslucentDepthStencilState = nullptr;
 
@@ -176,6 +171,12 @@ private:
 	void SetViewportAndScissor(const D3D11_VIEWPORT& Viewport);
 
 	void SwapBuffer();
+	bool BindMaterial(const FMaterial& Material);
+
+	// 공유 자원과 Renderer 소유 버퍼를 참조하는 기본 바인딩 값.
+	FMaterial DefaultColorMaterial{};
+	FMaterial DefaultTextureMaterial{};
+
 	Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameBuffer;
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> FrameBufferRTV;

@@ -153,6 +153,8 @@ bool FRenderer::CreateShaders()
 	SimplePixelShader = ColorShader->PixelShader.Get();
 	SimpleInputLayout = ColorShader->InputLayout.Get();
 
+	DefaultColorMaterial.Shader = ColorShader;
+
 	Microsoft::WRL::ComPtr<ID3DBlob> shaderBlob;
 
 	// Wireframe 셰이더는 이번 이전 대상에 포함하지 않는다.
@@ -209,6 +211,8 @@ bool FRenderer::CompileShader(const WCHAR* FilePath, const LPCSTR EntryPoint, co
 
 void FRenderer::ReleaseShaders()
 {
+	DefaultColorMaterial = {};
+
 	SimpleInputLayout = nullptr;
 	SimplePixelShader = nullptr;
 	SimpleVertexShader = nullptr;
@@ -664,80 +668,70 @@ void FRenderer::CreateTextureResources()
 		throw std::runtime_error("Required texture render resources are missing");
 	}
 
-	TextureVertexShader = TextureShader->VertexShader.Get();
-	TexturePixelShader = TextureShader->PixelShader.Get();
-	TextureInputLayout = TextureShader->InputLayout.Get();
-	TextureSamplerState = Sampler;
-
-	// Draw마다 갱신하는 기존 상수 버퍼는 이번 단계에서 유지한다.
 	D3D11_BUFFER_DESC UVDesc{};
 	UVDesc.ByteWidth = sizeof(FTextureDrawConstants);
 	UVDesc.Usage = D3D11_USAGE_DEFAULT;
 	UVDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
 	CheckHR(D3DDevice->CreateBuffer(&UVDesc, nullptr, &TextureUVConstantBuffer));
+
+	DefaultTextureMaterial.Shader = TextureShader;
+	DefaultTextureMaterial.Sampler = Sampler;
+	DefaultTextureMaterial.ConstantBuffer = TextureUVConstantBuffer;
 }
 
 void FRenderer::ReleaseTextureResources()
 {
+	// 버퍼를 해제하기 전에 기본 Material의 참조를 비운다.
+	DefaultTextureMaterial = {};
+
 	if (TextureUVConstantBuffer)
 	{
 		TextureUVConstantBuffer->Release();
 		TextureUVConstantBuffer = nullptr;
 	}
-
-	// 공유 자원은 참조만 끊는다.
-	TextureSamplerState = nullptr;
-	TextureInputLayout = nullptr;
-	TexturePixelShader = nullptr;
-	TextureVertexShader = nullptr;
 }
 
 void FRenderer::RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil)
 {
-	if (!Data.VertexBuffer||!Data.IndexBuffer||!Data.Material||Data.IndexCount == 0){return;}
+	FMaterial Material = DefaultTextureMaterial;
+	Material.SRV = Data.Material;
+	Material.BlendMode = Data.BlendMode;
 
+	if (!Data.VertexBuffer || !Data.IndexBuffer || !Material.SRV || !Material.ConstantBuffer || Data.IndexCount == 0)
+	{ return; }
+	if (!BindMaterial(Material))
+	{
+		return;
+	}
 	FTextureDrawConstants Constants{};
 	Constants.UV = Data.UVTransform;
 	Constants.Tint = Data.TextureTint;
 	Constants.AlphaCutoff = Data.AlphaCutoff;
 
-	DeviceContext->UpdateSubresource(TextureUVConstantBuffer,0,nullptr,&Constants,0,0);
-	//UV변환에 사용함
-    DeviceContext->VSSetConstantBuffers(1, 1, &TextureUVConstantBuffer);
-
-	//색상 및 알파컷아웃에 사용함
-	DeviceContext->PSSetConstantBuffers(1, 1, &TextureUVConstantBuffer);
+	DeviceContext->UpdateSubresource(Material.ConstantBuffer,0,nullptr,&Constants,0,0);
+	
 	const UINT Offset = 0;
 
-	// 위치와 UV 형식으로 정점 버퍼를 읽음
-	DeviceContext->IASetInputLayout(TextureInputLayout);
-
-	DeviceContext->IASetVertexBuffers(0,1,&Data.VertexBuffer,&Data.Stride,&Offset);
-
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer,DXGI_FORMAT_R32_UINT,0);
-
+	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
+	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(Data.Topology);
 
-	// 정점 위치 변환에 사용할 셰이더와 행렬을 연결함
-	DeviceContext->VSSetShader(TextureVertexShader,	nullptr,0);
+	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
-	DeviceContext->VSSetConstantBuffers(0,1,&TransformConstantBuffer);
-
-	// 픽셀 셰이더의 t0와 s0에 텍스처와 샘플러를 연결함
-	DeviceContext->PSSetShader(InViewMode == EViewModeIndex::VMI_Wireframe ? WireframePixelShader : TexturePixelShader,nullptr,0);
-
-	DeviceContext->PSSetShaderResources(0,1,&Data.Material);
-
-	DeviceContext->PSSetSamplers(0,1,&TextureSamplerState);
+	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;	
+	if (bWireframe)
+	{
+		//Wireframe일때 셰이더 연결
+		DeviceContext->PSSetShader(WireframePixelShader, nullptr, 0);
+	}
 
 	// 구형 텍스처는 백페이스 컬링 / 플립북,빌보드 는 none 컬링
-	ID3D11RasterizerState* RasterizerState = InViewMode == EViewModeIndex::VMI_Wireframe ? WireframeRasterizerState : (Data.bTwoSided ? CullNoneRasterizerState : DefaultRasterizerState);
+	ID3D11RasterizerState* RasterizerState = bWireframe ? WireframeRasterizerState : (Data.bTwoSided ? CullNoneRasterizerState : DefaultRasterizerState);
 	DeviceContext->RSSetState(RasterizerState);
 
 	//블렌드 모드에 따라 가산블렌딩으로 변환
 	const bool bAdditive = Data.BlendMode == EPrimitiveBlendMode::Additive;
-	DeviceContext->OMSetBlendState(bAdditive ? AdditiveBlendState : nullptr,nullptr,0xffffffff);
 
 	if (bAdditive)
 	{
@@ -757,6 +751,7 @@ void FRenderer::RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewMo
 	// 사용한 텍스처 슬롯을 비움
 	ID3D11ShaderResourceView* NullSRV = nullptr;
 	DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
+
 	// 상태 복원
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 	DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
@@ -948,20 +943,24 @@ void FRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex
 		RenderTexturedPrimitive(Data, InViewMode, bWriteStencil);
 		return;
 	}
+	if (!BindMaterial(DefaultColorMaterial)) { return; }
 	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
+	
 	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(Data.Topology);
 
-	DeviceContext->VSSetShader(SimpleVertexShader, nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, &TransformConstantBuffer);
 
-	// Lit currently uses the unlit pipeline until lighting is implemented.
-	DeviceContext->RSSetState(InViewMode == EViewModeIndex::VMI_Wireframe ? WireframeRasterizerState : DefaultRasterizerState);
+	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;
 
-	DeviceContext->PSSetShader(InViewMode == EViewModeIndex::VMI_Wireframe ? WireframePixelShader : SimplePixelShader, nullptr, 0);
-	//DeviceContext->PSSetShader(SimplePixelShader, nullptr, 0);
+	// 광원 구현 전까지 Lit은 ULit 파이프라인 사용중
+	DeviceContext->RSSetState(bWireframe ? WireframeRasterizerState : DefaultRasterizerState);
+
+	if (bWireframe)
+	{
+		DeviceContext->PSSetShader(WireframePixelShader, nullptr, 0);
+	}
 
 	if (bWriteStencil)
 	{
@@ -971,7 +970,6 @@ void FRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex
 	{
 		DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
 	}
-	// BindMaterial(Data.Material);
 
 	DeviceContext->DrawIndexed(Data.IndexCount, 0, 0);
 }
@@ -1377,4 +1375,34 @@ void FRenderer::SetViewportAndScissor(const D3D11_VIEWPORT& Viewport)
 	};
 
 	DeviceContext->RSSetScissorRects(1, &ScissorRect);
+}
+
+bool FRenderer::BindMaterial(const FMaterial& Material)
+{
+	const FShaderResource* Shader = Material.Shader;
+
+	if (!Shader ||!Shader->VertexShader ||!Shader->PixelShader ||!Shader->InputLayout)
+	{
+		return false;
+	}
+
+	DeviceContext->IASetInputLayout(Shader->InputLayout.Get());
+
+	DeviceContext->VSSetShader(Shader->VertexShader.Get(), nullptr, 0);
+
+	DeviceContext->PSSetShader(Shader->PixelShader.Get(), nullptr, 0);
+
+	DeviceContext->PSSetShaderResources(0, 1, &Material.SRV);
+
+	DeviceContext->PSSetSamplers(0, 1, &Material.Sampler);
+
+	DeviceContext->VSSetConstantBuffers(1, 1, &Material.ConstantBuffer);
+
+	DeviceContext->PSSetConstantBuffers(1, 1, &Material.ConstantBuffer);
+
+	const bool bAdditive = Material.BlendMode == EPrimitiveBlendMode::Additive;
+
+	DeviceContext->OMSetBlendState(bAdditive ? AdditiveBlendState : nullptr, nullptr, 0xffffffff);
+
+	return true;
 }
