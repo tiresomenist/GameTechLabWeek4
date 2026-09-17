@@ -51,9 +51,13 @@ void GObjectStatics::CommitSlot(uint32 Index, UObject* Object)
 	{
 		throw std::logic_error("Slot not reserved");
 	}
+
+	TArray<UObject*>& Objects = ObjectsByClass[Object->GetInstanceClass()];
+	Objects.Add(Object);
 	Slots[Index] = FObjectSlot{
 		.Object = Object, 
 		.NextFreeSlot = -1,
+		.ClassIndex = Objects.Num(),
 	};
 }
 
@@ -73,13 +77,25 @@ void GObjectStatics::CancelSlot(uint32 Index) noexcept
 void GObjectStatics::Unregister(uint32 Index, UObject* Object) noexcept
 {
     if (Object != nullptr &&
-    	Index < Slots.Num() &&
-    	Slots[Index].Object == Object)
+    	static_cast<int32>(Index) < Slots.Num() &&
+    	Slots[Index].Object == Object &&
+    	ObjectsByClass.Find(Object->GetInstanceClass()) != nullptr)
     {
+		TArray<UObject*>& Objects = ObjectsByClass[Object->GetInstanceClass()];
+
+		const int32 RemoveIndex = Slots[Index].ClassIndex;
+		if (RemoveIndex != Objects.Num())
+		{
+			UObject* MovedObject = Objects.Last();
+			Objects[RemoveIndex] = MovedObject;
+			Slots[MovedObject->GetInternalIndex()].ClassIndex = RemoveIndex;
+		}
+		Objects.Pop();
+
 	    Slots[Index] = FObjectSlot{
 		    .NextFreeSlot = FirstFreeSlot,
 	    };
-		FirstFreeSlot = Index;
+		FirstFreeSlot = static_cast<int32>(Index);
     }
 }
 
@@ -91,4 +107,5 @@ void GObjectStatics::Release()
     }
     Slots.Empty();
     FirstFreeSlot = -1;
+	ObjectsByClass.Empty();
 }

@@ -87,6 +87,12 @@ public:
 		return Array[Index];
 	}
 
+	T& Last()
+	{
+		if (Array.empty()) throw std::runtime_error("Array empty");
+		return Array.back();
+	}
+
 	void Sort(std::function<bool(const T&, const T&)> Compare = std::less<T>())
 	{
 		std::sort(Array.begin(), Array.end(), Compare);
