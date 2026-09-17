@@ -24,6 +24,7 @@ struct FTextureUVTransform
     float OffsetU = 0.0f;
     float OffsetV = 0.0f;
 };
+
 static_assert(sizeof(FTextureUVTransform) == 16);
 
 struct FTextureDrawConstants

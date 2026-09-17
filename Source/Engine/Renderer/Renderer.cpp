@@ -15,6 +15,7 @@
 #include "Engine/Resource/MeshResource.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Log.h"
+#include "Engine/Renderer/Context.h"
 
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_dx11.h"
@@ -38,10 +39,11 @@ namespace
 
 void FRenderer::Create(HWND HWnd, GDevice* InDevice)
 {
-	if (!InDevice || !InDevice->GetDevice() || !InDevice->GetContext())
+	GContext& Context = *GContext::GetInstance();
+	if (!InDevice || !InDevice->GetDevice() || !Context.IsInitialized())
 		throw std::runtime_error("Renderer requires an initialized device");
 	Device = InDevice;
-	DeviceContext = InDevice->GetContext();
+	DeviceContext = Context.GetNative();
 	D3DDevice = InDevice->GetDevice();
 	ViewportInfo = InDevice->GetViewport();
 	CreateRasterizerState();

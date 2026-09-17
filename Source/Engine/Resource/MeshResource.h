@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d11.h>
-
+#include <wrl/client.h>
 #include "Core/Container/Array.h"
 #include "Engine/Renderer/VertexSimple.h"
 #include "Core/Core.h"
@@ -14,13 +14,9 @@ public:
     FMeshResource() = default;
     FMeshResource(const FMeshResource&) = delete;
     FMeshResource& operator=(const FMeshResource&) = delete;
-    ~FMeshResource()
-    {
-        if (VertexBuffer) VertexBuffer->Release();
-        if (IndexBuffer) IndexBuffer->Release();
-    }
-    ID3D11Buffer* GetVertexBuffer() const { return VertexBuffer; }
-    ID3D11Buffer* GetIndexBuffer() const { return IndexBuffer; }
+    ~FMeshResource() = default;
+    ID3D11Buffer* GetVertexBuffer() const { return VertexBuffer.Get(); }
+    ID3D11Buffer* GetIndexBuffer() const { return IndexBuffer.Get(); }
     UINT GetVertexCount() const { return VertexCount; }
     UINT GetIndexCount() const { return IndexCount; }
     UINT GetStride() const { return Stride; }
@@ -30,8 +26,8 @@ public:
     const FVector& GetBoundsMax() const { return BoundsMax; }
     bool HasBounds() const { return bHasBounds; }
 private:
-	ID3D11Buffer* VertexBuffer = nullptr;
-	ID3D11Buffer* IndexBuffer = nullptr;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer = nullptr;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = nullptr;
 	UINT VertexCount = 0;
 	UINT IndexCount = 0;
 	UINT Stride = 0;
