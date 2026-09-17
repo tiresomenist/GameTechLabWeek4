@@ -832,14 +832,18 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 	LineBatcher.Clear();
 
 	UCameraComponent* Camera = Editor->GetEditorCamera();
+	const FViewSettings ViewSettings = Editor->GetViewSettings();
 
 	Camera->SetAspectRatio(ViewportInfo.Width / ViewportInfo.Height);
 	FMatrix ViewProjMatrix = Camera->GetViewMatrix() * Camera->GetProjectionMatrix();
-	TArray<FPrimitiveRenderData> RenderList = RenderUtil::GetRenderList(Editor, Scene);
-	const bool bShowPrimitives = Editor->IsShowingPrimitives();
-	const EViewModeIndex ViewMode = Editor->GetViewMode();
+	TArray<FPrimitiveRenderData> RenderList = RenderUtil::GetRenderList(Editor, Scene, Camera);
+
+	const bool bShowPrimitives = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Primitives);
+	const EViewModeIndex ViewMode = ViewSettings.ViewMode;
+
 	TArray<const FPrimitiveRenderData*> AdditiveRenderList;
 	TArray<const FPrimitiveRenderData*> OutlineRenderList;
+
 	for (auto& Item : RenderList)
 	{
 		if (!Item.WorldMatrix || !Item.VertexBuffer || !Item.IndexBuffer || Item.IndexCount == 0)
@@ -912,7 +916,7 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 #else
 #endif
 	// 모든 라인 요청을 배처의 통합 배열에 즉시 병합함
-	RenderUtil::SubmitLineDrawRequests(Editor, Scene, LineBatcher);
+	RenderUtil::SubmitLineDrawRequests(Editor, Scene, Camera, ViewSettings, LineBatcher);
 
 	// 통합 데이터를 GPU에 업로드하고 배치 렌더링함
 	RenderBatchLine(ViewProjMatrix);
@@ -950,7 +954,7 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 	FFontAtlas* FontAtlas = GResourceManager::GetInstance()->GetDefaultFont();
 	if (FontAtlas)
 	{
-		TArray<FWorldTextItem> TextItems = RenderUtil::GetTextRenderList(Scene, Camera, Editor->IsShowingUUIDLabels());
+		TArray<FWorldTextItem> TextItems = RenderUtil::GetTextRenderList(Scene, Camera, ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::UUID));
 		TArray<FVertexTexture> TextVerts = FTextMeshBuilder::Build(TextItems, *FontAtlas);
 		UpdateTextVertexBuffer(TextVerts);
 		UpdateTransformConstantBuffer(ViewProjMatrix); // 텍스트는 이미 월드공간이라 World=Identity
