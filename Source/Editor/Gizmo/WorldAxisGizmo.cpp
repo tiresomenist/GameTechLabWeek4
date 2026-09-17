@@ -2,7 +2,8 @@
 #include "Core/Core.h"
 #include "WorldAxisGizmo.h"
 
-TArray<FPrimitiveRenderData> UWorldAxisGizmo::GetRenderData()
+TArray<FPrimitiveRenderData> UWorldAxisGizmo::GetRenderData(const UCameraComponent* Camera,
+    const D3D11_VIEWPORT& Viewport)
 {
 	return TArray<FPrimitiveRenderData>();
 }

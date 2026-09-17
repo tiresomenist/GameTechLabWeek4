@@ -77,19 +77,26 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 	return RenderList;
 }
 
-TArray<FPrimitiveRenderData> RenderUtil::GetGizmoList(FEditor* Editor, UScene* Scene)
+TArray<FPrimitiveRenderData> RenderUtil::GetGizmoList(FEditor* Editor,UScene* Scene,const UCameraComponent* Camera,
+	const D3D11_VIEWPORT& Viewport)
 {
 	TArray<FPrimitiveRenderData> RenderList;
 
+	if (!Editor || !Scene || !Camera)
+	{
+		return RenderList;
+	}
+
 	for (auto Item : Editor->Gizmos)
 	{
-		TArray<FPrimitiveRenderData> Array = Item->GetRenderData();
+		TArray<FPrimitiveRenderData> Array =Item->GetRenderData(Camera, Viewport);
 
 		for (auto& Data : Array)
 		{
 			RenderList.Add(Data);
 		}
 	}
+
 	return RenderList;
 }
 

@@ -142,7 +142,7 @@ public:
 	void EndFrame();
 
 	void Render(float DeltaTime, FEditor* Editor, UScene* Scene);
-	void Render(float DeltaTime, FEditor* Editor, UScene* Scene, TArray<FRenderView>& Views);
+	void Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TArray<FRenderView>& Views);
 	void RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex InViewMode, bool bWriteStencil = false);
 	void RenderHighlight(const FPrimitiveRenderData& Data);
 	void RenderOutline(const FPrimitiveRenderData& Data);
@@ -169,6 +169,8 @@ private:
 
 	bool CreateDepthStencilBuffer(uint32 Width, uint32 Height);
 	void ReleaseDepthStencilBuffer();
+
+	void SetViewportAndScissor(const D3D11_VIEWPORT& Viewport);
 
 	void SwapBuffer();
 	Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;

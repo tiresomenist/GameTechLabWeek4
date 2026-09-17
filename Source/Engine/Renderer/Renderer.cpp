@@ -274,7 +274,7 @@ void FRenderer::PrepareRTVDSV()
 {
 	GContext& Context = *GContext::GetInstance();
 
-	Context.SetViewport(ViewportInfo);
+	SetViewportAndScissor(ViewportInfo);
 
 	DeviceContext->RSSetState(DefaultRasterizerState);
 	DeviceContext->ClearRenderTargetView(FrameBufferRTV.Get(), ClearColor);
@@ -347,6 +347,9 @@ void FRenderer::CreateRasterizerState()
 	D3D11_RASTERIZER_DESC SolidDesc = {};
 	SolidDesc.FillMode = D3D11_FILL_SOLID;
 	SolidDesc.CullMode = D3D11_CULL_BACK;
+	
+	SolidDesc.ScissorEnable = TRUE; // Scissor를 위해 추가
+
 	CheckHR(D3DDevice->CreateRasterizerState(&SolidDesc, &DefaultRasterizerState));
 
 	// 그리드: 양면 다 그림
@@ -832,7 +835,15 @@ void FRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& View
 	UCameraComponent* Camera = View.Camera;
 	const FViewSettings& ViewSettings = View.ViewSettings;
 
-	GContext::GetInstance()->SetViewport(View.Viewport);
+	SetViewportAndScissor(View.Viewport);
+	
+	DeviceContext->RSSetState(DefaultRasterizerState);
+	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
+	DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
+
+	ID3D11ShaderResourceView* NullSRV = nullptr;
+	DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
+
 	Camera->SetAspectRatio(View.Viewport.Width / View.Viewport.Height);
 
 	LineBatcher.Clear();
@@ -875,50 +886,6 @@ void FRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& View
 			}
 		}
 	}
-
-	
-
-	// Render Grid
-#if 0
-	UpdateTransformConstantBuffer(ViewProjMatrix);
-	for (auto Item : Editor->GetGrids())
-	{
-		// XY 평면용 월드 행렬 세팅 및 렌더링
-		FMatrix XY_WorldMatrix = FMatrix::Identity;
-
-		FVector WorldCameraPos = Camera->GetWorldLocation();
-		FVector LocalCameraPosXY = XY_WorldMatrix.Inverse().TransformPosition(WorldCameraPos);
-
-		FGridConstants ConstantsXY;
-		ConstantsXY.CameraPos = LocalCameraPosXY;
-		ConstantsXY.GridPlaneType = 0;
-		UpdateGridConstantBuffer(ConstantsXY);
-
-		UpdateTransformConstantBuffer(XY_WorldMatrix * ViewProjMatrix);
-		RenderGrid(Item->GetMeshResource());
-
-		// 기존 판을 Y축 기준으로 90도(PI/2) 회전 (YZ 평면)
-		float theta = atan2f(Camera->GetWorldLocation().Y, Camera->GetWorldLocation().X);
-		FMatrix Z_WorldMatrix =
-			FMatrix::MakeScaleMatrix(FVector(5.0f, 1.0f, 1.0f)) *
-			FMatrix::MakeRotationYMatrix(PI / 2.0f) *
-			FMatrix::MakeRotationZMatrix(theta);
-
-		// 카메라의 월드 위치를 Z평면의 로컬 공간(Local Space)으로 변환
-		//FVector WorldCameraPos = Camera->GetWorldLocation();
-		FVector LocalCameraPosZ = Z_WorldMatrix.Inverse().TransformPosition(WorldCameraPos);
-
-		// 셰이더 상수 버퍼에 '로컬 카메라 위치'를 전달
-		FGridConstants ConstantsZ;
-		ConstantsZ.CameraPos = LocalCameraPosZ;
-		ConstantsZ.GridPlaneType = 1;
-		UpdateGridConstantBuffer(ConstantsZ);
-
-		UpdateTransformConstantBuffer(Z_WorldMatrix * ViewProjMatrix);
-		RenderGrid(Item->GetMeshResource());
-	}
-#else
-#endif
 	// 모든 라인 요청을 배처의 통합 배열에 즉시 병합함
 	RenderUtil::SubmitLineDrawRequests(Editor, Scene, Camera, ViewSettings, LineBatcher);
 
@@ -945,7 +912,7 @@ void FRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& View
 	// Render Gizmo
 	if (View.bDrawEditorGizmos)
 	{
-		TArray<FPrimitiveRenderData> GizmoRenderList = RenderUtil::GetGizmoList(Editor, Scene);
+		TArray<FPrimitiveRenderData> GizmoRenderList = RenderUtil::GetGizmoList(Editor, Scene, Camera, View.Viewport);
 		for (const auto& Item : GizmoRenderList)
 		{
 			FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
@@ -1416,7 +1383,7 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 }
 
 // 다중 View
-void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, TArray<FRenderView>& Views)
+void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArray<FRenderView>& Views)
 {
 	if (!IsRenderReady() || !Editor || !Scene)
 	{
@@ -1430,12 +1397,30 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, TArray<FRe
 		RenderView(Editor, Scene, View);
 	}
 
-	GContext::GetInstance()->SetViewport(ViewportInfo);
+	SetViewportAndScissor(ViewportInfo);
 
+	// UI 렌더링
 	for (auto Item : Editor->GetWindows())
 	{
 		Item->Render(DeltaTime);
 	}
 
 	EndFrame();
+}
+
+// Viewport,Scissor 설정
+void FRenderer::SetViewportAndScissor(const D3D11_VIEWPORT& Viewport)
+{
+	GContext::GetInstance()->SetViewport(Viewport);
+
+	// Viewport는 정수 픽셀 경계로 구성한다.
+	const D3D11_RECT ScissorRect
+	{
+		static_cast<LONG>(Viewport.TopLeftX),
+		static_cast<LONG>(Viewport.TopLeftY),
+		static_cast<LONG>(Viewport.TopLeftX + Viewport.Width),
+		static_cast<LONG>(Viewport.TopLeftY + Viewport.Height)
+	};
+
+	DeviceContext->RSSetScissorRects(1, &ScissorRect);
 }

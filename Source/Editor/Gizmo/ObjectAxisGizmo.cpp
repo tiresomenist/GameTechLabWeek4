@@ -20,15 +20,29 @@ void UObjectAxisGizmo::Initialize()
 	SetMode(Mode);
 }
 
-bool UObjectAxisGizmo::UpdateTransform() {
-	if (Editor == nullptr || Handles.Num() != 3) return false;
+bool UObjectAxisGizmo::UpdateTransform()
+{
+	if (!Editor)
+	{
+		return false;
+	}
+
+	return UpdateTransform(Editor->GetEditorCamera(), GEngine::GetInstance()->GetViewport());
+}
+
+bool UObjectAxisGizmo::UpdateTransform(const UCameraComponent* Camera, const D3D11_VIEWPORT& Viewport)
+{
+	if (!Editor || !Camera || Handles.Num() != 3)
+	{
+		return false;
+	}
 
 	auto* SelectedObject = Editor->GetSelectedSceneComponent();
-	auto* Camera = Editor->GetEditorCamera();
 
-	if (!SelectedObject || !Camera)	return false;
-
-	const auto& Viewport = GEngine::GetInstance()->GetViewport();
+	if (!SelectedObject)
+	{
+		return false;
+	}
 
 	if (!std::isfinite(Viewport.Width) ||!std::isfinite(Viewport.Height) ||	Viewport.Width <= 0.0f ||Viewport.Height <= 0.0f)
 	{
@@ -94,8 +108,14 @@ bool UObjectAxisGizmo::UpdateTransform() {
 	return true;
 }
 
-TArray<FPrimitiveRenderData> UObjectAxisGizmo::GetRenderData()
+TArray<FPrimitiveRenderData> UObjectAxisGizmo::GetRenderData(const UCameraComponent* Camera,
+	const D3D11_VIEWPORT& Viewport)
 {
+	if (!UpdateTransform(Camera, Viewport))
+	{
+		return {};
+	}
+
 	switch (Mode)
 	{
 	case EGizmoMode::Translate:
@@ -115,9 +135,6 @@ TArray<FPrimitiveRenderData> UObjectAxisGizmo::GetTranslateRenderData()
 {
 	TArray<FPrimitiveRenderData> Result;
 
-	if (!UpdateTransform()) {
-		return Result;
-	}
 	FMeshResource* Mesh;
 	Mesh = Handles[0].Mesh;
 	if (Mesh != nullptr)
@@ -172,9 +189,6 @@ TArray<FPrimitiveRenderData> UObjectAxisGizmo::GetRotateRenderData()
 {
 	TArray<FPrimitiveRenderData> Result;
 
-	if (!UpdateTransform()) {
-		return Result;
-	}
 	FMeshResource* Mesh;
 	Mesh = Handles[0].Mesh;
 	if (Mesh != nullptr)
@@ -230,9 +244,6 @@ TArray<FPrimitiveRenderData> UObjectAxisGizmo::GetScaleRenderData()
 {
 	TArray<FPrimitiveRenderData> Result;
 
-	if (!UpdateTransform()) {
-		return Result;
-	}
 	FMeshResource* Mesh;
 	Mesh = Handles[0].Mesh;
 	if (Mesh != nullptr)
