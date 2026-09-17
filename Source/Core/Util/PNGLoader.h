@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Core/Core.h"
-#include "Core/Container/FString.h"
-#include "Core/Container/TArray.h"
+#include "Core/Container/String.h"
+#include "Core/Container/Array.h"
 
 // 좌측 상단부터 행 단위로 저장된 RGBA 8비트 이미지 데이터
 struct FPNGImage

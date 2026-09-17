@@ -1,6 +1,6 @@
 #pragma once
-#include "Core/Container/TArray.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Core/Container/Array.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 // Blender에서 내보낸 로켓 메시 (Z-up, 왼손 좌표계, 엔진 컬링에 맞춰 winding 반전)
 // 머티리얼 단색을 정점 색상(sRGB)으로 구워 넣었으므로 흰색 텍스처를 입히면 원래 색이 유지됨

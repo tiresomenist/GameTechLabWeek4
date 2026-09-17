@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "WndProc.h"
-#include "Engine/Input/GInputManager.h"
+#include "Engine/Input/InputManager.h"
 #include "Core/Core.h"
 #include "Engine/Log.h"
 #include "ImGui/imgui.h"

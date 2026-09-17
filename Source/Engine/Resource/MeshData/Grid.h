@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 inline const FVertexSimple grid_vertices[] = {
 	{ -1152.463135f, -1152.463135f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f },

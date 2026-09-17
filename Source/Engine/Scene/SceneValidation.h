@@ -1,13 +1,13 @@
 #pragma once
 
 #include "Core/Core.h"
-#include "Core/Container/FString.h"
-#include "Core/Name/FName.h"
+#include "Core/Container/String.h"
+#include "Core/Name/Name.h"
 
-#include "Engine/Object/FClassType.h"
-#include "Engine/Object/FClassRegistry.h"
-#include "Engine/Component/UActorComponent.h"
-#include "Engine/Resource/FMeshNames.h"
+#include "Engine/Object/ClassType.h"
+#include "Engine/Object/ClassRegistry.h"
+#include "Engine/Component/ActorComponent.h"
+#include "Engine/Resource/MeshNames.h"
 
 #include <charconv>
 #include <limits>

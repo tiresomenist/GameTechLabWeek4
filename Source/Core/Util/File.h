@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <optional>
 
-#include "Core/Container/FString.h"
+#include "Core/Container/String.h"
 
 enum class EFileDialogType
 {

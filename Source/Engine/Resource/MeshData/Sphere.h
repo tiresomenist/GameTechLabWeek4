@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 inline const FVertexSimple sphere_vertices[] = {
 	{ 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 1.000000f, 1.000000f },

@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/Math/FVector.h"
+#include "Core/Math/Vector.h"
 #include <cmath>
 
 inline bool ApplyScaleEdit(const FVector& Before, int Axis, float Value, bool Locked, FVector& Out)

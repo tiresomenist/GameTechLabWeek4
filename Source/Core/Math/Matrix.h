@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "Core/Core.h"
 #include "Core/Core.h"
-#include "FVector.h"
+#include "Vector.h"
 //벡터, 행렬 구조체 선언
 
 

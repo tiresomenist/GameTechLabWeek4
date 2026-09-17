@@ -1,6 +1,6 @@
 #pragma once
 #include "Core/Core.h"
-#include "Engine/Renderer/FVertexSimple.h"
+#include "Engine/Renderer/VertexSimple.h"
 
 inline const FVertexSimple octopus_vertices[] = {
 	{ 0.335770f, -0.888845f, 0.092216f, 0.335770f, 0.888845f, 0.092216f, 1.000000f },

@@ -5,7 +5,7 @@
 #include "ImGui/imgui.h"
 
 //렌더러 헤더파일
-#include "Engine/GEngine.h"
+#include "Engine/Engine.h"
 #include "Engine/Input/WndProc.h"
 #include "Engine/Log.h"
 
