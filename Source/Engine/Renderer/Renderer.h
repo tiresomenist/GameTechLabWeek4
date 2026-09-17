@@ -32,6 +32,14 @@ struct FGridConstants
 class UScene;
 class FEditor;
 struct FPrimitiveRenderData;
+class UCameraComponent;
+struct FRenderView
+{
+	UCameraComponent* Camera = nullptr;
+	D3D11_VIEWPORT Viewport{};
+	FViewSettings ViewSettings{};
+	bool bDrawEditorGizmos = false;
+};
 
 #include <cmath>
 
@@ -134,6 +142,7 @@ public:
 	void EndFrame();
 
 	void Render(float DeltaTime, FEditor* Editor, UScene* Scene);
+	void Render(float DeltaTime, FEditor* Editor, UScene* Scene, TArray<FRenderView>& Views);
 	void RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex InViewMode, bool bWriteStencil = false);
 	void RenderHighlight(const FPrimitiveRenderData& Data);
 	void RenderOutline(const FPrimitiveRenderData& Data);
@@ -152,6 +161,7 @@ public:
 	void RenderTexturedPrimitive(const FPrimitiveRenderData& Data,EViewModeIndex InViewMode, bool bWriteStencil = false);
 
 private:
+	void RenderView(FEditor* Editor, UScene* Scene, const FRenderView& View);
 	bool CreateSwapChain(HWND HWnd, uint32 Width, uint32 Height);
 
 	bool CreateFrameBuffer();

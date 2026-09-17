@@ -824,21 +824,25 @@ void FRenderer::EndFrame()
 	GContext::GetInstance()->UnbindRenderTargets();
 }
 
-void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
+void FRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& View)
 {
-	if (!IsRenderReady() || !Editor || !Scene) return;
+	if (!View.Camera ||	View.Viewport.Width <= 0.0f || View.Viewport.Height <= 0.0f)
+	{ return; }
 
-	BeginFrame();
+	UCameraComponent* Camera = View.Camera;
+	const FViewSettings& ViewSettings = View.ViewSettings;
+
+	GContext::GetInstance()->SetViewport(View.Viewport);
+	Camera->SetAspectRatio(View.Viewport.Width / View.Viewport.Height);
+
 	LineBatcher.Clear();
 
-	UCameraComponent* Camera = Editor->GetEditorCamera();
-	const FViewSettings ViewSettings = Editor->GetViewSettings();
-
-	Camera->SetAspectRatio(ViewportInfo.Width / ViewportInfo.Height);
 	FMatrix ViewProjMatrix = Camera->GetViewMatrix() * Camera->GetProjectionMatrix();
+
 	TArray<FPrimitiveRenderData> RenderList = RenderUtil::GetRenderList(Editor, Scene, Camera);
 
 	const bool bShowPrimitives = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Primitives);
+
 	const EViewModeIndex ViewMode = ViewSettings.ViewMode;
 
 	TArray<const FPrimitiveRenderData*> AdditiveRenderList;
@@ -939,16 +943,18 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 	}
 
 	// Render Gizmo
-	TArray<FPrimitiveRenderData> GizmoRenderList = RenderUtil::GetGizmoList(Editor, Scene);
-	for (const auto& Item : GizmoRenderList)
+	if (View.bDrawEditorGizmos)
 	{
-		FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
-		UpdateTransformConstantBuffer(MVP);
-		if (Item.isSelected)
+		TArray<FPrimitiveRenderData> GizmoRenderList = RenderUtil::GetGizmoList(Editor, Scene);
+		for (const auto& Item : GizmoRenderList)
 		{
-			RenderHighlight(Item);
+			FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
+			UpdateTransformConstantBuffer(MVP);
+
+			if (Item.isSelected)
+			{ RenderHighlight(Item); }
+			RenderGizmo(Item);
 		}
-		RenderGizmo(Item);
 	}
 
 	FFontAtlas* FontAtlas = GResourceManager::GetInstance()->GetDefaultFont();
@@ -963,13 +969,6 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene)
 	}
 
 	UpdateTransformConstantBuffer(ViewProjMatrix);
-
-	// Render Windows
-	for (auto Item : Editor->GetWindows())
-	{
-		Item->Render(DeltaTime);
-	}
-	EndFrame();
 }
 
 void FRenderer::UpdateTransformConstantBuffer(const FMatrix& MVP)
@@ -1394,4 +1393,49 @@ void FRenderer::OnResize(uint32 Width, uint32 Height)
 	Context.SetViewport(ViewportInfo);
 
 	bRenderReady = true;
+}
+
+// 단일 View
+void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
+{
+	if (!IsRenderReady() || !Editor || !Scene)
+	{
+		return;
+	}
+
+	FRenderView View{};
+	View.Camera = Editor->GetEditorCamera();
+	View.Viewport = ViewportInfo;
+	View.ViewSettings = Editor->GetViewSettings();
+	View.bDrawEditorGizmos = true;
+
+	TArray<FRenderView> Views;
+	Views.Add(View);
+
+	Render(DeltaTime, Editor, Scene, Views);
+}
+
+// 다중 View
+void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, TArray<FRenderView>& Views)
+{
+	if (!IsRenderReady() || !Editor || !Scene)
+	{
+		return;
+	}
+
+	BeginFrame();
+
+	for (const FRenderView& View : Views)
+	{
+		RenderView(Editor, Scene, View);
+	}
+
+	GContext::GetInstance()->SetViewport(ViewportInfo);
+
+	for (auto Item : Editor->GetWindows())
+	{
+		Item->Render(DeltaTime);
+	}
+
+	EndFrame();
 }
