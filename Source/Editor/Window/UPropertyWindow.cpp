@@ -1,0 +1,530 @@
+#include "pch.h"
+#include "Editor/Util/ScaleEdit.h"
+#include "UPropertyWindow.h"
+#include "Core/Math/FVector.h"
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_stdlib.h"
+#include "Editor/FEditor.h"
+#include "Core/Math/FQuaternion.h"
+#include "Engine/Actor/AActor.h"
+#include "Engine/Component/Primitive/UPrimitiveComponent.h"
+#include "Engine/Component/Primitive/UFlipbookComponent.h"
+#include "Engine/Component/Primitive/UTextComponent.h"
+#include "Engine/Component/UStaticMeshComponent.h"
+#include "Engine/Component/UWidgetComponent.h"
+#include "Core/Math/FRotator.h"
+#include "Core/Util/File.h"
+#include "Engine/Component/Light/USpotLightComponent.h"
+#include "Editor/Util/MeshSelection.h"
+
+namespace
+{
+	UStaticMeshComponent* FindStaticMeshComponent(AActor* Actor)
+	{
+		if (Actor == nullptr) return nullptr;
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (Component->IsA(UStaticMeshComponent::GetClass()))
+			{
+				return static_cast<UStaticMeshComponent*>(Component);
+			}
+		}
+
+		return nullptr;
+	}
+
+	void EnsurePrimitiveWidget(AActor* Actor)
+	{
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (Component->IsA(UWidgetComponent::GetClass())) return;
+		}
+
+		Actor->CreateComponent(UWidgetComponent::GetClass());
+	}
+}
+
+void UPropertyWindow::Initialize(FEditor* InEditor)
+{
+	UEditorWindow::Initialize(InEditor);
+
+	AddableComponentClasses.Add(UStaticMeshComponent::GetClass());
+	AddableComponentClasses.Add(UTextComponent::GetClass());
+	AddableComponentClasses.Add(UFlipbookComponent::GetClass());
+	AddableComponentClasses.Add(USpotLightComponent::GetClass());
+	SelectedAddComponentClass = *AddableComponentClasses.begin();
+
+	SelectedMeshKey = MeshSelection::GetEntries()[0].Key;
+}
+
+void UPropertyWindow::GetSelectedValue()
+{
+	USceneComponent* NewComponent = Editor->GetSelectedSceneComponent();
+	if (SelectedComponent != NewComponent)
+	{
+		SelectedComponent = NewComponent;
+		bEditingRotation = false;
+	}
+
+	if (!SelectedComponent)
+	{
+		bEditingRotation = false;
+		return;
+	}
+	Translation = SelectedComponent->GetRelativeLocation();
+	OScale = SelectedComponent->GetRelativeScale3D();
+	// 입력 중에는 창의 임시 값을 유지함
+	if (!bEditingRotation)
+	{
+		RotationDegree = SelectedComponent->GetRelativeRotator();
+	}
+}
+
+void UPropertyWindow::SetSelectedValue(bool bSetRotation)
+{
+	if (!SelectedComponent) return;
+	SelectedComponent->SetRelativeLocation(Translation);
+	if (bSetRotation)
+	{
+		SelectedComponent->SetRelativeRotation(RotationDegree);
+	}
+	SelectedComponent->SetRelativeScale3D(OScale);
+}
+
+bool UPropertyWindow::DrawRotationField(const char* ID, float& Degree, bool& bRotationActive)
+{
+	const float PreviousDegree = Degree;
+	const bool bChanged = ImGui::DragFloat(ID, &Degree, 0.1f, 0.0f, 0.0f, "%.3f");
+
+	bRotationActive |= ImGui::IsItemActive();
+	if (bChanged && !std::isfinite(Degree))
+	{
+		Degree = PreviousDegree;
+		return false;
+	}
+	return bChanged;
+}
+
+
+void UPropertyWindow::RemoveSelectedComponent()
+{
+	Editor->RemoveSelectedComponent();
+	SelectedComponent = nullptr;
+}
+
+void UPropertyWindow::DeleteSelectedActor()
+{
+	Editor->DeleteSelectedActor();
+	SelectedComponent = nullptr;
+	bEditingRotation = false;
+}
+
+void UPropertyWindow::Render(float DeltaTime)
+{
+	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
+	const ImVec2 WorkPosition = Viewport->WorkPos; // 메뉴창을 제외한 제일 왼쪽 위 위치
+	const ImVec2 WorkSize = Viewport->WorkSize;    // 메뉴창을 제외한 Imgui를 띄울 수 있는 공간
+
+	// 전체 프로그램 창 크기에 대한 비율
+	constexpr float WindowWidthRatio = 0.35f;
+	constexpr float WindowHeightRatio = 0.25f;
+
+	float WindowWidth = WindowWidthRatio * 1000.0f;
+	float WindowHeight = WindowHeightRatio * 1000.0f;
+
+	ImVec2 NewPosition = WorkPosition;
+	NewPosition.x += WorkSize.x * 0.42f;
+
+	ImGui::SetNextWindowPos(
+		NewPosition,
+		ImGuiCond_FirstUseEver
+	);
+
+	ImGui::SetNextWindowSize(
+		ImVec2(WindowWidth, WindowHeight),
+		ImGuiCond_FirstUseEver
+	);
+
+	ImVec2 Available = ImGui::GetContentRegionAvail();
+	//float Scale = std::clamp(WindowWidth / 400.0f, 0.1f, 5.0f);
+	//ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f * Scale, 2.0f * Scale)); // 버튼 안쪽 여백 증가
+	const ImGuiStyle& Style = ImGui::GetStyle();
+	ImVec2 ItemSpacing = Style.ItemSpacing; // 아이템간 패딩 값
+	float ButtonWidth = Available.x * 0.2f; // Button, DragFloat
+	float ComboWidth = Available.x * 0.3f;
+
+	GetSelectedValue();
+	bool bRotationChanged = false;
+	bool bRotationActive = false;
+	bool bRotationFinished = false;
+	float PreviousDegree = RotationDegree.Roll;
+
+	AActor* SelectedActor = Editor->GetSelectedActor();
+	ImGui::Begin("Property Window");
+	if (SelectedActor != nullptr)
+	{
+		{
+			bool bVisible = true;
+			for (UActorComponent* Comp : SelectedActor->GetComponents())
+			{
+				if (Comp && Comp->IsA(UStaticMeshComponent::GetClass()))
+				{
+					bVisible = static_cast<UStaticMeshComponent*>(Comp)->IsVisible();
+					break;
+				}
+			}
+			if (ImGui::Checkbox("Visible", &bVisible))
+			{
+				for (UActorComponent* Comp : SelectedActor->GetComponents())
+				{
+					if (Comp && Comp->IsA(UStaticMeshComponent::GetClass()))
+					{
+						static_cast<UStaticMeshComponent*>(Comp)->SetVisibility(bVisible);
+					}
+				}
+			}
+			const FString ActorName = SelectedActor->GetName().ToString();
+			ImGui::Text("Actor: %s", ActorName.c_str());
+			if (NameEditingActor != SelectedActor)
+			{
+				NameEditingActor = SelectedActor;
+				ActorNameBuffer.fill('\0');
+				const size_t CopyLength = std::min(ActorName.size(), ActorNameBuffer.size() - 1);
+				std::copy_n(ActorName.begin(), CopyLength, ActorNameBuffer.begin());
+			}
+
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::InputText("Actor Name", ActorNameBuffer.data(), ActorNameBuffer.size(),
+				ImGuiInputTextFlags_EnterReturnsTrue))
+			{
+				if (ActorNameBuffer[0] != '\0')
+				{
+					SelectedActor->SetName(FName(ActorNameBuffer.data()));
+				}
+			}
+
+			if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				for (UActorComponent* Component : SelectedActor->GetComponents())
+				{
+					const FString ComponentLabel = std::format(
+						"{}##{}", Component->GetName().ToString(), Component->GetUUID());
+					if (!Component->IsA(USceneComponent::GetClass()))
+					{
+						ImGui::TextDisabled("%s", ComponentLabel.c_str());
+						continue;
+					}
+
+					USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
+					if (ImGui::Selectable(ComponentLabel.c_str(), SelectedComponent == SceneComponent))
+					{
+						Editor->SetSelectedSceneComponent(SceneComponent);
+						GetSelectedValue();
+					}
+				}
+			}
+
+			if (ImGui::CollapsingHeader("Add Component##Section", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				if (ImGui::BeginCombo("Component Type", SelectedAddComponentClass->DisplayName.c_str()))
+				{
+					for (FClassType* ComponentClass : AddableComponentClasses)
+					{
+						const bool bSelected = SelectedAddComponentClass == ComponentClass;
+						if (ImGui::Selectable(ComponentClass->DisplayName.c_str(), bSelected))
+						{
+							SelectedAddComponentClass = ComponentClass;
+						}
+						if (bSelected) ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+
+				const bool bAddingStaticMesh =
+					SelectedAddComponentClass == UStaticMeshComponent::GetClass();
+				if (bAddingStaticMesh )
+				{
+					MeshSelection::DrawCombo("Mesh", SelectedMeshKey);
+				}
+
+				if (ImGui::Button(bAddingStaticMesh && FindStaticMeshComponent(SelectedActor)
+					? "Apply Static Mesh##Action" : "Add Component##Action"))
+				{
+					UActorComponent* AddedComponent = nullptr;
+					if (bAddingStaticMesh)
+					{
+						if (UStaticMeshComponent* StaticMesh = FindStaticMeshComponent(SelectedActor))
+						{
+							StaticMesh->SetStaticMesh(SelectedMeshKey);
+							AddedComponent = StaticMesh;
+						}
+						else
+						{
+							AddedComponent = SelectedActor->CreateComponent(SelectedAddComponentClass);
+							if (AddedComponent != nullptr)
+							{
+								static_cast<UStaticMeshComponent*>(AddedComponent)->SetStaticMesh(SelectedMeshKey);
+							}
+						}
+					}
+					else
+					{
+						AddedComponent = SelectedActor->CreateComponent(SelectedAddComponentClass);
+					}
+
+					if (AddedComponent != nullptr && AddedComponent->IsA(UPrimitiveComponent::GetClass()))
+					{
+						EnsurePrimitiveWidget(SelectedActor);
+					}
+					if (AddedComponent != nullptr && AddedComponent->IsA(USceneComponent::GetClass()))
+					{
+						Editor->SetSelectedSceneComponent(static_cast<USceneComponent*>(AddedComponent));
+					}
+				}
+			}
+
+			if (SelectedComponent != nullptr && SelectedComponent->GetOwner() == SelectedActor)
+			{
+				if (ImGui::Button("Remove Selected Component"))
+				{
+					RemoveSelectedComponent();
+				}
+				ImGui::SameLine();
+			}
+			if (ImGui::Button("Delete Actor"))
+			{
+				DeleteSelectedActor();
+			}
+			ImGui::Separator();
+
+			if (SelectedComponent != nullptr)
+			{
+				ImGui::PushItemWidth(ButtonWidth);
+				ImGui::DragFloat("##translationX", &Translation.X, SnapSize);
+				DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
+				ImGui::SameLine();
+				ImGui::DragFloat("##translationY", &Translation.Y, SnapSize);
+				DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
+				ImGui::SameLine();
+				ImGui::DragFloat("##translationZ", &Translation.Z, SnapSize);
+				DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
+				ImGui::SameLine();
+				ImGui::Text("Translation");
+				bRotationChanged |= DrawRotationField("##rotationR", RotationDegree.Roll, bRotationActive);
+				DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
+				ImGui::SameLine();
+				bRotationChanged |= DrawRotationField("##rotationP", RotationDegree.Pitch, bRotationActive);
+				DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
+				ImGui::SameLine();
+				bRotationChanged |= DrawRotationField("##rotationY", RotationDegree.Yaw, bRotationActive);
+				DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
+				ImGui::SameLine();
+				ImGui::Text("Rotation");
+				const FVector BeforeX = OScale;
+				float EditedX = OScale.X;
+				if (ImGui::DragFloat("##scaleX", &EditedX, 0.001f))
+				{
+					FVector Result;
+					if (ApplyScaleEdit(BeforeX, 0, EditedX, bScaleLock, Result)) OScale = Result;
+				}
+				DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
+				ImGui::SameLine();
+				const FVector BeforeY = OScale;
+				float EditedY = OScale.Y;
+				if (ImGui::DragFloat("##scaleY", &EditedY, 0.001f))
+				{
+					FVector Result;
+					if (ApplyScaleEdit(BeforeY, 1, EditedY, bScaleLock, Result)) OScale = Result;
+				}
+				DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
+				ImGui::SameLine();
+				const FVector BeforeZ = OScale;
+				float EditedZ = OScale.Z;
+				if (ImGui::DragFloat("##scaleZ", &EditedZ, 0.001f))
+				{
+					FVector Result;
+					if (ApplyScaleEdit(BeforeZ, 2, EditedZ, bScaleLock, Result)) OScale = Result;
+				}
+				DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
+				ImGui::SameLine();
+				ImGui::Text("Scale");
+				ImGui::PopItemWidth();
+				//ImGui::PopStyleVar();
+				ImGui::PushItemWidth(ComboWidth);
+				char SnapPrev[32];
+				snprintf(SnapPrev, sizeof(SnapPrev), "%g", SnapSizeList[SelectedSnapIndex]);
+				if (ImGui::BeginCombo("SnapSize", SnapPrev))
+				{
+					for (int i = 0; i < SnapSizeList.Num(); i++)
+					{
+						bool bSelected = (SelectedSnapIndex == i);
+
+						char ItemName[32];
+						snprintf(ItemName, sizeof(ItemName), "%g", SnapSizeList[i]);
+
+						if (ImGui::Selectable(ItemName, bSelected))
+						{
+							SelectedSnapIndex = i;
+						}
+
+						if (bSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+						SnapSize = SnapSizeList[SelectedSnapIndex];
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::PopItemWidth();
+				ImGui::SameLine();
+				ImGui::Checkbox("Scale Lock", &bScaleLock);
+				//선택된 객체가 Flipbook일때
+				if (SelectedComponent->IsA(UFlipbookComponent::GetClass()) &&
+					ImGui::CollapsingHeader("SubUV", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					auto* Flame = static_cast<UFlipbookComponent*>(SelectedComponent);
+					int Grid[2] = { Flame->GetColumns(), Flame->GetRows() };
+					if (ImGui::InputInt2("Columns / Rows", Grid))
+						Flame->SetAtlasGrid(Grid[0], Grid[1]);
+
+					int FrameCount = Flame->GetFrameCount();
+					if (ImGui::InputInt("Frame Count", &FrameCount))
+						Flame->SetAtlasGrid(Flame->GetColumns(), Flame->GetRows(), FrameCount);
+
+					float FPS = Flame->GetFramesPerSecond();
+					if (ImGui::DragFloat("FPS", &FPS, 1.0f, 0.0f, 240.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp))
+						Flame->SetFramesPerSecond(FPS);
+					float Rate = Flame->GetPlayRate();
+					if (ImGui::DragFloat("Play Rate", &Rate, 0.05f, 0.0f, 10.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+						Flame->SetPlayRate(Rate);
+
+					bool bLoop = Flame->IsLooping();
+					if (ImGui::Checkbox("Loop", &bLoop)) Flame->SetLooping(bLoop);
+					ImGui::SameLine();
+					bool bPlaying = Flame->IsPlaying();
+					if (ImGui::Checkbox("Playing", &bPlaying)) Flame->SetPlaying(bPlaying);
+					ImGui::SameLine();
+					if (ImGui::Button("Restart")) Flame->Restart();
+
+					// 프레임을 직접 선택하면 정지하여 해당 칸을 확인함
+					int Frame = Flame->GetCurrentFrame();
+					if (ImGui::SliderInt("Frame", &Frame, 0, Flame->GetFrameCount() - 1))
+					{
+						Flame->SetCurrentFrame(Frame);
+						Flame->SetPlaying(false);
+					}
+				}
+				//선택된 객체가 StaticMeshComponent일때
+				if (SelectedComponent->IsA(UStaticMeshComponent::GetClass()) &&
+					ImGui::CollapsingHeader("Static Mesh", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					auto* MeshComp = static_cast<UStaticMeshComponent*>(SelectedComponent);
+					FName NewMeshKey = MeshComp->GetStaticMeshKey();
+
+					if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey))
+					{
+						MeshComp->SetStaticMesh(NewMeshKey);
+					}
+
+					std::string CurrentTexPath = MeshComp->GetMaterialPath().c_str();
+
+					if (ImGui::InputText("Texture Path", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
+					{
+						MeshComp->SetMaterial(FString(CurrentTexPath.c_str()));
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Browse..."))
+					{
+						const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
+						const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
+
+						if (TexturePath)
+						{
+							std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+
+							std::string FormattedPath = RelativePath.generic_string();
+
+							MeshComp->SetMaterial(FString(FormattedPath.c_str()));
+						}
+					}
+					ImGui::TextDisabled("Type texture path and press Enter.");
+				}
+				//선택된 객체가 SpotLight일때. 추후에 Light일때로 확장할수있어야함.
+				if (SelectedComponent->IsA(USpotLightComponent::GetClass()) &&
+					ImGui::CollapsingHeader("SpotLight", ImGuiTreeNodeFlags_DefaultOpen)) {
+					auto* SpotLight = static_cast<USpotLightComponent*>(SelectedComponent);
+
+					ImGui::PushID(SpotLight);
+
+					const FVector& CurrentColor = SpotLight->GetLightColor();
+
+					float Color[3]
+					{
+						CurrentColor.X,
+						CurrentColor.Y,
+						CurrentColor.Z
+					};
+
+					const ImGuiColorEditFlags PickerFlags =
+						ImGuiColorEditFlags_PickerHueBar |	//사각형 픽커+Hue막대
+						ImGuiColorEditFlags_DisplayRGB |	//RGB 입력칸
+						ImGuiColorEditFlags_DisplayHSV |	//HSV 입력칸
+						ImGuiColorEditFlags_InputRGB |		//인풋을 RGB 데이터로 판단
+						ImGuiColorEditFlags_Uint8 |			//채널값 정수로 표시
+						ImGuiColorEditFlags_NoSidePreview |	//사이드 미리보기 제거
+						ImGuiColorEditFlags_NoSmallPreview |	//작은 색상 미리보기 제거
+						ImGuiColorEditFlags_NoLabel |	//라벨 텍스트 제거
+						ImGuiColorEditFlags_NoOptions;	//옵션 메뉴 제거
+
+					ImGui::TextUnformatted("Light Color");
+
+					// 패널 너비를 사용하되 픽커가 과도하게 커지지 않도록 제한함
+					const float PickerWidth = (std::min)(ImGui::GetContentRegionAvail().x, 300.0f);
+
+					ImGui::SetNextItemWidth(PickerWidth);
+
+					if (ImGui::ColorPicker3("##LightColor", Color, PickerFlags))
+					{
+						// HSV로 편집한 경우에도 RGB 값으로 전달됨
+						SpotLight->SetLightColor(FVector(Color[0], Color[1], Color[2]));
+					}
+
+					ImGui::Spacing();
+					ImGui::Separator();
+					ImGui::Spacing();
+
+					// 원뿔 밑면 반지름 조절부
+					float Radius = SpotLight->GetConeRadius();
+
+					if (ImGui::DragFloat("Cone Radius",&Radius,0.05f,0.0f,0.0f,"%.2f"))
+					{
+						SpotLight->SetConeRadius(Radius);
+					}
+
+					// 원뿔 높이 조절부
+					float Distance = SpotLight->GetConeLength();
+
+					if (ImGui::DragFloat("Cone Distance",&Distance,	0.05f,0.0f,	0.0f,"%.2f"))
+					{
+						SpotLight->SetConeLength(Distance);
+					}
+
+					ImGui::PopID();
+				}
+				if (SelectedComponent->IsA(UTextComponent::GetClass()))
+				{
+					auto* TextComp = static_cast<UTextComponent*>(SelectedComponent);
+					FString Text = TextComp->GetText();
+					if (ImGui::InputText("Text: ", &Text))
+					{
+						TextComp->SetText(Text);
+					}
+				}
+			}
+		}
+	}
+	ImGui::End();
+	SetSelectedValue(bRotationChanged);
+	bEditingRotation = SelectedComponent != nullptr && bRotationActive;
+}
