@@ -11,6 +11,7 @@
 #include "Editor/Controller/GizmoController.h"
 
 //TESTCODE//
+#include "EditorMenuLayout.h"
 #include "Engine/Component/CameraComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/Console.h"
@@ -44,6 +45,7 @@ private:
 	FViewSettings ViewSettings;
 	FGrid Grid;
 	TArray<UGizmo*> Gizmos;
+	FEditorMenuLayout MenuLayout;
 	TArray<UEditorWindow*> Windows;
 	TArray<UGrid*> Grids;
 	UGizmo* ObjectAxisGizmo = nullptr;
@@ -120,6 +122,7 @@ public:
 	void SaveEditorSetting();
 
 	const TArray<UGizmo*>& GetGizmos() const { return Gizmos; }
+	FEditorMenuLayout& GetMenuLayout() { return MenuLayout; }
 	const TArray<UEditorWindow*>& GetWindows() const { return Windows; }
 	const TArray<UGrid*>& GetGrids() const { return Grids; }
 

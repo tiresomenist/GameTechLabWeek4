@@ -31,7 +31,6 @@
 
 #include "Engine/Scene/Scene.h"
 
-#include "ImGui/imgui.h"
 #include "Core/Util/File.h"
 
 #include <charconv>
@@ -253,6 +252,8 @@ void FEditor::Initialize()
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
+
+	MenuLayout.Initialize(this);
 
 	InitializeGizmos();
 	GizmoController = new FGizmoController(this);

@@ -22,5 +22,8 @@ public:
 	virtual void InitializeWindow(FEditor* InEditor, const FString& InName);
 	virtual void Render(float DeltaTime) {}
 	void DrawItemBottomLine(uint32 Color, float Thickness);
+	const FString& GetWindowName() const { return Name; }
+	void OpenWindow() { bOpen = true; }
+	bool* GetOpenPtr() { return &bOpen; }
 };
 

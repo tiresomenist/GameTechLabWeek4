@@ -14,8 +14,6 @@
 #include <utility>
 #include <cstdlib>
 
-#include "Editor/EditorDockLayout.h"
-
 using Microsoft::WRL::ComPtr;
 
 void FRenderer::Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height)
@@ -144,8 +142,6 @@ void FRenderer::BeginFrame()
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
-	EditorDockLayout::BuildDefaultLayout(false);
-	ImGui::DockSpaceOverViewport(EditorDockLayout::GetDockSpaceID(), ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 	PrepareRTVDSV();
 }
 
@@ -387,6 +383,8 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	}
 
 	BeginFrame();
+
+	Editor->GetMenuLayout().Draw();
 
 	for (const FRenderView& View : Views)
 	{

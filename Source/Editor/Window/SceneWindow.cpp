@@ -40,29 +40,6 @@ void USceneWindow::SpawnEmptyActor()
 	Editor->CreateEmptyActor();
 }
 
-void USceneWindow::NewScene()
-{
-	Editor->NewScene();
-}
-void USceneWindow::SaveScene()
-{
-	Editor->SaveScene(SceneName);
-}
-void USceneWindow::LoadScene()
-{
-	// imgui_impl_win32가 메인 뷰포트에 HWND를 넣어두므로 그걸 대화상자 owner로 사용
-	const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
-
-	const std::optional<std::filesystem::path> ScenePath = File::OpenFileDialog(Owner, EFileDialogType::Json, "Scenes");
-	if (!ScenePath)
-	{
-		return; // 취소
-	}
-
-	// 이후 Save Scene이 같은 이름으로 저장되도록 이름 칸도 갱신
-	SceneName = ScenePath->stem().string();
-	Editor->LoadSceneFromPath(*ScenePath);
-}
 void USceneWindow::InitializeWindow(FEditor* Editor, const FString& Name)
 {
 	UEditorWindow::InitializeWindow(Editor, Name);
@@ -74,8 +51,6 @@ void USceneWindow::InitializeWindow(FEditor* Editor, const FString& Name)
 	SelectedSpecialComponentClass = *SpecialComponentClasses.begin();
 
 	SelectedMeshKey = MeshSelection::GetEntries()[0].Key;
-
-	SceneName.reserve(128);
 }
 
 
@@ -180,24 +155,6 @@ void USceneWindow::Render(float DeltaTime)
 		{
 			SpawnEmptyActor();
 		}
-		ImGui::Separator();
-		ImGui::PushItemWidth(WideItemWidth);
-
-		ImGui::InputText("Scene Name", &SceneName);
-
-		ImGui::PopItemWidth();
-		if(ImGui::Button("New Scene"))
-		{
-			NewScene();
-		}
-		if(ImGui::Button("Save Scene"))
-		{
-			SaveScene();
-		}
-		if(ImGui::Button("Load Scene"))
-		{
-			bRequestLoadDialog = true;
-		}
 
 		ImGui::Separator();
 		if (ImGui::Button("SpawnSolarSystem"))
@@ -211,10 +168,4 @@ void USceneWindow::Render(float DeltaTime)
 	}
 
 	ImGui::End();
-
-	if (bRequestLoadDialog)
-	{
-		bRequestLoadDialog = false;
-		LoadScene();
-	}
 }
