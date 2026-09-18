@@ -270,10 +270,10 @@ void FEditor::InitializeGizmos()
 
 void FEditor::InitializeWindows()
 {
-	RegisterWindow(UConsoleWindow::GetClass());
-	RegisterWindow(UPropertyWindow::GetClass());
-	RegisterWindow(USceneWindow::GetClass());
-	RegisterWindow(UOutlinerWindow::GetClass());
+	RegisterWindow(UConsoleWindow::GetClass(), "Console");
+	RegisterWindow(UPropertyWindow::GetClass(), "Property Window");
+	RegisterWindow(USceneWindow::GetClass(), "Scene Control Panel");
+	RegisterWindow(UOutlinerWindow::GetClass(), "Outliner");
 }
 
 void FEditor::InitializeGrids()
@@ -539,12 +539,12 @@ void FEditor::RegisterGizmo(FClassType* Type)
 	Gizmos.Add(Gizmo);
 }
 
-void FEditor::RegisterWindow(FClassType* Type)
+void FEditor::RegisterWindow(FClassType* Type, const FString& Name)
 {
 	UObject* Object = FObjectFactory::ConstructEditorObject(Type);
-	UEditorWindow* Window = static_cast<UEditorWindow*>(Object);
+	UEditorWindow* Window = dynamic_cast<UEditorWindow*>(Object);
 
-	Window->Initialize(this);
+	Window->InitializeWindow(this, Name);
 	Windows.Add(Window);
 }
 

@@ -112,7 +112,7 @@ public:
 	void DeleteSelectedActor();
 
 	void RegisterGizmo(FClassType* Type);
-	void RegisterWindow(FClassType* Type);
+	void RegisterWindow(FClassType* Type, const FString& Name);
 	void RegisterGrid(FClassType* Type);
 
 	void LoadEditorSetting();

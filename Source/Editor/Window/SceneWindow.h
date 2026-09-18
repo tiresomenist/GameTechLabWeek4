@@ -39,7 +39,7 @@ public:
 	void SaveScene();
 	void LoadScene();
 
-	virtual void Initialize(FEditor* InEditor) override;
+	virtual void InitializeWindow(FEditor* InEditor, const FString& Name) override;
 	void Render(float DeltaTime) override;
 
 

@@ -6,15 +6,16 @@
 #include "Engine/Component/ActorComponent.h"
 #include "Engine/Component/SceneComponent.h"
 
-void UOutlinerWindow::Initialize(FEditor* InEditor)
-{
-	UEditorWindow::Initialize(InEditor);
-}
-
 void UOutlinerWindow::Render(float DeltaTime)
 {
+	if (!bOpen)
+	{
+		return;
+	}
+
 	AActor* SelectedActor = Editor->GetSelectedActor();
-	ImGui::Begin("Outliner");
+
+	ImGui::Begin(Name.c_str(), &bOpen);
 
 	UScene* Scene = Editor->GetCurrentScene();
 	if (Scene == nullptr)

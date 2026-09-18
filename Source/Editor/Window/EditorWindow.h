@@ -14,15 +14,18 @@ class UEditorWindow : public UObject
 protected:
 
 	FEditor* Editor = nullptr;
+	FString Name;
+	
+	bool bOpen = true;
 
 public:
+	virtual ~UEditorWindow() override = default;
 
-	virtual void Initialize(FEditor* InEditor);
-
+	virtual void InitializeWindow(FEditor* InEditor, const FString& InName);
 	virtual void Render(float DeltaTime) {}
-
 	void DrawItemBottomLine(uint32 Color, float Thickness);
 
-	virtual ~UEditorWindow() override = default;
+	bool IsOpen() const { return bOpen; }
+	const bool* GetOpenPtr() const { return &bOpen; }
 };
 

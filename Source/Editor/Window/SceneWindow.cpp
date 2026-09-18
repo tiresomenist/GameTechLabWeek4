@@ -63,9 +63,9 @@ void USceneWindow::LoadScene()
 	SceneName = ScenePath->stem().string();
 	Editor->LoadSceneFromPath(*ScenePath);
 }
-void USceneWindow::Initialize(FEditor* Editor)
+void USceneWindow::InitializeWindow(FEditor* Editor, const FString& Name)
 {
-	UEditorWindow::Initialize(Editor);
+	UEditorWindow::InitializeWindow(Editor, Name);
 
 	SpecialComponentClasses.Add(UTextComponent::GetClass());
 	SpecialComponentClasses.Add(UFlipbookComponent::GetClass());
@@ -81,6 +81,11 @@ void USceneWindow::Initialize(FEditor* Editor)
 
 void USceneWindow::Render(float DeltaTime)
 {
+	if (!bOpen)
+	{
+		return;
+	}
+
 	UCameraComponent* EditorCamera = Editor->GetEditorCamera();
 
 	CameraLocation = Editor->GetCameraLocation();
@@ -122,8 +127,8 @@ void USceneWindow::Render(float DeltaTime)
 
 	size_t AllocationBytes = GAllocator::GetTotalAllocationBytes();
 	size_t AllocationCount = GAllocator::GetTotalAllocationCount();
-	
-	ImGui::Begin("Scene Control Panel", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
+
+	ImGui::Begin(Name.c_str(), &bOpen, ImGuiWindowFlags_HorizontalScrollbar);
 	{
 		float MilliSeconds = DeltaTime * 1000;
 		ImGui::Text("PEPE Engine");

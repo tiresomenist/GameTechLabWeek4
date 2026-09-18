@@ -45,9 +45,9 @@ namespace
 	}
 }
 
-void UPropertyWindow::Initialize(FEditor* InEditor)
+void UPropertyWindow::InitializeWindow(FEditor* InEditor, const FString& Name)
 {
-	UEditorWindow::Initialize(InEditor);
+	UEditorWindow::InitializeWindow(InEditor, Name);
 
 	AddableComponentClasses.Add(UStaticMeshComponent::GetClass());
 	AddableComponentClasses.Add(UTextComponent::GetClass());
@@ -122,6 +122,11 @@ void UPropertyWindow::DeleteSelectedActor()
 
 void UPropertyWindow::Render(float DeltaTime)
 {
+	if (!bOpen)
+	{
+		return;
+	}
+
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
 	const ImVec2 WorkPosition = Viewport->WorkPos; // 메뉴창을 제외한 제일 왼쪽 위 위치
 	const ImVec2 WorkSize = Viewport->WorkSize;    // 메뉴창을 제외한 Imgui를 띄울 수 있는 공간
@@ -161,7 +166,8 @@ void UPropertyWindow::Render(float DeltaTime)
 	float PreviousDegree = RotationDegree.Roll;
 
 	AActor* SelectedActor = Editor->GetSelectedActor();
-	ImGui::Begin("Property Window");
+
+	ImGui::Begin(Name.c_str(), &bOpen);
 	if (SelectedActor != nullptr)
 	{
 		{

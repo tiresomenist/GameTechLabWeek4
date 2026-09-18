@@ -9,14 +9,17 @@ void UConsoleWindow::AddDebugText(FString DebugText)
 {
 	GEngine::GetInstance()->GetConsole()->Append(DebugText);
 }
+
 void UConsoleWindow::AddDebugError(FString ErrorText)
 {
 	GEngine::GetInstance()->GetConsole()->Append(ErrorText);
 }
+
 void UConsoleWindow::Clear()
 {
 	GEngine::GetInstance()->GetConsole()->Clear();
 }
+
 void UConsoleWindow::Copy()
 {
 	FString ClipBoardText;
@@ -31,12 +34,14 @@ void UConsoleWindow::Copy()
 	}
 	ImGui::SetClipboardText(ClipBoardText.c_str()); // 클립보드로 복사
 }
-void UConsoleWindow::Option()
-{
-	//과제 시연 영상에는 있었는데 뭐하는지는 모르는 함수
-}
+
 void UConsoleWindow::Render(float DeltaTime)
 {
+	if (!bOpen)
+	{
+		return;
+	}
+
 	FConsole* console = GEngine::GetInstance()->GetConsole();
 	//그려지는것도 제한걸어야함
 	logs = console->Get();
@@ -104,8 +109,7 @@ void UConsoleWindow::Render(float DeltaTime)
 		ImGuiCol_ButtonActive,
 		ImVec4(0.05f, 0.05f, 0.05f, 1.0f)
 	);
-
-	ImGui::Begin("Console");
+	ImGui::Begin(Name.c_str(), &bOpen);
 	{
 		if (ImGui::Button("Add Debug Text"))
 		{

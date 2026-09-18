@@ -31,7 +31,7 @@ private:
 	AActor* NameEditingActor = nullptr;
 	std::array<char, 128> ActorNameBuffer {};
 public:
-	virtual void Initialize(FEditor* InEditor) override;
+	virtual void InitializeWindow(FEditor* InEditor, const FString& Name) override;
 
 	void GetSelectedValue();
 	void SetSelectedValue(bool bSetRotation);
