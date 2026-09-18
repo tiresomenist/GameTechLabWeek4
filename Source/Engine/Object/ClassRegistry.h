@@ -22,4 +22,11 @@ public:
 	/// <param name="TypeName">찾고자 하는 FClassType의 FName</param>
 	/// <returns></returns>
 	static FClassType* FindClassType(const FName& TypeName);
+
+	/// <summary>
+	/// 주어진 FClassType의 자식 클래스들을 검색합니다.
+	/// </summary>
+	/// <param name="ParentClass">부모 클래스</param>
+	/// <returns>자식 클래스들의 배열</returns>
+	static const TArray<const FClassType*>& GetChildClasses(const FClassType* ParentClass);
 };

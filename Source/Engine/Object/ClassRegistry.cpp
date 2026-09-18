@@ -35,6 +35,12 @@ namespace
 		static TMap<FName, FClassType*> ClassTypes;
 		return ClassTypes;
 	}
+
+	TMap<const FClassType*, TArray<const FClassType*>>& GetChildClassMap()
+	{
+		static TMap<const FClassType*, TArray<const FClassType*>> ChildClasses;
+		return ChildClasses;
+	}
 }
 
 void* FClassRegistry::__INTERNAL__Add(FClassType* Type)
@@ -56,6 +62,11 @@ void* FClassRegistry::__INTERNAL__Add(FClassType* Type)
 	}
 
 	ClassTypes.Add(Type->Name, Type);
+	if (Type->ParentClassType != nullptr)
+	{
+		GetChildClassMap()[Type->ParentClassType].Add(Type);
+	}
+
 	return nullptr;
 }
 
@@ -66,4 +77,12 @@ FClassType* FClassRegistry::FindClassType(const FName& TypeName)
 	if (FClassType** Found = GetClassTypeMap().Find(TypeName)){	return *Found; }
 
 	return nullptr;
+}
+
+const TArray<const FClassType*>& FClassRegistry::GetChildClasses(const FClassType* ParentClass)
+{
+	if (ParentClass == nullptr) { throw std::invalid_argument("Parent class is null"); }
+	if (TArray<const FClassType*>* Found = GetChildClassMap().Find(ParentClass)) { return *Found; }
+	static TArray<const FClassType*> EmptyArray;
+	return EmptyArray;
 }
