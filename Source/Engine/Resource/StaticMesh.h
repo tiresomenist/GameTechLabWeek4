@@ -19,6 +19,12 @@ struct FStaticMeshMaterial
     std::filesystem::path DiffuseTexturePath;
 };
 
+//객체 정보
+struct FStaticMeshObjectInfo
+{
+    FString Name;
+};
+
 struct FMeshSection
 {
     // Indices 배열의 시작 위치. 바이트 단위가 아니다.
@@ -29,6 +35,10 @@ struct FMeshSection
 
     // Materials 배열의 인덱스.
     uint32 MaterialIndex = 0;
+
+    //객체 인덱스
+    int32 ObjectIndex = -1;
+
 };
 
 struct FStaticMesh
@@ -40,6 +50,8 @@ struct FStaticMesh
 
     TArray<FMeshSection> Sections;
     TArray<FStaticMeshMaterial> Materials;
+
+    TArray<FStaticMeshObjectInfo> Objects;
 
     // 메시 로컬 좌표 기준.
     FVector BoundsMin{};

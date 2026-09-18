@@ -2,13 +2,15 @@
 #include "Core/Util/ObjImporter.h"
 #include "Core/Util/File.h"
 #include "Core/Container/Map.h"
-
+#include "Engine/Renderer/VertexSimple.h"
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 namespace
@@ -628,6 +630,237 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
             ParseError(Path, 0,"Undefined material: " + Material.Name);
         }
     }
+    // 객체 / 위치 / 스무딩 그룹 튜플을 키값으로 사용
+    using FSmoothKey = std::tuple<int32, int32, uint32>;
 
+    struct FSmoothNormal
+    {
+        FVector Sum{};
+        int32 NormalIndex = -1;
+    };
+    std::map<FSmoothKey, FSmoothNormal> SmoothNormals;  //스무스가 켜졌을때의 노말벡터를 구하기위한 누적 노말들
+
+    auto GetFaceNormal = [&](const FObjTriangle& Triangle)
+        {
+            const FVector& P0 = Info.Positions[Triangle.Corners[0].PositionIndex];
+            const FVector& P1 = Info.Positions[Triangle.Corners[1].PositionIndex];
+            const FVector& P2 = Info.Positions[Triangle.Corners[2].PositionIndex];
+
+            return (P1 - P0).Cross(P2 - P0);
+        };
+
+    auto AddNormal = [&](FVector Normal)
+        {
+            // 현재 FVector::Normalize()는 0 벡터를 해결해 주지 않는다.
+            if (Normal.LengthSquared() <= EPSILON * EPSILON)
+            {
+                ParseError(Path, 0, "Cannot generate normal from degenerate geometry");
+            }
+
+            Normal.Normalize();
+
+            const int32 NormalIndex = Info.Normals.Num();
+            Info.Normals.Add(Normal);
+            return NormalIndex;
+        };
+
+    // 1. 스무딩 법선을 먼저 전부 누적한다.
+    for (const FObjTriangle& Triangle : Info.Triangles)
+    {
+        if (Triangle.SmoothingGroup == 0)
+        {
+            continue;
+        }
+
+        // 정규화 전의 외적을 더하면 면적 가중 방식이 된다.
+        const FVector FaceNormal = GetFaceNormal(Triangle);
+
+        for (const FObjVertexIndex& Corner : Triangle.Corners)
+        {
+            const FSmoothKey Key{Triangle.ObjectIndex,Corner.PositionIndex,Triangle.SmoothingGroup};
+            SmoothNormals[Key].Sum += FaceNormal;
+        }
+    }
+
+    // 2. 누적이 끝났으므로, 누락된 법선을 등록하고 인덱스를 연결한다.
+    for (FObjTriangle& Triangle : Info.Triangles)
+    {
+        // Flat 법선은 이 삼각형 안에서만 공유한다.
+        int32 FlatNormalIndex = -1;
+
+        for (FObjVertexIndex& Corner : Triangle.Corners)
+        {
+            if (Corner.NormalIndex >= 0)
+            {
+                continue; // 파일에 있는 법선은 유지
+            }
+
+            if (Triangle.SmoothingGroup == 0)
+            {
+                if (FlatNormalIndex == -1)
+                {
+                    FlatNormalIndex = AddNormal(GetFaceNormal(Triangle));
+                }
+
+                Corner.NormalIndex = FlatNormalIndex;
+            }
+            else
+            {
+                const FSmoothKey Key{Triangle.ObjectIndex,Corner.PositionIndex,Triangle.SmoothingGroup};
+
+                FSmoothNormal& Smooth = SmoothNormals.at(Key);
+
+                // 같은 키의 법선은 최초 한 번만 등록한다.
+                if (Smooth.NormalIndex == -1)
+                {
+                    Smooth.NormalIndex = AddNormal(Smooth.Sum);
+                }
+
+                Corner.NormalIndex = Smooth.NormalIndex;
+            }
+        }
+    }
     return Info;
+}
+
+
+//FStaticMesh를 굽기위한 코드 시작
+namespace
+{
+    // 위치가 같아도 UV나 법선이 다르면 별도의 렌더링 정점이다.
+    struct FVertexKey
+    {
+        int32 PositionIndex;
+        int32 UVIndex;
+        int32 NormalIndex;
+
+        bool operator==(const FVertexKey&) const = default;
+    };
+
+    struct FVertexKeyHash
+    {
+        size_t operator()(const FVertexKey& Key) const
+        {
+            size_t Hash = std::hash<int32>{}(Key.PositionIndex);
+            Hash ^= std::hash<int32>{}(Key.UVIndex) + 0x9e3779b9u + (Hash << 6) + (Hash >> 2);
+            Hash ^= std::hash<int32>{}(Key.NormalIndex) + 0x9e3779b9u + (Hash << 6) + (Hash >> 2);
+            return Hash;
+        }
+    };
+
+    FNormalVertex MakeVertex(const FObjInfo& Info, const FObjVertexIndex& Corner)
+    {
+        const FVector& Position = Info.Positions[Corner.PositionIndex];
+        // 법선 생성과 smoothing 처리는 Import에서 완료되어 있어야 한다.
+        const FVector& Normal = Info.Normals[Corner.NormalIndex];
+        const FVector4& Color = Info.VertexColors[Corner.PositionIndex];
+        const FVector UV = Corner.UVIndex >= 0 ? Info.TexCoords[Corner.UVIndex] : FVector{};
+
+        FNormalVertex Vertex;
+        Vertex.X = Position.X;
+        Vertex.Y = Position.Y;
+        Vertex.Z = Position.Z;
+        Vertex.NX = Normal.X;
+        Vertex.NY = Normal.Y;
+        Vertex.NZ = Normal.Z;
+        Vertex.R = Color.X;
+        Vertex.G = Color.Y;
+        Vertex.B = Color.Z;
+        Vertex.A = Color.W;
+        Vertex.U = UV.X;
+        Vertex.V = UV.Y;
+        return Vertex;
+    }
+}
+
+FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
+{
+    // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
+    FStaticMesh Result;
+
+    // 경로를 UTF-8 문자열로 보존.
+    const auto Utf8Path = Info.PathFileName.generic_u8string();
+    Result.PathFileName = FString(Utf8Path.begin(), Utf8Path.end());
+
+    // 순서를 유지하므로 기존 ObjectIndex를 그대로 사용할 수 있다.
+    for (const FObjObjectInfo& Source : Info.Objects)
+    {
+        FStaticMeshObjectInfo Object;
+        Object.Name = Source.Name;
+
+        Result.Objects.Add(std::move(Object));
+    }
+
+    // 기존 MaterialIndex도 유지되도록 순서대로 복사.
+    for (const FObjMaterialInfo& Source : Info.Materials)
+    {
+        FStaticMeshMaterial Material;
+        Material.Name = Source.Name;
+        Material.DiffuseColor = Source.DiffuseColor;
+        Material.Opacity = Source.Opacity;
+        Material.DiffuseTexturePath = Source.DiffuseTexturePath;
+
+        Result.Materials.Add(std::move(Material));
+    }
+    std::unordered_map<FVertexKey, uint32, FVertexKeyHash> VertexLookup;
+    Result.Indices.Reserve(static_cast<size_t>(Info.Triangles.Num()) * 3);
+    int32 DefaultMaterialIndex = -1;
+
+    for (const FObjTriangle& Triangle : Info.Triangles)
+    {
+        int32 MaterialIndex = Triangle.MaterialIndex;
+        if (MaterialIndex < 0)
+        {
+            // 기존 재질 인덱스는 유지하고, 미지정 재질은 기본 재질 하나를 공유한다.
+            if (DefaultMaterialIndex < 0)
+            {
+                DefaultMaterialIndex = Result.Materials.Num();
+                Result.Materials.Add(FStaticMeshMaterial{});
+            }
+            MaterialIndex = DefaultMaterialIndex;
+        }
+
+        // 입력 순서를 유지하며 연속된 객체·재질 범위를 하나의 Section으로 묶는다.
+        if (Result.Sections.IsEmpty()
+            || Result.Sections[Result.Sections.Num() - 1].ObjectIndex != Triangle.ObjectIndex
+            || Result.Sections[Result.Sections.Num() - 1].MaterialIndex != static_cast<uint32>(MaterialIndex))
+        {
+            FMeshSection Section;
+            Section.FirstIndex = static_cast<uint32>(Result.Indices.Num());
+            Section.MaterialIndex = static_cast<uint32>(MaterialIndex);
+            Section.ObjectIndex = Triangle.ObjectIndex;
+            Result.Sections.Add(Section);
+        }
+
+        for (const FObjVertexIndex& Corner : Triangle.Corners)
+        {
+            const FVertexKey Key{ Corner.PositionIndex, Corner.UVIndex, Corner.NormalIndex };
+            const auto [Iterator, bInserted] = VertexLookup.emplace(Key, static_cast<uint32>(Result.Vertices.Num()));
+            if (bInserted)
+            {
+                const FNormalVertex Vertex = MakeVertex(Info, Corner);
+                const FVector Position{ Vertex.X, Vertex.Y, Vertex.Z };
+                if (Result.Vertices.IsEmpty())
+                {
+                    Result.BoundsMin = Position;
+                    Result.BoundsMax = Position;
+                }
+                else
+                {
+                    Result.BoundsMin.X = std::min(Result.BoundsMin.X, Position.X);
+                    Result.BoundsMin.Y = std::min(Result.BoundsMin.Y, Position.Y);
+                    Result.BoundsMin.Z = std::min(Result.BoundsMin.Z, Position.Z);
+                    Result.BoundsMax.X = std::max(Result.BoundsMax.X, Position.X);
+                    Result.BoundsMax.Y = std::max(Result.BoundsMax.Y, Position.Y);
+                    Result.BoundsMax.Z = std::max(Result.BoundsMax.Z, Position.Z);
+                }
+                Result.Vertices.Add(Vertex);
+            }
+            Result.Indices.Add(Iterator->second);
+        }
+
+        Result.Sections[Result.Sections.Num() - 1].IndexCount += 3;
+    }
+
+    return Result;
 }
