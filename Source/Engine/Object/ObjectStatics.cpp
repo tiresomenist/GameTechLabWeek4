@@ -4,6 +4,25 @@
 #include <limits>
 #include <stdexcept>
 
+void GObjectStatics::AppendObjectsByClass(const FClassType* ClassType, bool IncludeDerived, TArray<UObject*>& OutObjects)
+{
+	if (TArray<UObject*>* Found = ObjectsByClass.Find(ClassType))
+	{
+		for (UObject* Object : *Found)
+		{
+			OutObjects.Add(Object);
+		}
+	}
+
+	if (IncludeDerived)
+	{
+		for (const FClassType* ChildClass : FClassRegistry::GetChildClasses(ClassType))
+		{
+			AppendObjectsByClass(ChildClass, true, OutObjects);
+		}
+	}
+}
+
 uint32 GObjectStatics::GenerateUUID(EObjectDomain Domain)
 {
     auto& Next = NextUUID[static_cast<size_t>(Domain)];
@@ -85,7 +104,7 @@ void GObjectStatics::Unregister(uint32 Index, UObject* Object) noexcept
 
 		const int32 RemoveIndex = Slots[Index].ClassIndex;
 		if (RemoveIndex != Objects.Num())
-		{
+    {
 			UObject* MovedObject = Objects.Last();
 			Objects[RemoveIndex] = MovedObject;
 			Slots[MovedObject->GetInternalIndex()].ClassIndex = RemoveIndex;
@@ -108,4 +127,28 @@ void GObjectStatics::Release()
     Slots.Empty();
     FirstFreeSlot = -1;
 	ObjectsByClass.Empty();
+}
+
+TArray<UObject*> GObjectStatics::GetObjectsOfClass(const FClassType* ClassType, bool IncludeDerived)
+{
+	if (ClassType == nullptr) { return {}; }
+
+	TArray<UObject*> Result;
+	if (TArray<UObject*>* Found = ObjectsByClass.Find(ClassType))
+	{
+		Result = *Found;
+	}
+
+	if (IncludeDerived)
+	{
+		for (const FClassType* ChildClass : FClassRegistry::GetChildClasses(ClassType))
+		{
+			for (UObject* ChildObject : GetObjectsOfClass(ChildClass, true))
+			{
+				Result.Add(ChildObject);
+			}
+		}
+	}
+
+	return Result;
 }

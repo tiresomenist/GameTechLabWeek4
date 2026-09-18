@@ -20,6 +20,7 @@ class GObjectStatics
     inline static TArray<FObjectSlot> Slots;
     inline static int32 FirstFreeSlot = -1;
 	inline static TMap<const FClassType*, TArray<UObject*>> ObjectsByClass;
+	inline static void AppendObjectsByClass(const FClassType* ClassType, bool IncludeDerived, TArray<UObject*>& OutObjects);
 
 public:
     static uint32 GenerateUUID(EObjectDomain Domain);
@@ -30,4 +31,5 @@ public:
     static void CancelSlot(uint32 Index) noexcept;
     static void Unregister(uint32 Index, UObject* Object) noexcept;
     static void Release();
+	static TArray<UObject*> GetObjectsOfClass(const FClassType* ClassType, bool IncludeDerived = true);
 };
