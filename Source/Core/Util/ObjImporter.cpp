@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
@@ -724,7 +725,7 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
 }
 
 
-//FStaticMesh를 굽기위한 코드 시작
+// 메시를 조립하고 GPU 버퍼를 생성하는 코드 시작
 namespace
 {
     // 위치가 같아도 UV나 법선이 다르면 별도의 렌더링 정점이다.
@@ -773,10 +774,25 @@ namespace
     }
 }
 
-FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
+FStaticMesh FObjImporter::Cook(const FObjInfo& Info, ID3D11Device* Device, const TArray<FMaterial*>& Materials)
 {
-    // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
+    if (!Device || Info.Triangles.IsEmpty())
+    {
+        throw std::invalid_argument("Cook requires a valid device and triangle data");
+    }
+
+    const bool bNeedsDefaultMaterial = std::any_of(Info.Triangles.begin(), Info.Triangles.end(),
+        [](const FObjTriangle& Triangle) { return Triangle.MaterialIndex < 0; });
+    if (Materials.Num() != Info.Materials.Num() + (bNeedsDefaultMaterial ? 1 : 0)
+        || std::any_of(Materials.begin(), Materials.end(), [](FMaterial* Material) { return Material == nullptr; }))
+    {
+        throw std::invalid_argument("Cook requires matching runtime materials and a default material for unassigned faces");
+    }
+
     FStaticMesh Result;
+    Result.Materials = Materials;
+    TArray<FNormalVertex> Vertices;
+    TArray<uint32> Indices;
 
     // 경로를 UTF-8 문자열로 보존.
     const auto Utf8Path = Info.PathFileName.generic_u8string();
@@ -791,34 +807,13 @@ FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
         Result.Objects.Add(std::move(Object));
     }
 
-    // 기존 MaterialIndex도 유지되도록 순서대로 복사.
-    for (const FObjMaterialInfo& Source : Info.Materials)
-    {
-        FStaticMeshMaterial Material;
-        Material.Name = Source.Name;
-        Material.DiffuseColor = Source.DiffuseColor;
-        Material.Opacity = Source.Opacity;
-        Material.DiffuseTexturePath = Source.DiffuseTexturePath;
-
-        Result.Materials.Add(std::move(Material));
-    }
     std::unordered_map<FVertexKey, uint32, FVertexKeyHash> VertexLookup;
-    Result.Indices.Reserve(static_cast<size_t>(Info.Triangles.Num()) * 3);
-    int32 DefaultMaterialIndex = -1;
+    Indices.Reserve(static_cast<size_t>(Info.Triangles.Num()) * 3);
 
     for (const FObjTriangle& Triangle : Info.Triangles)
     {
-        int32 MaterialIndex = Triangle.MaterialIndex;
-        if (MaterialIndex < 0)
-        {
-            // 기존 재질 인덱스는 유지하고, 미지정 재질은 기본 재질 하나를 공유한다.
-            if (DefaultMaterialIndex < 0)
-            {
-                DefaultMaterialIndex = Result.Materials.Num();
-                Result.Materials.Add(FStaticMeshMaterial{});
-            }
-            MaterialIndex = DefaultMaterialIndex;
-        }
+        // 미지정 면은 호출자가 배열 끝에 전달한 기본 재질을 사용한다.
+        const int32 MaterialIndex = Triangle.MaterialIndex >= 0 ? Triangle.MaterialIndex : Info.Materials.Num();
 
         // 입력 순서를 유지하며 연속된 객체·재질 범위를 하나의 Section으로 묶는다.
         if (Result.Sections.IsEmpty()
@@ -826,7 +821,7 @@ FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
             || Result.Sections[Result.Sections.Num() - 1].MaterialIndex != static_cast<uint32>(MaterialIndex))
         {
             FMeshSection Section;
-            Section.FirstIndex = static_cast<uint32>(Result.Indices.Num());
+            Section.FirstIndex = static_cast<uint32>(Indices.Num());
             Section.MaterialIndex = static_cast<uint32>(MaterialIndex);
             Section.ObjectIndex = Triangle.ObjectIndex;
             Result.Sections.Add(Section);
@@ -835,15 +830,16 @@ FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
         for (const FObjVertexIndex& Corner : Triangle.Corners)
         {
             const FVertexKey Key{ Corner.PositionIndex, Corner.UVIndex, Corner.NormalIndex };
-            const auto [Iterator, bInserted] = VertexLookup.emplace(Key, static_cast<uint32>(Result.Vertices.Num()));
+            const auto [Iterator, bInserted] = VertexLookup.emplace(Key, static_cast<uint32>(Vertices.Num()));
             if (bInserted)
             {
                 const FNormalVertex Vertex = MakeVertex(Info, Corner);
                 const FVector Position{ Vertex.X, Vertex.Y, Vertex.Z };
-                if (Result.Vertices.IsEmpty())
+                if (Vertices.IsEmpty())
                 {
                     Result.BoundsMin = Position;
                     Result.BoundsMax = Position;
+                    Result.bHasBounds = true;
                 }
                 else
                 {
@@ -854,12 +850,42 @@ FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
                     Result.BoundsMax.Y = std::max(Result.BoundsMax.Y, Position.Y);
                     Result.BoundsMax.Z = std::max(Result.BoundsMax.Z, Position.Z);
                 }
-                Result.Vertices.Add(Vertex);
+                Vertices.Add(Vertex);
             }
-            Result.Indices.Add(Iterator->second);
+            Indices.Add(Iterator->second);
         }
 
         Result.Sections[Result.Sections.Num() - 1].IndexCount += 3;
+    }
+
+    const size_t MaxBufferBytes = (std::numeric_limits<UINT>::max)();
+    if (static_cast<size_t>(Vertices.Num()) > MaxBufferBytes / sizeof(FNormalVertex)
+        || static_cast<size_t>(Indices.Num()) > MaxBufferBytes / sizeof(uint32))
+    {
+        throw std::length_error("Cooked mesh exceeds the GPU buffer size limit");
+    }
+
+    Result.Stride = sizeof(FNormalVertex);
+    Result.VertexCount = static_cast<UINT>(Vertices.Num());
+    Result.IndexCount = static_cast<UINT>(Indices.Num());
+
+    D3D11_BUFFER_DESC BufferDesc{};
+    BufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    BufferDesc.ByteWidth = Result.Stride * Result.VertexCount;
+    D3D11_SUBRESOURCE_DATA InitialData{};
+    InitialData.pSysMem = Vertices.GetData();
+    if (FAILED(Device->CreateBuffer(&BufferDesc, &InitialData, Result.VertexBuffer.GetAddressOf())))
+    {
+        throw std::runtime_error("Failed to create static mesh vertex buffer");
+    }
+
+    BufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    BufferDesc.ByteWidth = static_cast<UINT>(sizeof(uint32)) * Result.IndexCount;
+    InitialData.pSysMem = Indices.GetData();
+    if (FAILED(Device->CreateBuffer(&BufferDesc, &InitialData, Result.IndexBuffer.GetAddressOf())))
+    {
+        throw std::runtime_error("Failed to create static mesh index buffer");
     }
 
     return Result;
