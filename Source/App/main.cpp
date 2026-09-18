@@ -79,9 +79,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wndclass.hInstance = hInstance;
     if (!RegisterClassW(&wndclass)) return EXIT_FAILURE;
 
-    // 1024 x 1024 크기에 윈도우 생성
+	constexpr UINT WindowWidth = 1600;
+	constexpr UINT WindowHeight = 1024;
     HWND hWnd = CreateWindowExW(0, WindowClass, Title, WS_POPUP | WS_VISIBLE | WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 1024, 1024,
+        (GetSystemMetrics(SM_CXSCREEN) - WindowWidth) / 2, (GetSystemMetrics(SM_CYSCREEN) - WindowHeight) / 2,
+        WindowWidth, WindowHeight,
         nullptr, nullptr, hInstance, nullptr);
 
     // 엔진을 초기화합니다.

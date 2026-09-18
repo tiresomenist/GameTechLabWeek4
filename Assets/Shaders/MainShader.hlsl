@@ -52,5 +52,5 @@ VS_OUTPUT VS_Highlight(VS_INPUT input)
 
 float4 PS_Highlight(VS_OUTPUT input) : SV_Target
 {
-    return float4(1.0f, 1.0f, 0.0f, 1.0f);
+    return float4(0.738f, 0.270f, 0.012f, 1.0f);
 }
