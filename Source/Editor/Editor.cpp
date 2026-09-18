@@ -7,7 +7,7 @@
 
 #include "Editor/Window/ConsoleWindow.h"
 #include "Editor/Window/PropertyWindow.h"
-#include "Editor/Window/SceneWindow.h"
+#include "Editor/Window/PlaceActorWindow.h"
 #include "Editor/Window/OutlinerWindow.h"
 
 #include "Editor/Gizmo/ObjectAxisGizmo.h"
@@ -41,6 +41,7 @@
 #include <stdexcept>
 #include <system_error>
 
+#include "Window/DebugWindow.h"
 #include "Window/ViewportToolbarWindow.h"
 
 namespace
@@ -274,8 +275,9 @@ void FEditor::InitializeGizmos()
 void FEditor::InitializeWindows()
 {
 	RegisterWindow(UConsoleWindow::GetClass(), "Console");
-	RegisterWindow(UPropertyWindow::GetClass(), "Property Window");
-	RegisterWindow(USceneWindow::GetClass(), "Scene Control Panel");
+	RegisterWindow(UDebugWindow::GetClass(), "Debug");
+	RegisterWindow(UPropertyWindow::GetClass(), "Properties");
+	RegisterWindow(UPlaceActorWindow::GetClass(), "Place Actors");
 	RegisterWindow(UOutlinerWindow::GetClass(), "Outliner");
 	RegisterWindow(UViewportToolbarWindow::GetClass(), "Viewport Toolbar");
 }

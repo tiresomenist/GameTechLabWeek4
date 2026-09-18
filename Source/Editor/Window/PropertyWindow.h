@@ -39,6 +39,12 @@ public:
 	void DeleteSelectedActor();
 
 	bool DrawRotationField(const char* ID, float& Degree, bool& bRotationActive);
+	void RenderActorSection(AActor* SelectedActor);
+	void RenderComponentListSection(AActor* SelectedActor);
+	void RenderAddComponentSection(AActor* SelectedActor);
+	void RenderActionsSection(AActor* SelectedActor);
+	bool RenderTransformSection(bool& bRotationActive);
+	void RenderSelectedComponentDetails();
 
 	void Render(float DeltaTime) override;
 };

@@ -42,33 +42,11 @@ void UConsoleWindow::Render(float DeltaTime)
 		return;
 	}
 
+	ImGui::SetNextWindowSize(ImVec2(380.0f, 640.0f), ImGuiCond_FirstUseEver);
+
 	FConsole* console = GEngine::GetInstance()->GetConsole();
 	//그려지는것도 제한걸어야함
 	logs = console->Get();
-
-	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
-	const ImVec2 WorkPosition = Viewport->WorkPos; // 메뉴창을 제외한 제일 왼쪽 위 위치
-	const ImVec2 WorkSize = Viewport->WorkSize;    // 메뉴창을 제외한 Imgui를 띄울 수 있는 공간
-
-	// 전체 프로그램 창 크기에 대한 비율
-	constexpr float WindowWidthRatio = 1.0f;
-	constexpr float WindowHeightRatio = 0.3f;
-
-	float WindowWidth = WorkSize.x * WindowWidthRatio;
-	float WindowHeight = WorkSize.y * WindowHeightRatio;
-
-	ImVec2 NewPosition = WorkPosition;
-	NewPosition.y += WorkSize.y - WindowHeight;
-
-	ImGui::SetNextWindowPos(
-		NewPosition,
-		ImGuiCond_FirstUseEver
-	);
-
-	ImGui::SetNextWindowSize(
-		ImVec2(WindowWidth, WindowHeight),
-		ImGuiCond_FirstUseEver
-	);
 
 	ImGui::PushStyleColor(
 		ImGuiCol_WindowBg,

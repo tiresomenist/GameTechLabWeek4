@@ -21,7 +21,7 @@
 #include "Editor/Window/ConsoleWindow.h"
 #include "Editor/Window/EditorWindow.h"
 #include "Editor/Window/PropertyWindow.h"
-#include "Editor/Window/SceneWindow.h"
+#include "Editor/Window/PlaceActorWindow.h"
 
 float GEngine::GetTime()
 {

@@ -110,13 +110,13 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
     static FVector CameraRotationDegree;
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.2f); // Item 너비 설정
     ImGui::DragFloat("##cameraX", &CameraLocation.X, 0.1f);
-    DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
+    DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
     ImGui::SameLine();
     ImGui::DragFloat("##cameraY", &CameraLocation.Y, 0.1f);
-    DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
+    DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
     ImGui::SameLine();
     ImGui::DragFloat("##cameraZ", &CameraLocation.Z, 0.1f);
-    DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
+    DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
     ImGui::SameLine();
     ImGui::Text("Camera Location");
     bool bRotationChanged = false;
@@ -135,17 +135,16 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
     ImGui::EndDisabled();
     bRotationActive |= ImGui::IsItemActive();
     bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
     ImGui::SameLine();
     bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.0f, 89.0f, "%.3f", PitchFlags);
     bRotationActive |= ImGui::IsItemActive();
     bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
+    DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
     ImGui::SameLine();
     bRotationChanged |= ImGui::DragFloat("##cameraRZ", &CameraRotationDegree.Z, 0.1f, 0.0f, 0.0f, "%.3f", YawFlags);
     bRotationActive |= ImGui::IsItemActive();
     bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
+    DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
     ImGui::SameLine();
     ImGui::Text("Camera Rotation");
     if (bRotationChanged || bRotationFinished)

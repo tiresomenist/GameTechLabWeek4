@@ -8,9 +8,9 @@
 #include "Core/Name/Name.h"
 class FEditor;
 
-class USceneWindow : public UEditorWindow
+class UPlaceActorWindow : public UEditorWindow
 {
-    UCLASS(USceneWindow, "SceneWindow", UEditorWindow)
+    UCLASS(UPlaceActorWindow, "SceneWindow", UEditorWindow)
 
 private:
 	uint32 NumberOfSpawn = 1;

@@ -128,7 +128,7 @@ void FEditorMenuLayout::BuildDefaultLayout(bool bReset)
 		PropertyNode->LocalFlags |= ImGuiDockNodeFlags_NoCloseButton;
 		PropertyNode->UpdateMergedFlags();
 	}
-	ImGui::DockBuilderDockWindow("Property Window", PropertyID);
+	ImGui::DockBuilderDockWindow("Properties", PropertyID);
 
 	if (ImGuiDockNode* ConsoleNode = ImGui::DockBuilderGetNode(ConsoleID))
 	{
@@ -136,13 +136,14 @@ void FEditorMenuLayout::BuildDefaultLayout(bool bReset)
 		ConsoleNode->UpdateMergedFlags();
 	}
 	ImGui::DockBuilderDockWindow("Console", ConsoleID);
+	ImGui::DockBuilderDockWindow("Debug", ConsoleID);
 
 	if (ImGuiDockNode* SceneNode = ImGui::DockBuilderGetNode(SceneID))
 	{
 		SceneNode->LocalFlags |= ImGuiDockNodeFlags_NoCloseButton;
 		SceneNode->UpdateMergedFlags();
 	}
-	ImGui::DockBuilderDockWindow("Scene Control Panel", SceneID);
+	ImGui::DockBuilderDockWindow("Place Actors", SceneID);
 
 	if (ImGuiDockNode* ToolbarNode =
 		ImGui::DockBuilderGetNode(ViewportToolbarID))

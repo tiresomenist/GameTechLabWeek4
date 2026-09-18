@@ -13,6 +13,8 @@ void UOutlinerWindow::Render(float DeltaTime)
 		return;
 	}
 
+	ImGui::SetNextWindowSize(ImVec2(380.0f, 640.0f), ImGuiCond_FirstUseEver);
+
 	AActor* SelectedActor = Editor->GetSelectedActor();
 
 	ImGui::Begin(Name.c_str(), &bOpen);
