@@ -56,8 +56,7 @@ void GEngine::Initialize(HWND InHwnd)
         const uint32 ClientWidth = static_cast<uint32>(ClientRect.right - ClientRect.left);
         const uint32 ClientHeight = static_cast<uint32>(ClientRect.bottom - ClientRect.top);
         GDevice& Device = *GDevice::GetInstance();
-        Device.Initialize(InHwnd, ClientWidth, ClientHeight);
-
+        Device.Initialize();
         // 리소스 매니저 초기화
         GResourceManager& ResourceManager = *GResourceManager::GetInstance();
         ResourceManager.Initialize(&Device);
@@ -81,7 +80,7 @@ void GEngine::Initialize(HWND InHwnd)
         
 
         // 렌더러 초기화
-        Renderer.Create(InHwnd, &Device);
+        Renderer.Create(InHwnd, &Device, ClientWidth, ClientHeight);
 
         // 씬 매니저 초기화
         GSceneManager* SceneManager = GSceneManager::GetInstance();
@@ -150,4 +149,13 @@ void GEngine::Destroy()
 	// 콘솔 정리
 	delete Console;
 	Console = nullptr;
+}
+void GEngine::OnResize(uint32 Width, uint32 Height)
+{
+    Renderer.OnResize(Width, Height);
+}
+
+const D3D11_VIEWPORT& GEngine::GetViewport() const
+{
+    return Renderer.GetViewport();
 }

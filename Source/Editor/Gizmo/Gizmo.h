@@ -7,6 +7,9 @@
 #include "Editor/Gizmo/GizmoMode.h"
 #include "Engine/Renderer/Grid.h"
 #include "Engine/Renderer/Line/LineDrawRequest.h"
+#include <d3d11.h>
+
+class UCameraComponent;
 
 struct FGizmoHandle
 {
@@ -32,7 +35,8 @@ public:
 	const TArray<FGizmoHandle>& GetHandles() const { return Handles; }
 
 	// 렌더러에게 전달할 렌더 정보
-	virtual TArray<FPrimitiveRenderData> GetRenderData();
+	virtual TArray<FPrimitiveRenderData> GetRenderData(const UCameraComponent* Camera,
+		const D3D11_VIEWPORT& Viewport);
 	TArray<FMeshResource*> GetMeshResources() const {
 	TArray< FMeshResource*> GizmoArray;
 	for (auto& handle : GetHandles()) {

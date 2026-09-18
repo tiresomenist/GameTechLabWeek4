@@ -4,6 +4,7 @@
 #endif
 
 #include "ResourceManager.h"
+#include "Engine/Renderer/PrimitiveRenderData.h"
 #include "Engine/Renderer/VertexSimple.h"
 #include "Engine/Resource/MeshData/Sphere.h"
 #include "Engine/Resource/MeshData/Cube.h"
@@ -30,13 +31,42 @@
 #include "Engine/Resource/TextureResource.h"
 #include "GeometryGenerator.h"
 #include "Engine/Resource/MeshNames.h"
+#include "Engine/Log.h"
 
 #include <memory>
 #include <limits>
 #include <stdexcept>
 #include <cmath>
+#include <d3dcompiler.h>
+#include <format>
+namespace
+{
+    void CheckRenderResourceHR(HRESULT Result, const char* Operation)
+    {
+        if (FAILED(Result))
+        {
+            throw std::runtime_error(std::format("{} failed. HRESULT: {}", Operation, Result));
+        }
+    }
 
+    Microsoft::WRL::ComPtr<ID3DBlob> CompileResourceShader(const WCHAR* FilePath,const char* EntryPoint,
+        const char* ShaderModel)
+    {
+        Microsoft::WRL::ComPtr<ID3DBlob> ShaderBlob;
+        Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
 
+        const HRESULT Result = D3DCompileFromFile(FilePath,nullptr,nullptr, EntryPoint, ShaderModel,
+            0,0,ShaderBlob.GetAddressOf(),ErrorBlob.GetAddressOf());
+
+        if (ErrorBlob)
+        {
+            UE_LOG("Shader diagnostic: {}",static_cast<const char*>(ErrorBlob->GetBufferPointer()));
+        }
+
+        CheckRenderResourceHR(Result, "D3DCompileFromFile");
+        return ShaderBlob;
+    }
+}
 GResourceManager* GResourceManager::GetInstance()
 {
 	static GResourceManager Instance;
@@ -50,6 +80,10 @@ void GResourceManager::Initialize(GDevice* InDevice)
 		throw std::runtime_error("Default font atlas build failed");
     RegisterDefaultPrimitives(InDevice);
     RegisterTexturePrimitives(InDevice);
+    RegisterDefaultRenderResources();
+    RegisterDefaultRasterizerStates();
+    RegisterDefaultBlendStates();
+    RegisterDefaultDepthStencilStates();
 }
 
 FMeshResource* GResourceManager::CreateMesh(const FName& MeshName,
@@ -199,20 +233,16 @@ void GResourceManager::Shutdown()
     TextureCache.Empty();
     PrimitiveCache.Empty();
     DefaultFont.Release();
+    TextureMaterialConstantBuffer.Reset();
+    WireframePixelShader.Reset();
+    ShaderCache.Empty();
+    SamplerCache.Empty();
+    RasterizerStateCache.Empty();
+    BlendStateCache.Empty();
+    DepthStencilStateCache.Empty();
+
     Device = nullptr;
 
-    //for (auto& [path, shader] : ShaderCache)
-    //{
-    //    if (shader->VertexShader) shader->VertexShader->Release();
-    //    if (shader->PixelShader)  shader->PixelShader->Release();
-    //    if (shader->InputLayout)  shader->InputLayout->Release();
-    //    delete shader;
-    //}
-    //ShaderCache.clear();
-
-    //for (auto& [key, state] : RasterizerStateCache)
-    //    state->Release();
-    //RasterizerStateCache.clear();
 }
 
 FMeshResource* GResourceManager::GetPrimitive(const FName& MeshName)
@@ -256,9 +286,135 @@ FTextureResource* GResourceManager::GetOrLoadTexture(const FString& FilePath)
     return NewTexture.release();
 }
 
-FShaderResource* GResourceManager::GetShader(const std::wstring& FilePath, const std::string& VSEntry, const std::string& PSEntry, const D3D11_INPUT_ELEMENT_DESC* Layout, UINT LayoutCount)
+void GResourceManager::RegisterShader(const FName& Name, const WCHAR* FilePath,
+    const char* VSEntry, const char* PSEntry, const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout)
 {
-	return nullptr;
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Shader device is not initialized");
+    }
+
+    if (Name.IsNone() ||!FilePath || !*FilePath ||!VSEntry || !*VSEntry || !PSEntry || !*PSEntry ||Layout.IsEmpty())
+    {
+        throw std::invalid_argument("Invalid shader registration");
+    }
+
+    if (ShaderCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Shader already registered: {}", Name.ToString()));
+    }
+
+    ID3D11Device* NativeDevice = Device->GetDevice();
+
+    FShaderResource Resource;
+
+    const auto VSBlob = CompileResourceShader(FilePath, VSEntry, "vs_5_0");
+
+    //버텍스 셰이더 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreateVertexShader(
+            VSBlob->GetBufferPointer(),
+            VSBlob->GetBufferSize(),
+            nullptr,
+            Resource.VertexShader.GetAddressOf()),
+        "CreateVertexShader");
+
+    // 인풋 레이아웃 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreateInputLayout(
+            Layout.GetData(),
+            static_cast<UINT>(Layout.Num()),
+            VSBlob->GetBufferPointer(),
+            VSBlob->GetBufferSize(),
+            Resource.InputLayout.GetAddressOf()),
+        "CreateInputLayout");
+
+    const auto PSBlob =
+        CompileResourceShader(FilePath, PSEntry, "ps_5_0");
+
+    // 픽셀 셰이더 생성 시도
+    CheckRenderResourceHR(
+        NativeDevice->CreatePixelShader(
+            PSBlob->GetBufferPointer(),
+            PSBlob->GetBufferSize(),
+            nullptr,
+            Resource.PixelShader.GetAddressOf()),
+        "CreatePixelShader");
+
+    if (!ShaderCache.Add(Name, Resource))
+    {
+        throw std::logic_error("Failed to register shader");
+    }
+}
+
+const FShaderResource* GResourceManager::GetShader(const FName& Name) const
+{
+    return ShaderCache.Find(Name);
+}
+
+ID3D11PixelShader* GResourceManager::GetWireframePixelShader() const
+{
+    return WireframePixelShader.Get();
+}
+
+void GResourceManager::RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Sampler device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid sampler name");
+    }
+
+    if (SamplerCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Sampler already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> Sampler;
+
+    //샘플러 생성 시도
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateSamplerState(
+            &Desc,
+            Sampler.GetAddressOf()),
+        "CreateSamplerState");
+
+    if (!SamplerCache.Add(Name, Sampler))
+    {
+        throw std::logic_error("Failed to register sampler");
+    }
+}
+
+ID3D11SamplerState* GResourceManager::GetSampler(const FName& Name) const
+{
+    const auto* Found = SamplerCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+
+FMaterial GResourceManager::CreateColorMaterial() const
+{
+    static const FName ShaderName("Mesh.Color");
+
+    FMaterial Material{};
+    Material.Shader = GetShader(ShaderName);
+    return Material;
+}
+
+FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV) const
+{
+    static const FName ShaderName("Mesh.Texture");
+    static const FName SamplerName("LinearClamp");
+
+    FMaterial Material{};
+    Material.SRV = SRV;
+    Material.Shader = GetShader(ShaderName);
+    Material.Sampler = GetSampler(SamplerName);
+    Material.ConstantBuffer = TextureMaterialConstantBuffer.Get();
+    return Material;
 }
 
 void GResourceManager::RegisterDefaultPrimitives(GDevice* InDevice)
@@ -350,4 +506,319 @@ void GResourceManager::RegisterTexturePrimitives(GDevice* InDevice)
     {
         throw std::runtime_error("SpotLight icon mesh creation failed");
     }
+}
+
+void GResourceManager::RegisterDefaultRenderResources()
+{
+    const TArray<D3D11_INPUT_ELEMENT_DESC> ColorLayout
+    {
+        {
+            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+    };
+
+    RegisterShader(FName("Mesh.Color"),L"Assets/Shaders/MainShader.hlsl","mainVS","mainPS",ColorLayout);
+
+    RegisterShader(FName("Editor.Highlight"), L"Assets/Shaders/MainShader.hlsl",
+        "VS_Highlight", "PS_Highlight", ColorLayout);
+    RegisterShader(FName("Editor.Grid"), L"Assets/Shaders/GridShader.hlsl",
+        "VS_Grid", "PS_Grid", ColorLayout);
+    RegisterShader(FName("Editor.BatchLine"), L"Assets/Shaders/BatchLineShader.hlsl",
+        "mainVS", "mainPS", ColorLayout);
+
+    // 와이어프레임은 메시의 VS를 유지하고 PS만 교체하므로 별도로 소유한다.
+    const auto WireframeBlob = CompileResourceShader(
+        L"Assets/Shaders/WireframeShader.hlsl", "mainPS", "ps_5_0");
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreatePixelShader(
+            WireframeBlob->GetBufferPointer(), WireframeBlob->GetBufferSize(),
+            nullptr, WireframePixelShader.GetAddressOf()),
+        "CreateWireframePixelShader");
+
+    const TArray<D3D11_INPUT_ELEMENT_DESC> TextureLayout
+    {
+        {
+            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+            0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+    };
+
+    RegisterShader(FName("Mesh.Texture"),L"Assets/Shaders/TextureShader.hlsl","mainVS","mainPS",TextureLayout);
+    RegisterShader(FName("Editor.Text"), L"Assets/Shaders/TextShader.hlsl","mainVS_Text","mainPS_Text",TextureLayout);
+    D3D11_SAMPLER_DESC SamplerDesc{};
+    SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    SamplerDesc.MinLOD = 0.0f;
+    SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    RegisterSampler(FName("LinearClamp"), SamplerDesc);
+
+    D3D11_SAMPLER_DESC FontSamplerDesc{};
+    FontSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    FontSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    FontSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    FontSamplerDesc.MinLOD = 0.0f;
+    FontSamplerDesc.MaxLOD = 0.0f;
+
+    RegisterSampler(FName("Font.LinearClamp"), FontSamplerDesc);
+
+    D3D11_BUFFER_DESC Desc{};
+    Desc.ByteWidth = sizeof(FTextureDrawConstants);
+    Desc.Usage = D3D11_USAGE_DEFAULT;
+    Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateBuffer(
+            &Desc, nullptr, TextureMaterialConstantBuffer.GetAddressOf()),
+        "CreateTextureMaterialConstantBuffer");
+}
+
+void GResourceManager::RegisterRasterizerState(const FName& Name, const D3D11_RASTERIZER_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Rasterizer device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid rasterizer state name");
+    }
+
+    if (RasterizerStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Rasterizer state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> State;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateRasterizerState(
+            &Desc, State.GetAddressOf()),
+        "CreateRasterizerState");
+
+    if (!RasterizerStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register rasterizer state");
+    }
+}
+
+ID3D11RasterizerState* GResourceManager::GetRasterizerState(const FName& Name) const
+{
+    const auto* Found = RasterizerStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+
+void GResourceManager::RegisterDefaultRasterizerStates()
+{
+    // 일반 메시: 뒷면 컬링
+    D3D11_RASTERIZER_DESC SolidDesc{};
+    SolidDesc.FillMode = D3D11_FILL_SOLID;
+    SolidDesc.CullMode = D3D11_CULL_BACK;
+    SolidDesc.ScissorEnable = TRUE;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidBack"), SolidDesc);
+
+    // 양면 렌더링
+    D3D11_RASTERIZER_DESC CullNoneDesc = SolidDesc;
+    CullNoneDesc.CullMode = D3D11_CULL_NONE;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidNone"), CullNoneDesc);
+
+    // 하이라이트: 앞면 컬링
+    D3D11_RASTERIZER_DESC CullFrontDesc = SolidDesc;
+    CullFrontDesc.CullMode = D3D11_CULL_FRONT;
+
+    RegisterRasterizerState(FName("Rasterizer.SolidFront"),CullFrontDesc);
+
+    // 와이어프레임: 일반 메시와 같은 컬링
+    D3D11_RASTERIZER_DESC WireDesc = SolidDesc;
+    WireDesc.FillMode = D3D11_FILL_WIREFRAME;
+
+    RegisterRasterizerState(FName("Rasterizer.WireBack"), WireDesc);
+}
+
+void GResourceManager::RegisterBlendState(const FName& Name, const D3D11_BLEND_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Blend state device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid blend state name");
+    }
+
+    if (BlendStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Blend state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11BlendState> State;
+
+    CheckRenderResourceHR(Device->GetDevice()->CreateBlendState(&Desc, State.GetAddressOf()), "CreateBlendState");
+
+    if (!BlendStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register blend state");
+    }
+}
+
+ID3D11BlendState* GResourceManager::GetBlendState(const FName& Name) const
+{
+    const auto* Found = BlendStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+void GResourceManager::RegisterDefaultBlendStates()
+{
+    // 텍스트·그리드·배치 라인에서 사용하는 알파 블렌딩
+    D3D11_BLEND_DESC AlphaDesc{};
+    AlphaDesc.AlphaToCoverageEnable = FALSE;
+    AlphaDesc.IndependentBlendEnable = FALSE;
+
+    auto& AlphaTarget = AlphaDesc.RenderTarget[0];
+    AlphaTarget.BlendEnable = TRUE;
+    AlphaTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    AlphaTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    AlphaTarget.BlendOp = D3D11_BLEND_OP_ADD;
+
+    AlphaTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    AlphaTarget.DestBlendAlpha = D3D11_BLEND_ZERO;
+    AlphaTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    AlphaTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    RegisterBlendState(FName("Blend.Alpha"), AlphaDesc);
+
+    // 불꽃 RGB에 알파를 곱하여 기존 화면 RGB에 더함
+    D3D11_BLEND_DESC AdditiveDesc{};
+    auto& AdditiveTarget = AdditiveDesc.RenderTarget[0];
+
+    AdditiveTarget.BlendEnable = TRUE;
+    AdditiveTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    AdditiveTarget.DestBlend = D3D11_BLEND_ONE;
+    AdditiveTarget.BlendOp = D3D11_BLEND_OP_ADD;
+
+    // 기존 화면 알파 유지
+    AdditiveTarget.SrcBlendAlpha = D3D11_BLEND_ZERO;
+    AdditiveTarget.DestBlendAlpha = D3D11_BLEND_ONE;
+    AdditiveTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    AdditiveTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    RegisterBlendState(FName("Blend.Additive"), AdditiveDesc);
+}
+
+void GResourceManager::RegisterDepthStencilState(const FName& Name, const D3D11_DEPTH_STENCIL_DESC& Desc)
+{
+    if (!Device || !Device->GetDevice())
+    {
+        throw std::runtime_error("Depth stencil device is not initialized");
+    }
+
+    if (Name.IsNone())
+    {
+        throw std::invalid_argument("Invalid depth stencil state name");
+    }
+
+    if (DepthStencilStateCache.Contains(Name))
+    {
+        throw std::logic_error(std::format("Depth stencil state already registered: {}", Name.ToString()));
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> State;
+
+    CheckRenderResourceHR(
+        Device->GetDevice()->CreateDepthStencilState(
+            &Desc, State.GetAddressOf()),
+        "CreateDepthStencilState");
+
+    if (!DepthStencilStateCache.Add(Name, State))
+    {
+        throw std::logic_error("Failed to register depth stencil state");
+    }
+}
+
+ID3D11DepthStencilState* GResourceManager::GetDepthStencilState(const FName& Name) const
+{
+    const auto* Found = DepthStencilStateCache.Find(Name);
+    return Found ? Found->Get() : nullptr;
+}
+
+void GResourceManager::RegisterDefaultDepthStencilStates()
+{
+    // 일반 메시: 깊이 검사·기록
+    D3D11_DEPTH_STENCIL_DESC DefaultDesc{};
+    DefaultDesc.DepthEnable = TRUE;
+    DefaultDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    DefaultDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    DefaultDesc.StencilEnable = FALSE;
+
+    RegisterDepthStencilState(FName("Depth.Default"), DefaultDesc);
+
+    // 기즈모: 깊이 검사 비활성화
+    D3D11_DEPTH_STENCIL_DESC GizmoDesc = DefaultDesc;
+    GizmoDesc.DepthEnable = FALSE;
+
+    RegisterDepthStencilState(FName("Depth.Gizmo"), GizmoDesc);
+
+    // 깊이는 검사하지만 기록하지 않는 상태
+    D3D11_DEPTH_STENCIL_DESC ReadOnlyDesc{};
+    ReadOnlyDesc.DepthEnable = TRUE;
+    ReadOnlyDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    ReadOnlyDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+    RegisterDepthStencilState(FName("Depth.Highlight"), ReadOnlyDesc);
+    RegisterDepthStencilState(FName("Depth.Translucent"), ReadOnlyDesc);
+    RegisterDepthStencilState(FName("Depth.Text"), ReadOnlyDesc);
+
+    // 선택된 메시: 스텐실 마스크 기록
+    D3D11_DEPTH_STENCIL_DESC StencilWriteDesc = DefaultDesc;
+    StencilWriteDesc.StencilEnable = TRUE;
+    StencilWriteDesc.StencilReadMask = 0xFF;
+    StencilWriteDesc.StencilWriteMask = 0xFF;
+
+    StencilWriteDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    StencilWriteDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    StencilWriteDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_REPLACE;
+    StencilWriteDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+
+    StencilWriteDesc.BackFace = StencilWriteDesc.FrontFace;
+
+    RegisterDepthStencilState(FName("Depth.StencilWrite"), StencilWriteDesc);
+
+    // 외곽선: 깊이 검사를 끄고 스텐실 마스크 바깥만 표시
+    D3D11_DEPTH_STENCIL_DESC OutlineDesc{};
+    OutlineDesc.DepthEnable = FALSE;
+    OutlineDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    OutlineDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    OutlineDesc.StencilEnable = TRUE;
+    OutlineDesc.StencilReadMask = 0xFF;
+    OutlineDesc.StencilWriteMask = 0x00;
+
+    OutlineDesc.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+    OutlineDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    OutlineDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    OutlineDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+
+    OutlineDesc.BackFace = OutlineDesc.FrontFace;
+
+    RegisterDepthStencilState(FName("Depth.Outline"), OutlineDesc);
 }

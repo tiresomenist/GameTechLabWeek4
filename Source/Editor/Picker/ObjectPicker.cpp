@@ -217,7 +217,7 @@ USceneComponent* FObjectPicker::Pick()
 				// 실제 렌더링과 동일한 행렬 및 로컬 범위를 조회함
 				const FPrimitiveRenderData IconData = SpotLight->BuildIconRenderData(Camera, false);
 
-				if (!IconData.VertexBuffer || !IconData.IndexBuffer || !IconData.Material || !IconData.WorldMatrix || IconData.IndexCount == 0)
+				if (!IconData.VertexBuffer || !IconData.IndexBuffer || !IconData.Material.SRV || !IconData.WorldMatrix || IconData.IndexCount == 0)
 				{
 					continue;
 				}

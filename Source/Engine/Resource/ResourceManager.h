@@ -16,15 +16,11 @@
 #include "Engine/Renderer/Text/FontAtlas.h"
 #include "Core/Container/Map.h"
 #include "Core/Name/Name.h"
+#include "Engine/Resource/ShaderResource.h"
+#include "Engine/Renderer/Material.h"
+#include <wrl/client.h>
 
 class FTextureResource;
-struct FShaderResource
-{
-	ID3D11VertexShader* VertexShader = nullptr;
-	ID3D11PixelShader* PixelShader = nullptr;
-	ID3D11InputLayout* InputLayout = nullptr;
-};
-
 
 class GResourceManager
 {
@@ -39,27 +35,47 @@ public:
 	FMeshResource* GetPrimitive(const FName& MeshName);
 	FFontAtlas* GetDefaultFont() { return DefaultFont.GetSRV() ? &DefaultFont : nullptr; }
 	FTextureResource* GetOrLoadTexture(const FString& FilePath);
-	FShaderResource* GetShader(
-		const std::wstring& FilePath,
-		const std::string& VSEntry,
-		const std::string& PSEntry,
-		const D3D11_INPUT_ELEMENT_DESC* Layout,
-		UINT LayoutCount
-	);
+	void RegisterShader(const FName& Name,const WCHAR* FilePath,const char* VSEntry,
+		const char* PSEntry,const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout);
+	void RegisterBlendState(const FName& Name,const D3D11_BLEND_DESC& Desc);
+	ID3D11BlendState* GetBlendState(const FName& Name) const;
+
+	const FShaderResource* GetShader(const FName& Name) const;
+	ID3D11PixelShader* GetWireframePixelShader() const;
+
+	void RegisterSampler(const FName& Name, const D3D11_SAMPLER_DESC& Desc);
+
+	ID3D11SamplerState* GetSampler(const FName& Name) const;
+	FMaterial CreateColorMaterial() const;
+	FMaterial CreateTextureMaterial(ID3D11ShaderResourceView* SRV) const;
 	void RegisterDefaultPrimitives(GDevice* InDevice);
 	void RegisterTexturePrimitives(GDevice* InDevice);
+	void RegisterRasterizerState(const FName& Name, const D3D11_RASTERIZER_DESC& Desc);
+	ID3D11RasterizerState* GetRasterizerState(const FName& Name) const;
+	void RegisterDepthStencilState(const FName& Name, const D3D11_DEPTH_STENCIL_DESC& Desc);
+	ID3D11DepthStencilState* GetDepthStencilState(const FName& Name) const;
+
+
 private:
 	GResourceManager() = default;
 	~GResourceManager() = default;
 	GResourceManager(const GResourceManager&) = delete;
 	GResourceManager& operator=(const GResourceManager&) = delete;
-
+	void RegisterDefaultRenderResources();
+	void RegisterDefaultRasterizerStates();
+	void RegisterDefaultBlendStates();
+	void RegisterDefaultDepthStencilStates();
+	Microsoft::WRL::ComPtr<ID3D11Buffer> TextureMaterialConstantBuffer;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> WireframePixelShader;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11RasterizerState>> RasterizerStateCache;
+	TMap<FName, FShaderResource> ShaderCache;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11SamplerState>> SamplerCache;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11BlendState>> BlendStateCache;
+	TMap<FName, Microsoft::WRL::ComPtr<ID3D11DepthStencilState>> DepthStencilStateCache;
 	GDevice* Device = nullptr;
 
 	TMap<FName, FMeshResource*> PrimitiveCache;
 	TMap<FString, FTextureResource*> TextureCache;
 	FFontAtlas DefaultFont;
-	//std::unordered_map<std::string, FShaderResource*> ShaderCache;	// 일단 Renderer에서 - 셰이더 무조건 하나만 쓰니까..
-	//std::map<std::pair<D3D11_FILL_MODE, D3D11_CULL_MODE>, ID3D11RasterizerState*> RasterizerStateCache;
 };
 

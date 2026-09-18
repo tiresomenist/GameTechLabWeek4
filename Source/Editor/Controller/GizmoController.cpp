@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Editor/Controller/GizmoController.h"
 #include "Editor/Editor.h"
-#include "Engine/Renderer/Device.h"
+#include "Engine/Engine.h"
 #include "Engine/Component/CameraComponent.h"
 #include <cmath>
 #include "Engine/Input/InputManager.h"
@@ -64,7 +64,7 @@ void FGizmoController::CalculateAxis()
     UCameraComponent* Camera = Editor->GetEditorCamera();
     if (!Camera) return;    //카메라를 못받아왔으면
 
-    const auto& Viewport = GDevice::GetInstance()->GetViewport();
+    const auto& Viewport = GEngine::GetInstance()->GetViewport();
     if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return; //창 크기가 0보다 작으면
 
     Camera->SetAspectRatio(Viewport.Width / Viewport.Height);
@@ -241,7 +241,7 @@ void FGizmoController::Tick()
 
     case EGizmoMode::Rotate:
     {
-        const auto& Viewport = GDevice::GetInstance()->GetViewport();
+        const auto& Viewport = GEngine::GetInstance()->GetViewport();
         FVector Direction;
         if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) break;
         const float X = 2.0f * (Input.GetLeftCursorPixelX() - Viewport.TopLeftX) / Viewport.Width - 1.0f;
@@ -281,7 +281,7 @@ bool FGizmoController::GetRotationDirection(float NDCX, float NDCY, FVector& Out
 {
     // 뭔가 잘못되었으면 리턴
     if (!Editor || !Editor->GetEditorCamera()) return false;    
-    const auto& Viewport = GDevice::GetInstance()->GetViewport();
+    const auto& Viewport = GEngine::GetInstance()->GetViewport();
     if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return false;
     auto* Camera = Editor->GetEditorCamera();
     Camera->SetAspectRatio(Viewport.Width / Viewport.Height);

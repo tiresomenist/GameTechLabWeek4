@@ -2,14 +2,14 @@
 #include "Editor/Picker/GizmoPicker.h"
 #include "Engine/Input/InputManager.h"
 #include "Engine/Log.h"
-#include "Engine/Renderer/Device.h"
+#include "Engine/Engine.h"
 #include "Engine/Scene/Scene.h"
 #include "Editor/Gizmo/ObjectAxisGizmo.h"
 #include "Editor/Picker/ObjectPicker.h"
 
 
 namespace
-{	//VP행렬->에디터의카메라참조 Viewport->GDevice 참조
+{	//VP행렬->에디터의카메라참조 Viewport->GEngine->FRenderer 참조
 	bool WorldToPixel(const FVector& Position, const FMatrix& ViewProjection, const D3D11_VIEWPORT& Viewport, FVector& OutPixel)
 	{
 		const FVector4 Clip = FVector4(Position, 1.0f) * ViewProjection;
@@ -102,7 +102,7 @@ int FGizmoPicker::Pick(UGizmo* InGizmos)
     auto* Gizmo = dynamic_cast<UObjectAxisGizmo*>(InGizmos);
     if (!Editor || !Editor->GetEditorCamera() || !Gizmo || !Gizmo->UpdateTransform()) return -1;    //뭔가 잘못되었으면
 
-    const auto& Viewport = GDevice::GetInstance()->GetViewport();
+    const auto& Viewport = GEngine::GetInstance()->GetViewport();
     if (Viewport.Width <= 0 || Viewport.Height <= 0) return -1; //창 크기가 0보다 작으면
 
     //현재 종횡비를 갱신하고, VP행렬을 가져온다

@@ -11,8 +11,10 @@ class UObjectAxisGizmo : public UGizmo
 public:
 	virtual void Initialize()override;
 	bool UpdateTransform();
+	bool UpdateTransform(const UCameraComponent* Camera, const D3D11_VIEWPORT& Viewport);
 	UObjectAxisGizmo();
-	TArray<FPrimitiveRenderData> GetRenderData() override;
+	TArray<FPrimitiveRenderData> GetRenderData(const UCameraComponent* Camera,
+		const D3D11_VIEWPORT& Viewport) override;
 	TArray<FPrimitiveRenderData> GetTranslateRenderData();
 	TArray<FPrimitiveRenderData> GetRotateRenderData();
 	TArray<FPrimitiveRenderData> GetScaleRenderData();

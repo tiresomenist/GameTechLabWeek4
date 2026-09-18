@@ -2,6 +2,7 @@
 #include "StaticMeshComponent.h"
 #include "Engine/Object/Archive.h"
 #include "Engine/Resource/TextureResource.h"
+#include "Engine/Resource/ResourceManager.h"
 
 void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 {
@@ -64,10 +65,10 @@ FPrimitiveRenderData UStaticMeshComponent::CreateRenderData(bool bSelected) cons
 
     if (MaterialTexture && MaterialTexture->GetSRV())
     {
-        OutData.Pipeline = EPrimitivePipeline::Texture;
-        OutData.Material = MaterialTexture->GetSRV();
+        OutData.Material = GResourceManager::GetInstance()->CreateTextureMaterial(
+            MaterialTexture->GetSRV());
         OutData.UVTransform = FTextureUVTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
-        OutData.BlendMode = EPrimitiveBlendMode::Opaque;
+        OutData.bTwoSided = true;
     }
     return OutData;
 }

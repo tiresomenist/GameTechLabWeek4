@@ -27,12 +27,10 @@ namespace
 	}
 }
 
-TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene)
+TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera)
 {
 	TArray<FPrimitiveRenderData> RenderList;
-	if (!Editor || !Scene) return RenderList;
-
-	const UCameraComponent* Camera = Editor->GetEditorCamera();
+	if (!Editor || !Scene || !Camera) return RenderList;
 	Scene->ForEachPrimitive(
 		[&RenderList, Editor, Camera](UPrimitiveComponent* Primitive)
 		{
@@ -68,7 +66,7 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 				FPrimitiveRenderData Data =	SpotLight->BuildIconRenderData(Camera, bSelected);
 
 				// 유효한 렌더 데이터만 목록에 추가함
-				if (Data.VertexBuffer && Data.IndexBuffer && Data.Material && Data.WorldMatrix && Data.IndexCount > 0)
+				if (Data.VertexBuffer && Data.IndexBuffer && Data.Material.SRV && Data.WorldMatrix && Data.IndexCount > 0)
 				{
 					RenderList.Add(Data);
 				}
@@ -79,19 +77,26 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 	return RenderList;
 }
 
-TArray<FPrimitiveRenderData> RenderUtil::GetGizmoList(FEditor* Editor, UScene* Scene)
+TArray<FPrimitiveRenderData> RenderUtil::GetGizmoList(FEditor* Editor,UScene* Scene,const UCameraComponent* Camera,
+	const D3D11_VIEWPORT& Viewport)
 {
 	TArray<FPrimitiveRenderData> RenderList;
 
+	if (!Editor || !Scene || !Camera)
+	{
+		return RenderList;
+	}
+
 	for (auto Item : Editor->Gizmos)
 	{
-		TArray<FPrimitiveRenderData> Array = Item->GetRenderData();
+		TArray<FPrimitiveRenderData> Array =Item->GetRenderData(Camera, Viewport);
 
 		for (auto& Data : Array)
 		{
 			RenderList.Add(Data);
 		}
 	}
+
 	return RenderList;
 }
 
@@ -131,13 +136,10 @@ TArray<FWorldTextItem> RenderUtil::GetTextRenderList(UScene* Scene, const UCamer
 	return TextList;
 }
 
-void RenderUtil::SubmitLineDrawRequests(FEditor* Editor,UScene* Scene,FLineBatcher& Batcher)
+void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera,
+	const FViewSettings& ViewSettings, FLineBatcher& Batcher)
 {
-	if (!Editor || !Scene) { return; }
-
-	const UCameraComponent* Camera = Editor->GetEditorCamera();
-
-	if (!Camera) { return; }
+	if (!Editor || !Scene|| !Camera) { return; }
 
 	// 요청을 별도로 저장하지 않고 배처의 통합 배열에 즉시 병합함
 	const FLineRequestConsumer Submit =	[&Batcher](const FLineDrawRequest& Request)
@@ -150,8 +152,8 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor,UScene* Scene,FLineBatch
 
 	FLineDrawContext Context;
 	Context.Camera = Camera;
-	Context.bShowBounds = Editor->IsShowingBoundingBoxes();
-	Context.bShowPrimitives = Editor->IsShowingPrimitives();
+	Context.bShowBounds = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Bounds);
+	Context.bShowPrimitives = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Primitives);
 
 	// 각 프리미티브가 생성한 바운딩 박스 요청을 즉시 제출함
 	Scene->ForEachPrimitive([&](UPrimitiveComponent* Primitive)
@@ -181,7 +183,7 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor,UScene* Scene,FLineBatch
 	const FGrid& GridSettings = Editor->GetGrid();
 
 	// 생성된 그리드 요청을 즉시 제출함
-	if (Editor->IsShowingGrid())
+	if (ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Grid))
 	{
 		for (UGrid* Grid : Editor->GetGrids())
 		{
@@ -190,7 +192,7 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor,UScene* Scene,FLineBatch
 	}
 
 	// 생성된 기즈모 라인 요청을 즉시 제출함
-	if (Editor->IsShowingWorldAxis()) {
+	if (ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::WorldAxis)) {
 		for (UGizmo* Gizmo : Editor->GetGizmos())
 		{
 			Submit(Gizmo->BuildLineDrawRequest(GridSettings, CameraPosition));

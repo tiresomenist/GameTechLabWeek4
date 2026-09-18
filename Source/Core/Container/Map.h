@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <memory>
 
 template<typename KeyType, typename ValueType>
 class TMap
@@ -29,7 +30,7 @@ public:
             return nullptr;
         }
 
-        return &Iterator->second;
+        return std::addressof(Iterator->second);
     }
 
     const ValueType* Find(const KeyType& Key) const
@@ -41,7 +42,7 @@ public:
             return nullptr;
         }
 
-        return &Iterator->second;
+        return std::addressof(Iterator->second);
     }
 
     ValueType& operator[](const KeyType& Key)
