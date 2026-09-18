@@ -773,10 +773,10 @@ namespace
     }
 }
 
-FStaticMesh FObjImporter::Cook(const FObjInfo& Info)
+FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
 {
     // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
-    FStaticMesh Result;
+    FStaticMeshData Result;
 
     // 경로를 UTF-8 문자열로 보존.
     const auto Utf8Path = Info.PathFileName.generic_u8string();

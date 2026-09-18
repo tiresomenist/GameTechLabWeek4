@@ -41,7 +41,7 @@ struct FMeshSection
 
 };
 
-struct FStaticMesh
+struct FStaticMeshData
 {
     FString PathFileName;
 
