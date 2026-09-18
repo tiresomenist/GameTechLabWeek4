@@ -20,7 +20,7 @@ public:
 	explicit TObjectIterator(bool bIncludeDerivedClasses = true);
 	TObjectIterator(EEndTagType, const TObjectIterator& Other) : Index(Other.ObjectArray.Num()) {} // TObjectRange::end()
 
-	void operator++() { Advance(); }
+	void operator++() { Index++; }
 	explicit operator bool() const { return Index >= 0 && Index < ObjectArray.Num(); }
 	bool operator!() const { return !static_cast<bool>(*this); }
 	T* operator*() const { return static_cast<T*>(ObjectArray[Index]); }
@@ -28,32 +28,15 @@ public:
 	bool operator==(const TObjectIterator& Other) const { return Index == Other.Index; }
 	bool operator!=(const TObjectIterator& Other) const { return !(*this == Other); }
 
-private:
-	bool Advance();
-
 protected:
 	TArray<UObject*> ObjectArray;
 	int32 Index;
 };
 
 template <typename T> requires std::derived_from<T, UObject>
-TObjectIterator<T>::TObjectIterator(bool bIncludeDerivedClasses) : Index(-1)
+TObjectIterator<T>::TObjectIterator(bool bIncludeDerivedClasses) : Index(0)
 {
 	ObjectArray = GObjectStatics::GetObjectsOfClass(T::GetClass(), bIncludeDerivedClasses);
-	Advance();
-}
-
-template <typename T> requires std::derived_from<T, UObject>
-bool TObjectIterator<T>::Advance()
-{
-	while (++Index < ObjectArray.Num())
-	{
-		if (ObjectArray[Index] != nullptr)
-		{
-			return true;
-		}
-	}
-	return false;
 }
 
 // 엔진 전체에 있는 T 타입의 오브젝트들을 range-for로 순회할 수 있는 객체
