@@ -45,7 +45,7 @@ struct FStaticMeshData
 {
     FString PathFileName;
 
-    TArray<FNormalVertex> Vertices;
+    TArray<FVertexPNCT> Vertices;
     TArray<uint32> Indices;
 
     TArray<FMeshSection> Sections;

@@ -37,6 +37,7 @@ struct FPrimitiveRenderData
 	ID3D11Buffer*				VertexBuffer = nullptr;
 	ID3D11Buffer*				IndexBuffer = nullptr;
 	UINT						Stride = 0;
+	UINT						IndexStart = 0;
 	UINT						IndexCount = 0;
 	D3D11_PRIMITIVE_TOPOLOGY	Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 

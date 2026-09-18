@@ -36,6 +36,7 @@ void UMeshComponent::CreateRenderData(bool bSelected = false, TArray<FPrimitiveR
 		return;
 	}
 
+	for (const FMeshSection& section : Mesh)
 	OutData.VertexBuffer = MeshResource->GetVertexBuffer();
 	OutData.IndexBuffer = MeshResource->GetIndexBuffer();
 	OutData.IndexCount = MeshResource->GetIndexCount();

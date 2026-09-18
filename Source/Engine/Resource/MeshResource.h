@@ -29,10 +29,6 @@ public:
     UINT GetStride() const { return Stride; }
     const TArray<FVector>& GetPositions() const { return Positions; }
     const TArray<uint32>& GetIndices() const { return indexes; }
-    const TArray<FMeshSection>& GetSections() const { return Sections; } // 섹션 배열 반환
-    const FVector& GetBoundsMin() const { return BoundsMin; }
-    const FVector& GetBoundsMax() const { return BoundsMax; }
-    bool HasBounds() const { return bHasBounds; }
 
     void AddSection(uint32 InMaterialSlot, uint32 InStartIndex, uint32 InIndexCount);
 private:
@@ -44,9 +40,4 @@ private:
 
 	TArray<FVector> Positions;
 	TArray<uint32> indexes;
-    TArray<FMeshSection> Sections; // 섹션 배열
-
-	FVector BoundsMin;
-	FVector BoundsMax;
-	bool bHasBounds = false;
 };

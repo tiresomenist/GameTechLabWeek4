@@ -419,7 +419,7 @@ FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV)
 
 FMaterial GResourceManager::CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV) const
 {
-    static const FName ShaderName("Mesh.Texture");
+    static const FName ShaderName("Mesh.StaticMesh");
     static const FName SamplerName("LinearClamp");
 
     FMaterial Material{};
