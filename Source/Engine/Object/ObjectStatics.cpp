@@ -76,7 +76,7 @@ void GObjectStatics::CommitSlot(uint32 Index, UObject* Object)
 	Slots[Index] = FObjectSlot{
 		.Object = Object, 
 		.NextFreeSlot = -1,
-		.ClassIndex = Objects.Num(),
+		.ClassIndex = Objects.Num() - 1,
 	};
 }
 
@@ -103,8 +103,8 @@ void GObjectStatics::Unregister(uint32 Index, UObject* Object) noexcept
 		TArray<UObject*>& Objects = ObjectsByClass[Object->GetInstanceClass()];
 
 		const int32 RemoveIndex = Slots[Index].ClassIndex;
-		if (RemoveIndex != Objects.Num())
-    {
+		if (RemoveIndex != Objects.Num() - 1)
+		{
 			UObject* MovedObject = Objects.Last();
 			Objects[RemoveIndex] = MovedObject;
 			Slots[MovedObject->GetInternalIndex()].ClassIndex = RemoveIndex;
