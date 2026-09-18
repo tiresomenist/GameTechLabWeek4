@@ -92,9 +92,7 @@ bool FViewRenderer::CreateShaders()
 	}
 
 	// ResourceManager가 소유한 자원을 참조한다.
-	SimpleVertexShader = ColorShader->VertexShader.Get();
-	SimplePixelShader = ColorShader->PixelShader.Get();
-	SimpleInputLayout = ColorShader->InputLayout.Get();
+	SimpleShader = ColorShader;
 	HighlightShader = SharedHighlight;
 	GridShader = SharedGrid;
 	BatchLineShader = SharedBatchLine;
@@ -104,9 +102,7 @@ bool FViewRenderer::CreateShaders()
 
 void FViewRenderer::ReleaseShaders()
 {
-	SimpleInputLayout = nullptr;
-	SimplePixelShader = nullptr;
-	SimpleVertexShader = nullptr;
+	SimpleShader = nullptr;
 	WireframePixelShader = nullptr;
 	HighlightShader = nullptr;
 	GridShader = nullptr;
@@ -303,15 +299,12 @@ void FViewRenderer::RenderText(UINT IndexCount)
 	UINT Stride = sizeof(FVertexTexture);
 	UINT Offset = 0;
 
-	DeviceContext->IASetInputLayout(TextShader->InputLayout.Get());
+	BindShader(*TextShader);
 	DeviceContext->IASetVertexBuffers(0, 1, TextVertexBuffer.GetAddressOf(), &Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(TextIndexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	DeviceContext->VSSetShader(TextShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
-
-	DeviceContext->PSSetShader(TextShader->PixelShader.Get(), nullptr, 0);
 
 	FFontAtlas* FontAtlas =	GResourceManager::GetInstance()->GetDefaultFont();
 	if (!FontAtlas) return;
@@ -360,13 +353,7 @@ void FViewRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeI
 
 	UpdateMaterialConstants(Data);
 
-	const UINT Offset = 0;
-
-	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->IASetPrimitiveTopology(Data.Topology);
-
-	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
+	BindPrimitiveBuffers(Data);
 
 	const bool bWireframe = InViewMode == EViewModeIndex::VMI_Wireframe;
 	if (bWireframe)
@@ -543,20 +530,12 @@ void FViewRenderer::UpdateTransformConstantBuffer(const FMatrix& MVP)
 
 void FViewRenderer::RenderOutline(const FPrimitiveRenderData& Data)
 {
-	UINT Offset = 0;
 	// 두 레이아웃 모두 POSITION(0), COLOR(12) 배치라 VS_Highlight와 호환됨
-	DeviceContext->IASetInputLayout(HighlightShader->InputLayout.Get());
-	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->IASetPrimitiveTopology(Data.Topology);
-
-	DeviceContext->VSSetShader(HighlightShader->VertexShader.Get(), nullptr, 0);
-	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
+	BindShader(*HighlightShader);
+	BindPrimitiveBuffers(Data);
 
 	// 안쪽은 스텐실이 가려주므로 컬링 불필요 (Plane처럼 한 면짜리도 처리)
 	DeviceContext->RSSetState(CullNoneRasterizerState);
-
-	DeviceContext->PSSetShader(HighlightShader->PixelShader.Get(), nullptr, 0);
 
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 	DeviceContext->OMSetDepthStencilState(OutlineDepthStencilState, 1);
@@ -568,18 +547,10 @@ void FViewRenderer::RenderOutline(const FPrimitiveRenderData& Data)
 
 void FViewRenderer::RenderHighlight(const FPrimitiveRenderData& Data)
 {
-	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(HighlightShader->InputLayout.Get());
-	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->IASetPrimitiveTopology(Data.Topology);
-
-	DeviceContext->VSSetShader(HighlightShader->VertexShader.Get(), nullptr, 0);
-	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
+	BindShader(*HighlightShader);
+	BindPrimitiveBuffers(Data);
 
 	DeviceContext->RSSetState(CullFrontRasterizerState);
-
-	DeviceContext->PSSetShader(HighlightShader->PixelShader.Get(), nullptr, 0);
 
 	DeviceContext->OMSetDepthStencilState(HighlightDepthStencilState, 0);
 
@@ -588,18 +559,10 @@ void FViewRenderer::RenderHighlight(const FPrimitiveRenderData& Data)
 
 void FViewRenderer::RenderGizmo(const FPrimitiveRenderData& Data)
 {
-	UINT Offset = 0;
-	DeviceContext->IASetInputLayout(SimpleInputLayout);
-	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
-	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->IASetPrimitiveTopology(Data.Topology);
-
-	DeviceContext->VSSetShader(SimpleVertexShader, nullptr, 0);
-	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
+	BindShader(*SimpleShader);
+	BindPrimitiveBuffers(Data);
 
 	DeviceContext->RSSetState(DefaultRasterizerState);
-
-	DeviceContext->PSSetShader(SimplePixelShader, nullptr, 0);
 
 	DeviceContext->OMSetDepthStencilState(GizmoDepthStencilState, 0);
 	// BindMaterial(Data.Material); 
@@ -630,17 +593,14 @@ void FViewRenderer::RenderBatchLine(const FMatrix& ViewProj)
 	UINT Stride = sizeof(FVertexSimple);
 	UINT Offset = 0;
 
-	DeviceContext->IASetInputLayout(BatchLineShader->InputLayout.Get());
+	BindShader(*BatchLineShader);
 	DeviceContext->IASetVertexBuffers(0, 1, &VB, &Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(IB, DXGI_FORMAT_R32_UINT, 0);
 	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 
-	DeviceContext->VSSetShader(BatchLineShader->VertexShader.Get(), nullptr, 0);
 	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
 
 	DeviceContext->RSSetState(DefaultRasterizerState);
-
-	DeviceContext->PSSetShader(BatchLineShader->PixelShader.Get(), nullptr, 0);
 
 	float BlendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	UINT SampleMask = 0xffffffff;
@@ -654,6 +614,22 @@ void FViewRenderer::RenderBatchLine(const FMatrix& ViewProj)
 	LineBatcher.Clear();
 }
 
+void FViewRenderer::BindShader(const FShaderResource& Shader)
+{
+	DeviceContext->IASetInputLayout(Shader.InputLayout.Get());
+	DeviceContext->VSSetShader(Shader.VertexShader.Get(), nullptr, 0);
+	DeviceContext->PSSetShader(Shader.PixelShader.Get(), nullptr, 0);
+}
+
+void FViewRenderer::BindPrimitiveBuffers(const FPrimitiveRenderData& Data)
+{
+	const UINT Offset = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &Data.VertexBuffer, &Data.Stride, &Offset);
+	DeviceContext->IASetIndexBuffer(Data.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	DeviceContext->IASetPrimitiveTopology(Data.Topology);
+	DeviceContext->VSSetConstantBuffers(0, 1, TransformConstantBuffer.GetAddressOf());
+}
+
 bool FViewRenderer::BindMaterial(const FMaterial& Material)
 {
 	const FShaderResource* Shader = Material.Shader;
@@ -663,11 +639,7 @@ bool FViewRenderer::BindMaterial(const FMaterial& Material)
 		return false;
 	}
 
-	DeviceContext->IASetInputLayout(Shader->InputLayout.Get());
-
-	DeviceContext->VSSetShader(Shader->VertexShader.Get(), nullptr, 0);
-
-	DeviceContext->PSSetShader(Shader->PixelShader.Get(), nullptr, 0);
+	BindShader(*Shader);
 
 	DeviceContext->PSSetShaderResources(0, 1, &Material.SRV);
 

@@ -46,6 +46,8 @@ private:
 	void SetViewportAndScissor(const D3D11_VIEWPORT& Viewport);
 	void UpdateTransformConstantBuffer(const FMatrix& MVP);
 	void UpdateMaterialConstants(const FPrimitiveRenderData& Data);
+	void BindShader(const FShaderResource& Shader);
+	void BindPrimitiveBuffers(const FPrimitiveRenderData& Data);
 	bool BindMaterial(const FMaterial& Material);
 	void RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeIndex InViewMode, bool bWriteStencil = false);
 	void RenderHighlight(const FPrimitiveRenderData& Data);
@@ -73,9 +75,7 @@ private:
 	ID3D11DepthStencilState* TranslucentDepthStencilState = nullptr;
 	ID3D11BlendState* AlphaBlendState = nullptr;
 	ID3D11BlendState* AdditiveBlendState = nullptr;
-	ID3D11VertexShader* SimpleVertexShader = nullptr;
-	ID3D11PixelShader* SimplePixelShader = nullptr;
-	ID3D11InputLayout* SimpleInputLayout = nullptr;
+	const FShaderResource* SimpleShader = nullptr;
 	ID3D11PixelShader* WireframePixelShader = nullptr;
 	const FShaderResource* HighlightShader = nullptr;
 	const FShaderResource* GridShader = nullptr;
