@@ -243,11 +243,33 @@ namespace
 
 void FEditor::Initialize()
 {
-	EditorCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
-	EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
-	EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+	//EditorCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	//EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
+	//EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+	
+	FViewportClient PerspectiveView;
+	UCameraComponent* PerspectiveCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	PerspectiveView.Initialize(EViewportType::Perspective, PerspectiveCamera);
+	Viewports.Add(PerspectiveView);
 
-	CameraController.SetCamera(EditorCamera);
+	FViewportClient TopView;
+	UCameraComponent* TopCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	TopView.Initialize(EViewportType::Top, TopCamera);
+	Viewports.Add(TopView);
+
+	FViewportClient FrontView;
+	UCameraComponent* FrontCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	FrontView.Initialize(EViewportType::Front, FrontCamera);
+	Viewports.Add(FrontView);
+
+	FViewportClient RightView;
+	UCameraComponent* RightCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	RightView.Initialize(EViewportType::Right, RightCamera);
+	Viewports.Add(RightView);
+
+	// 기본으로 PerspectiveCamera 설정
+	EditorCamera = PerspectiveCamera;
+	CameraController.SetCamera(PerspectiveCamera);
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
@@ -329,6 +351,18 @@ void FEditor::Tick(float DeltaTime)
 
 	if (!bGizmoOwnsInput && bAllowCameraKeyboard && bAllowCameraMouse)
 	{
+		// 뷰포트 선택
+		float x = Input.GetRightCursorX();
+		float y = Input.GetRightCursorY();
+		for (const auto& view : Viewports)
+		{
+			if (view.IsMouseInside(x, y))
+			{
+				CameraController.SetCamera(view.GetCamera());
+				EditorCamera = view.GetCamera();
+			}
+		}
+
 		CameraController.Tick(DeltaTime);
 	}
 	const bool bSpacePressed = Input.ConsumeSpacePress();

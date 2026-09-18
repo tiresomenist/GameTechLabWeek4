@@ -19,6 +19,8 @@
 #include "Engine/Renderer/Grid.h"
 #include "Core/Name/Name.h"
 
+#include "Engine/Renderer/ViewportClient.h"
+
 
 class USceneComponent;
 class UCameraComponent;
@@ -47,6 +49,9 @@ private:
 	TArray<UEditorWindow*> Windows;
 	TArray<UGrid*> Grids;
 	UGizmo* ObjectAxisGizmo = nullptr;
+
+	// Viewport 배열
+	TArray<FViewportClient> Viewports;
 
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
