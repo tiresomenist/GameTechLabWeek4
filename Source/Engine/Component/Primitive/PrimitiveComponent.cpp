@@ -8,13 +8,17 @@ void UPrimitiveComponent::Initialize()
 	Super::Initialize();
 }
 
-FPrimitiveRenderData UPrimitiveComponent::CreateRenderData(bool bSelected) const
+void UPrimitiveComponent::CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData)
 {
 	FClassType* ClassType = GetInstanceClass();
 	FMeshResource* MeshResource = GetMeshResource();
 
 	FPrimitiveRenderData OutData{};
-	if (MeshResource == nullptr) { return OutData; }
+	if (MeshResource == nullptr) 
+    { 
+        ComponentRenderData.Add(OutData);
+        return ; 
+    }
 
 	OutData.VertexBuffer = MeshResource->GetVertexBuffer();
 	OutData.IndexBuffer = MeshResource->GetIndexBuffer();
@@ -26,7 +30,8 @@ FPrimitiveRenderData UPrimitiveComponent::CreateRenderData(bool bSelected) const
 	OutData.Min = MeshResource->GetBoundsMin();
 	OutData.Max = MeshResource->GetBoundsMax();
 
-	return OutData;
+    ComponentRenderData.Add(OutData);
+    return ; 
 }
 
 bool UPrimitiveComponent::GetLocalBounds(FVector& OutMin, FVector& OutMax) const

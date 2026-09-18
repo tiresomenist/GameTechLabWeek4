@@ -18,7 +18,7 @@ public:
 
     virtual void Initialize() override;
 
-    virtual FPrimitiveRenderData CreateRenderData(bool bSelected = false) const;
+    virtual void CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData);
 
     // 로컬 공간 AABB. 피킹에 쓴다. 없으면 false.
     // 광선 검사(FRay)는 Editor 쪽 타입이라, 컴포넌트는 Bounds 데이터만 내준다 (Core <- Engine <- Editor)
