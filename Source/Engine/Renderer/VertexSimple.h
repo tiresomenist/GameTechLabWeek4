@@ -24,17 +24,18 @@ struct FVertexTexture {
 };
 
 
-struct FNormalVertex {
+struct FVertexPNCT {
 	float X = 0.0f, Y = 0.0f, Z = 0.0f;				// Position
 	float NX = 0.0f, NY = 0.0f, NZ = 0.0f;			// Normal Vector
 	float R = 0.0f, G = 0.0f, B = 0.0f, A = 1.0f;	//Color
 	float U = 0.0f, V = 0.0f;						//UV
 };
+
 //형식 체크용 static_assert
-static_assert(std::is_standard_layout_v<FNormalVertex>);
-static_assert(sizeof(FNormalVertex) == 48);
-static_assert(offsetof(FNormalVertex, X) == 0);
-static_assert(offsetof(FNormalVertex, NX) == 12);
-static_assert(offsetof(FNormalVertex, R) == 24);
-static_assert(offsetof(FNormalVertex, U) == 40);
+static_assert(std::is_standard_layout_v<FVertexPNCT>);
+static_assert(sizeof(FVertexPNCT) == 48);
+static_assert(offsetof(FVertexPNCT, X) == 0);
+static_assert(offsetof(FVertexPNCT, NX) == 12);
+static_assert(offsetof(FVertexPNCT, R) == 24);
+static_assert(offsetof(FVertexPNCT, U) == 40);
 

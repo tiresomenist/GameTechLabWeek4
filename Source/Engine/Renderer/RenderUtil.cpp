@@ -44,11 +44,15 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 			}
 
 			const bool bSelected = IsComponentSelected(Editor, Primitive);
-			FPrimitiveRenderData Data = Primitive->CreateRenderData(bSelected);
+			TArray<FPrimitiveRenderData> RenderDataList;
+			Primitive->CreateRenderData(bSelected, RenderDataList);
 
 			// 현재 카메라 기준의 렌더링용 행렬 연결함
-			Data.WorldMatrix = &Primitive->GetRenderWorldMatrix(Camera);
-			RenderList.Add(Data);
+			for (FPrimitiveRenderData& Data : RenderDataList)
+			{
+				Data.WorldMatrix = &Primitive->GetRenderWorldMatrix(Camera);
+				RenderList.Add(Data);
+			}
 		}
 	);
 

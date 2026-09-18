@@ -28,6 +28,6 @@ void UStaticMeshComponent::Deserialize(FArchive& Archive)
         ? FName(Archive.GetString("MeshKey"))
         : FName{};
     SetStaticMesh(LoadedMeshKey);
-    if (Archive.Contains("MaterialPath"))
-        SetMaterial(Archive.GetString("MaterialPath"));
+    //if (Archive.Contains("MaterialPath"))
+    //    SetMaterial(Archive.GetString("MaterialPath"));
 }

@@ -1,23 +1,23 @@
 #include <pch.h>
-#include "UMeshComponent.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/MeshResource.h"
+#include "Engine/Object/Archive.h"
+#include "MeshComponent.h"
 
 void UMeshComponent::Serialize(FArchive& Archive)
 {
 	Super::Serialize(Archive);
-	Archive.SeBool("bIsVisible", bIsVisible);
+	Archive.SetBool("bIsVisible", bIsVisible);
 }
 
 void UMeshComponent::Deserialize(FArchive& Archive)
 {
-	Super::Serialize(Archive);
-
+	Super::Deserialize(Archive);
 }
 
 void UMeshComponent::SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
-	if (MaterialList.Num() > MaterialSlot)
+	if (MaterialSlot >= MaterialList.Num())
 	{
 		MaterialList.resize(MaterialSlot + 1);
 	}

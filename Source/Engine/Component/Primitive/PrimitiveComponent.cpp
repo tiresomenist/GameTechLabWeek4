@@ -8,32 +8,6 @@ void UPrimitiveComponent::Initialize()
 	Super::Initialize();
 }
 
-void UPrimitiveComponent::CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData)
-{
-	FClassType* ClassType = GetInstanceClass();
-	FMeshResource* MeshResource = GetMeshResource();
-
-	FPrimitiveRenderData OutData{};
-	if (MeshResource == nullptr) 
-    { 
-        ComponentRenderData.Add(OutData);
-        return ; 
-    }
-
-	OutData.VertexBuffer = MeshResource->GetVertexBuffer();
-	OutData.IndexBuffer = MeshResource->GetIndexBuffer();
-	OutData.IndexCount = MeshResource->GetIndexCount();
-	OutData.Stride = MeshResource->GetStride();
-	OutData.WorldMatrix = &GetWorldMatrix();
-	OutData.isSelected = bSelected;
-	OutData.Material = GResourceManager::GetInstance()->CreateColorMaterial();
-	OutData.Min = MeshResource->GetBoundsMin();
-	OutData.Max = MeshResource->GetBoundsMax();
-
-    ComponentRenderData.Add(OutData);
-    return ; 
-}
-
 bool UPrimitiveComponent::GetLocalBounds(FVector& OutMin, FVector& OutMax) const
 {
 	// 기본: 클래스 이름으로 찾은 공유 메시의 Bounds

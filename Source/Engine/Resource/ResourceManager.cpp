@@ -417,6 +417,19 @@ FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV)
     return Material;
 }
 
+FMaterial GResourceManager::CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV) const
+{
+    static const FName ShaderName("Mesh.Texture");
+    static const FName SamplerName("LinearClamp");
+
+    FMaterial Material{};
+    Material.SRV = SRV;
+    Material.Shader = GetShader(ShaderName);
+    Material.Sampler = GetSampler(SamplerName);
+    Material.ConstantBuffer = TextureMaterialConstantBuffer.Get();
+    return Material;
+}
+
 void GResourceManager::RegisterDefaultPrimitives(GDevice* InDevice)
 {
     const FMeshNames& Names = GetMeshNames();
@@ -556,8 +569,29 @@ void GResourceManager::RegisterDefaultRenderResources()
         },
     };
 
+    const TArray<D3D11_INPUT_ELEMENT_DESC> StaticMeshLayout
+    {
+        {
+            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+        {
+            "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+            0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0
+        },
+    };
+
     RegisterShader(FName("Mesh.Texture"),L"Assets/Shaders/TextureShader.hlsl","mainVS","mainPS",TextureLayout);
     RegisterShader(FName("Editor.Text"), L"Assets/Shaders/TextShader.hlsl","mainVS_Text","mainPS_Text",TextureLayout);
+    RegisterShader(FName("Mesh.StaticMesh"), L"Assets/Shaders/StaticMeshShader.hlsl", "mainVS", "mainPS", StaticMeshLayout);
     D3D11_SAMPLER_DESC SamplerDesc{};
     SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;

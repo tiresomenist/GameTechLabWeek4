@@ -1,10 +1,10 @@
 #pragma once
-#include "Engine/Component/Primitive/PrimitiveComponent.h"
+#include "MeshComponent.h"
 #include "Core/Name/Name.h"
 
-class UStaticMeshComponent : public UPrimitiveComponent
+class UStaticMeshComponent : public UMeshComponent
 {
-    UCLASS(UStaticMeshComponent, "StaticMeshComponent", UPrimitiveComponent)
+    UCLASS(UStaticMeshComponent, "StaticMeshComponent", UMeshComponent)
 
 public:
     void SetStaticMesh(const FName& InMeshKey);
