@@ -86,15 +86,6 @@ void USceneWindow::Render(float DeltaTime)
 		return;
 	}
 
-	UCameraComponent* EditorCamera = Editor->GetEditorCamera();
-
-	CameraLocation = Editor->GetCameraLocation();
-	if (!bEditingCameraRotation)
-	{
-		CameraRotationDegree = Editor->GetCameraRotationDegree();
-	}
-	FOV = Editor->GetCameraFOV();
-
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
 	const ImVec2 WorkPosition = Viewport->WorkPos; // 메뉴창을 제외한 제일 왼쪽 위 위치
 	const ImVec2 WorkSize = Viewport->WorkSize;    // 메뉴창을 제외한 Imgui를 띄울 수 있는 공간
@@ -207,135 +198,7 @@ void USceneWindow::Render(float DeltaTime)
 		{
 			bRequestLoadDialog = true;
 		}
-		ImGui::Separator();
-		bool bShowUUIDLabels = Editor->IsShowingUUIDLabels();
-		if (ImGui::Checkbox("Show UUID", &bShowUUIDLabels))
-		{
-			Editor->SetShowUUIDLabels(bShowUUIDLabels);
-		}
-		bool bShowBoundingBoxes = Editor->IsShowingBoundingBoxes();
-		if (ImGui::Checkbox("Show Bounding Boxes", &bShowBoundingBoxes))
-		{
-			Editor->SetShowBoundingBoxes(bShowBoundingBoxes);
-		}
-		bool bShowPrimitives = Editor->IsShowingPrimitives();
-		if (ImGui::Checkbox("Show Primitives", &bShowPrimitives))
-		{
-			Editor->SetShowPrimitives(bShowPrimitives);
-		}
-		bool bShowGrid = Editor->IsShowingGrid();
-		if (ImGui::Checkbox("Show Grid", &bShowGrid))
-		{
-			Editor->SetShowGrid(bShowGrid);
-		}
-		bool bShowWorldAxis = Editor->IsShowingWorldAxis();
-		if (ImGui::Checkbox("Show World Axis", &bShowWorldAxis))
-		{
-			Editor->SetShowWorldAxis(bShowWorldAxis);
-		}
-		ImGui::PushItemWidth(WideItemWidth);
-		float GridInterval = Editor->GetGrid().Interval;
-		if (ImGui::DragFloat("Grid Spacing", &GridInterval, 0.1f,
-			FGrid::MinInterval, FGrid::MaxInterval, "%.2f", ImGuiSliderFlags_AlwaysClamp))
-		{
-			Editor->SetGridInterval(GridInterval);
-		}
 
-		const EViewModeIndex CurrentViewMode = Editor->GetViewMode();
-		const char* Preview = "Unknown";
-		for (const FViewModeEntry& Entry : ViewModeEntries)
-		{
-			if (Entry.Mode == CurrentViewMode)
-			{
-				Preview = Entry.Name;
-				break;
-			}
-		}
-		if (ImGui::BeginCombo("View Mode", Preview))
-		{
-			for (const FViewModeEntry& Entry : ViewModeEntries)
-			{
-				const bool bSelected = Entry.Mode == CurrentViewMode;
-				if (ImGui::Selectable(Entry.Name, bSelected))
-				{
-					Editor->SetViewMode(Entry.Mode);
-				}
-				if (bSelected) ImGui::SetItemDefaultFocus();
-			}
-			ImGui::EndCombo();
-		}
-		ImGui::PopItemWidth();
-		ImGui::Checkbox("Orthogonal", &bOrthogonal);
-
-		EditorCamera->SetIsPerspective(!bOrthogonal);
-
-		ImGui::PushItemWidth(WideItemWidth); // Item 너비 설정
-		// 카메라의 현재 이동 속도를 조회하고 UI 변경 시 즉시 적용함
-		float CameraMoveSpeed = EditorCamera->GetMoveSpeed();
-		if (ImGui::DragFloat("Camera Move Speed", &CameraMoveSpeed, 0.1f,
-			0.1f, 100.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp))
-		{
-			if (std::isfinite(CameraMoveSpeed))
-			{
-				EditorCamera->SetMoveSpeed(std::clamp(CameraMoveSpeed, 0.1f, 100.0f));
-			}
-		}
-
-		if (ImGui::DragFloat("FOV", &FOV, 1.0f, MinFOV, MaxFOV))
-		{
-			FOV = std::clamp(FOV, MinFOV, MaxFOV);
-			Editor->SetCameraFOV(FOV); // 무조건 업데이트 시키면 라디안 값 FOV가 0에 가까워지므로 조건부로
-		}
-		ImGui::PopItemWidth();
-		ImGui::PushItemWidth(ButtonWidth); // Item 너비 설정
-		ImGui::DragFloat("##cameraX", &CameraLocation.X, 0.1f);
-		DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
-		ImGui::SameLine();
-		ImGui::DragFloat("##cameraY", &CameraLocation.Y, 0.1f);
-		DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
-		ImGui::SameLine();
-		ImGui::DragFloat("##cameraZ", &CameraLocation.Z, 0.1f);
-		DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
-		ImGui::SameLine();
-		ImGui::Text("Camera Location");
-		bool bRotationChanged = false;
-		bool bRotationActive = false;
-		bool bRotationFinished = false;
-		constexpr ImGuiSliderFlags PitchFlags = ImGuiSliderFlags_AlwaysClamp;
-		constexpr ImGuiSliderFlags YawFlags = ImGuiSliderFlags_WrapAround | ImGuiSliderFlags_AlwaysClamp;
-
-		// ConstrainEditorRotation()이 Roll을 제거하므로 수정할 수 없는 값으로 표시한다.
-		ImGui::BeginDisabled();
-		ImGui::DragFloat("##cameraRX", &CameraRotationDegree.X, 0.1f, -180.0f, 180.0f, "%.3f");
-		ImGui::EndDisabled();
-		bRotationActive |= ImGui::IsItemActive();
-		bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-		DrawItemBottomLine(IM_COL32(255, 40, 40, 255), 2.0f);
-		ImGui::SameLine();
-		bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.0f, 89.0f, "%.3f", PitchFlags);
-		bRotationActive |= ImGui::IsItemActive();
-		bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-		DrawItemBottomLine(IM_COL32(40, 255, 40, 255), 2.0f);
-		ImGui::SameLine();
-		bRotationChanged |= ImGui::DragFloat("##cameraRZ", &CameraRotationDegree.Z, 0.1f, 0.0f, 0.0f, "%.3f");
-		bRotationActive |= ImGui::IsItemActive();
-		bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-		DrawItemBottomLine(IM_COL32(20, 30, 255, 255), 2.0f);
-		ImGui::SameLine();
-		ImGui::Text("Camera Rotation");
-		if (bRotationChanged || bRotationFinished)
-		{
-			CameraRotationDegree.X = 0.0f;
-
-			// 카메라 Pitch를 도 단위로 제한함
-			CameraRotationDegree.Y = std::clamp(CameraRotationDegree.Y,	-89.0f,	89.0f);
-
-			// 도 단위 입력값을 FRotator Setter로 전달함
-			Editor->SetCameraRotationDegree(CameraRotationDegree);
-		}
-		bEditingCameraRotation = bRotationActive;
-		ImGui::PopItemWidth();
-		//ImGui::PopStyleVar();
 		ImGui::Separator();
 		if (ImGui::Button("SpawnSolarSystem"))
 		{
@@ -346,7 +209,7 @@ void USceneWindow::Render(float DeltaTime)
 			LaunchRocket(Editor->GetCurrentScene());
 		}
 	}
-	Editor->SetCameraLocation(CameraLocation);
+
 	ImGui::End();
 
 	if (bRequestLoadDialog)

@@ -16,15 +16,7 @@ private:
 	uint32 NumberOfSpawn = 1;
 	uint32 Step = 1;
 	FString SceneName{"NewScene"};
-	bool bOrthogonal = false;
 	FName SelectedMeshKey;
-	/* Camera Info */
-	float FOV = 90.0f;
-	float MaxFOV = 175.0f;
-	float MinFOV = 5.0f;
-	FVector CameraLocation = { 0.0f, 0.0f, 0.0f };
-	FVector CameraRotationDegree;
-	bool bEditingCameraRotation = false;
 
 	TArray<FClassType*> SpecialComponentClasses;
 	FClassType* SelectedSpecialComponentClass = nullptr;

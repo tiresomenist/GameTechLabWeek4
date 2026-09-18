@@ -19,13 +19,8 @@ protected:
 	bool bOpen = true;
 
 public:
-	virtual ~UEditorWindow() override = default;
-
 	virtual void InitializeWindow(FEditor* InEditor, const FString& InName);
 	virtual void Render(float DeltaTime) {}
 	void DrawItemBottomLine(uint32 Color, float Thickness);
-
-	bool IsOpen() const { return bOpen; }
-	const bool* GetOpenPtr() const { return &bOpen; }
 };
 

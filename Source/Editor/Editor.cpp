@@ -42,6 +42,8 @@
 #include <stdexcept>
 #include <system_error>
 
+#include "Window/ViewportToolbarWindow.h"
+
 namespace
 {
 	constexpr char EditorSettingsFileName[] = "editor.ini";
@@ -274,6 +276,7 @@ void FEditor::InitializeWindows()
 	RegisterWindow(UPropertyWindow::GetClass(), "Property Window");
 	RegisterWindow(USceneWindow::GetClass(), "Scene Control Panel");
 	RegisterWindow(UOutlinerWindow::GetClass(), "Outliner");
+	RegisterWindow(UViewportToolbarWindow::GetClass(), "Viewport Toolbar");
 }
 
 void FEditor::InitializeGrids()
