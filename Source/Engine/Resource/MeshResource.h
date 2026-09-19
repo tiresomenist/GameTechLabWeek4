@@ -7,13 +7,6 @@
 #include "Core/Core.h"
 #include "Core/Math/Vector.h"
 
-struct FMeshSection
-{
-    uint32 MaterialSlot = 0; // 사용하는 머테리얼의 슬롯 - 같은 머테리얼 사용할시 같은 슬롯 적용
-    uint32 StartIndex = 0;
-    uint32 IndexCount = 0;
-};
-
 struct FMeshResource
 {
     friend class GResourceManager;
@@ -30,7 +23,11 @@ public:
     const TArray<FVector>& GetPositions() const { return Positions; }
     const TArray<uint32>& GetIndices() const { return indexes; }
 
-    void AddSection(uint32 InMaterialSlot, uint32 InStartIndex, uint32 InIndexCount);
+    const FVector& GetBoundsMin() const { return BoundsMin; }
+    const FVector& GetBoundsMax() const { return BoundsMax; }
+    bool HasBounds() const { return bHasBounds; }
+
+    //void AddSection(uint32 InMaterialSlot, uint32 InStartIndex, uint32 InIndexCount);
 private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer = nullptr;
     Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = nullptr;
@@ -40,4 +37,9 @@ private:
 
 	TArray<FVector> Positions;
 	TArray<uint32> indexes;
+
+    FVector BoundsMin{};
+    FVector BoundsMax{};
+    bool bHasBounds;
+
 };

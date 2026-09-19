@@ -26,8 +26,9 @@ void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialS
 
 // TODO:: renderdata 받을 때 meshresource가 아니라 StaticMesh 받도록 해야 함
 // staticmeshComponent로 옮기기
-void UMeshComponent::CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData)
+void UMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false)
 {
+	// TODO:: 해당 작업은 StaticMeshData ---> StaticMeshData 전환 한뒤에
 	FClassType* ClassType = GetInstanceClass();
 	FMeshResource* MeshResource = GetMeshResource();
 

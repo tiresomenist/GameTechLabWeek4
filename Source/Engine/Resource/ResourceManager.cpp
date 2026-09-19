@@ -220,6 +220,82 @@ FMeshResource* GResourceManager::CreateTexturedMesh(const FName& MeshName,
     return GetPrimitive(MeshName);
 }
 
+FMeshResource* GResourceManager::CreateStaticMeshResource(const FName& MeshName,
+    std::span<const FVertexPNCT> Vertices, std::span<const uint32> Indices)
+{
+    if (MeshName.IsNone()) { return nullptr; }
+    // TODO:: Stride이용 메쉬 구분-> 추후Stride가 같은 메쉬 추가시 문제 발생 수정 필요 
+    if (FMeshResource** Existing = PrimitiveCache.Find(MeshName)) {
+        return (*Existing)->GetStride() == sizeof(FVertexPNCT) ? *Existing : nullptr;
+    }
+    if (!Device || !Device->GetDevice()) return nullptr;
+    if (Vertices.empty() || Indices.empty() || Indices.size() % 3 != 0) return nullptr;
+
+    // 버퍼 크기를 UINT로 변환하기 전에 곱셈 오버플로를 검사함
+    const size_t VertexCount = Vertices.size();
+    const size_t IndexCount = Indices.size();
+    const size_t MaxBytes = (std::numeric_limits<UINT>::max)();
+    if (VertexCount > MaxBytes / sizeof(FVertexPNCT) || IndexCount > MaxBytes / sizeof(uint32))
+        return nullptr;
+
+    for (const auto& Vertex : Vertices)
+    {
+        if (!std::isfinite(Vertex.x) || !std::isfinite(Vertex.y) || !std::isfinite(Vertex.z) ||
+            !std::isfinite(Vertex.u) || !std::isfinite(Vertex.v))
+            return nullptr;
+    }
+    for (uint32 Index : Indices)
+        if (Index >= VertexCount) return nullptr;
+
+    // 생성 도중 실패하면 이미 생성된 버퍼도 메시 소멸자에서 해제함
+    auto Mesh = std::make_unique<FMeshResource>();
+    Mesh->VertexCount = static_cast<UINT>(VertexCount);
+    Mesh->IndexCount = static_cast<UINT>(IndexCount);
+    Mesh->Stride = sizeof(FVertexPNCT);
+    // 입력은 소유하지 않는 뷰이므로 CPU 피킹용 인덱스는 자체 배열에 복사함
+    Mesh->indexes.SetNum(IndexCount);
+    std::copy(Indices.begin(), Indices.end(), Mesh->indexes.begin());
+
+    // CPU에는 피킹과 바운딩 계산에 사용하는 위치만 보관함
+    Mesh->Positions.SetNum(VertexCount);
+    for (size_t Index = 0; Index < VertexCount; ++Index)
+    {
+        const auto& Vertex = Vertices[Index];
+        Mesh->Positions[Index] = FVector(Vertex.x, Vertex.y, Vertex.z);
+    }
+
+    // GPU에는 위치와 UV가 포함된 원본 정점을 업로드함
+    Mesh->VertexBuffer = Device->CreateVertexBuffer(
+        Vertices.data(), static_cast<UINT>(VertexCount * sizeof(FVertexPNCT)));
+    if (!Mesh->VertexBuffer) return nullptr;
+
+    Mesh->IndexBuffer = Device->CreateIndexBuffer(
+        &Mesh->indexes[0], static_cast<UINT>(IndexCount * sizeof(uint32)));
+    if (!Mesh->IndexBuffer) return nullptr;
+
+    // 로컬 위치의 축별 최솟값과 최댓값으로 바운딩 박스를 계산함
+    Mesh->BoundsMin = Mesh->Positions[0];
+    Mesh->BoundsMax = Mesh->Positions[0];
+    for (const FVector& Position : Mesh->Positions)
+    {
+        Mesh->BoundsMin.X = (std::min)(Mesh->BoundsMin.X, Position.X);
+        Mesh->BoundsMin.Y = (std::min)(Mesh->BoundsMin.Y, Position.Y);
+        Mesh->BoundsMin.Z = (std::min)(Mesh->BoundsMin.Z, Position.Z);
+        Mesh->BoundsMax.X = (std::max)(Mesh->BoundsMax.X, Position.X);
+        Mesh->BoundsMax.Y = (std::max)(Mesh->BoundsMax.Y, Position.Y);
+        Mesh->BoundsMax.Z = (std::max)(Mesh->BoundsMax.Z, Position.Z);
+    }
+    Mesh->bHasBounds = true;
+
+    if (PrimitiveCache.Add(MeshName, Mesh.get()))
+    {
+        return Mesh.release();
+    }
+
+    // 등록되지 않은 임시 Mesh는 unique_ptr이 해제함
+    return GetPrimitive(MeshName);
+}
+
 void GResourceManager::Shutdown()
 {
     for (auto& [type, mesh] : PrimitiveCache)
@@ -284,6 +360,28 @@ FTextureResource* GResourceManager::GetOrLoadTexture(const FString& FilePath)
 
     // 캐시 등록 후 소유권을 리소스 매니저로 이전함
     return NewTexture.release();
+}
+
+// MeshKey - 메시파일 경로
+UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
+{
+    if (UStaticMesh** StaticMesh = StaticMeshCache.Find(MeshKey))
+    {
+        return *StaticMesh;
+    }
+    FString FilePath = MeshKey.ToString();
+    if (!std::filesystem::exists(FilePath))
+    {
+        return nullptr;
+    }
+    FObjInfo RawData = FObjImporter::Import(FilePath);
+    FStaticMeshData StaticMeshData = FObjImporter::Cook(RawData);
+
+    UStaticMesh* NewStaticMesh = static_cast<UStaticMesh*> (
+        FObjectFactory::ConstructEngineObject(UStaticMesh::GetClass()));
+    NewStaticMesh->BuildFromMeshData(StaticMeshData);
+    StaticMeshCache.Add(MeshKey, NewStaticMesh);
+    return NewStaticMesh;
 }
 
 void GResourceManager::RegisterShader(const FName& Name, const WCHAR* FilePath,

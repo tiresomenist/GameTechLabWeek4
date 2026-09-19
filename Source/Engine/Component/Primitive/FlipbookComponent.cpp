@@ -4,6 +4,7 @@
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Object/Archive.h"
 #include "Engine/Component/CameraComponent.h"
+#include "Engine/Resource/Meshnames.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +12,9 @@
 void UFlipbookComponent::Initialize()
 {
 	Super::Initialize();
-	Texture = GResourceManager::GetInstance()->GetOrLoadTexture("Assets/Textures/FlameTexture.png");
+    GResourceManager* RM = GResourceManager::GetInstance();
+	Texture =RM->GetOrLoadTexture("Assets/Textures/FlameTexture.png");
+    QuadMesh = RM->GetPrimitive(GetMeshNames().Flame);
     SetAtlasGrid(Columns, Rows, FrameCount);
     Restart();
 }
@@ -125,22 +128,30 @@ FTextureUVTransform UFlipbookComponent::GetUVTransform() const
     };
 }
 
-FPrimitiveRenderData UFlipbookComponent::CreateRenderData(bool bSelected) const
+void UFlipbookComponent::CreateRenderData(bool bSelected, TArray<FPrimitiveRenderData>& ComponentRenderData)
 {
 
     if (!Texture || !Texture->GetSRV())
     {
-        return {};
+        return;
     }
 
-    FPrimitiveRenderData Data = Super::CreateRenderData(bSelected);
+    FPrimitiveRenderData Data{};
+    Data.VertexBuffer = QuadMesh->GetVertexBuffer();
+    Data.IndexBuffer = QuadMesh->GetIndexBuffer();
+    Data.Stride = QuadMesh->GetStride();
+    Data.IndexStart = 0;
+    Data.IndexCount = QuadMesh->GetIndexCount();
+    Data.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    Data.isSelected = bSelected;
 
     Data.bTwoSided = true;
     Data.Material = GResourceManager::GetInstance()->CreateTextureMaterial(
         Texture->GetSRV());
     Data.UVTransform = GetUVTransform();
     Data.Material.BlendMode = EPrimitiveBlendMode::Additive;
-    return Data;
+    ComponentRenderData.Add(Data);
 }
 
 void UFlipbookComponent::Serialize(FArchive& Archive)

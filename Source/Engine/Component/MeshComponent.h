@@ -15,7 +15,7 @@ public:
     void SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
     virtual const FMaterial* GetMaterial(uint32 MaterialSlot) { return OverrideMaterialList[MaterialSlot]; }
     
-    virtual void CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData) override;
+    virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
 
     bool IsVisible() { return bIsVisible; }
     void SetVisibility(bool InVisibility) { bIsVisible = InVisibility; }

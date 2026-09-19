@@ -9,6 +9,7 @@ class UStaticMeshComponent : public UMeshComponent
 
 public:
     void SetStaticMesh(const FName& InMeshKey);
+    void SetStaticMesh(const FString& FilePath);
     //virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
     virtual void Deserialize(FArchive& Archive) override;
@@ -19,7 +20,7 @@ public:
     const FString& GetMaterialPath() const { return MaterialPath; }
     const FMaterial* GetMaterial(uint32 MaterialSlot) { return MaterialList[MaterialSlot]; }
 
-    virtual void CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData) override;
+    virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
 
 private:
     FName MeshKey;

@@ -14,7 +14,7 @@ class UFlipbookComponent : public UPrimitiveComponent
 public:
     virtual void Initialize() override;
     virtual void Tick(float DeltaTime) override;
-    virtual FPrimitiveRenderData CreateRenderData(bool bSelected = false) const override;
+    virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
     virtual void Serialize(FArchive& Archive) override;
     virtual void Deserialize(FArchive& Archive) override;
 
@@ -41,6 +41,7 @@ public:
 private:
     // 리소스 매니저가 소유하는 텍스처를 참조함
     FTextureResource* Texture = nullptr;
+    FMeshResource* QuadMesh = nullptr;
 
     int32 Columns = 6;
     int32 Rows = 6;
