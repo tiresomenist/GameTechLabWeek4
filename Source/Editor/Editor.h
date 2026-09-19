@@ -40,8 +40,8 @@ private:
 	FGizmoPicker* GizmoPicker = nullptr;
 	FGizmoController* GizmoController = nullptr;
 
-	USceneComponent* SelectedSceneComponent = nullptr;
 	AActor* SelectedActor = nullptr;
+	UActorComponent* SelectedComponent = nullptr;
 	FViewSettings ViewSettings;
 	FGrid Grid;
 	TArray<UGizmo*> Gizmos;
@@ -82,8 +82,13 @@ public:
 	UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }
 	const FViewSettings& GetViewSettings()const { return ViewSettings; }
-	USceneComponent* GetSelectedSceneComponent() const { return SelectedSceneComponent; }
+
+	void SetSelectedActor(AActor* Actor);
 	AActor* GetSelectedActor() const { return SelectedActor; }
+	void SetSelectedComponent(UActorComponent* Component);
+	UActorComponent* GetSelectedComponent() const { return SelectedComponent; }
+	USceneComponent* GetSelectedSceneComponent() const { return dynamic_cast<USceneComponent*>(SelectedComponent); }
+	USceneComponent* GetTransformTarget() const;
 	
 	//내부적으로 비트마스킹으로 처리해줌.
 	bool IsShowingUUIDLabels() const { return ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::UUID); }
@@ -107,9 +112,6 @@ public:
 		}
 	}
 	int32 GetActiveGizmoAxis() const { return GizmoController ? GizmoController->GetActiveAxis() : -1; }
-	void SetSelectedSceneComponent(USceneComponent* Component);
-	void SetSelectedActor(AActor* Actor);
-	USceneComponent* GetTransformTarget() const;
 
 	void RemoveSelectedComponent();
 	void DeleteSelectedActor();

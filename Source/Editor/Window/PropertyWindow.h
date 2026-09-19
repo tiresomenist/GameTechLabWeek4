@@ -7,6 +7,7 @@
 #include "Core/Container/String.h"
 #include "Core/Name/Name.h"
 
+class UActorComponent;
 class USceneComponent;
 class AActor;
 struct FClassType;
@@ -16,7 +17,8 @@ class UPropertyWindow : public UEditorWindow
     UCLASS(UPropertyWindow, "PropertyWindow", UEditorWindow)
 
 private:
-	USceneComponent* SelectedComponent = nullptr;
+	UActorComponent* InspectedComponent = nullptr;
+	USceneComponent* TransformTarget = nullptr;
 	FVector Translation;
 	FRotator RotationDegree;
 	FVector OScale;

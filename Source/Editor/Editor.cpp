@@ -313,7 +313,7 @@ void FEditor::Tick(float DeltaTime)
 		{
 			USceneComponent* Selected = ObjectPicker->Pick();
 
-			SetSelectedSceneComponent(Selected);
+			SetSelectedComponent(Selected);
 			if (Selected != nullptr) {
 				UE_LOG("[{}] : [{}번째 오브젝트 선택]", Time, Selected->GetUUID());
 			}
@@ -369,13 +369,12 @@ void FEditor::Release()
 	delete GizmoPicker;
 	GizmoPicker = nullptr;
 
-	SelectedSceneComponent = nullptr;
+	SelectedActor = nullptr;
+	SelectedComponent = nullptr;
 
 	ReleaseGizmos();
 	ReleaseWindows();
 	ReleaseGrids();
-
-	
 }
 
 void FEditor::ReleaseGizmos()
@@ -476,7 +475,7 @@ void FEditor::LoadScene(FStringView SceneName)
 
 void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
 {
-	SetSelectedSceneComponent(nullptr);
+	SetSelectedComponent(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
 
@@ -495,25 +494,36 @@ UScene* FEditor::GetCurrentScene()
 	return SceneManager->GetScene();
 }
 
-void FEditor::SetSelectedSceneComponent(USceneComponent* Component)
-{
-	SelectedSceneComponent = Component;
-	SelectedActor = Component ? Component->GetOwner() : nullptr;
-	if (GizmoController != nullptr)GizmoController->SetSelectedObject(Component);
-}
-
 void FEditor::SetSelectedActor(AActor* Actor)
 {
 	SelectedActor = Actor;
-	SelectedSceneComponent = nullptr;
-	if (GizmoController != nullptr) GizmoController->SetSelectedObject(GetTransformTarget());
+	SelectedComponent = nullptr;
+	if (GizmoController != nullptr)
+	{
+		GizmoController->SetSelectedObject(GetTransformTarget());
+	}
+}
+
+void FEditor::SetSelectedComponent(UActorComponent* Component)
+{
+	SelectedComponent = Component;
+	SelectedActor = Component ? Component->GetOwner() : nullptr;
+	if (GizmoController != nullptr)
+	{
+		GizmoController->SetSelectedObject(GetTransformTarget());
+	}
 }
 
 USceneComponent* FEditor::GetTransformTarget() const
 {
-	if (SelectedSceneComponent != nullptr)
+	if (SelectedComponent != nullptr)
 	{
-		return SelectedSceneComponent;
+		if (SelectedComponent->IsA(USceneComponent::GetClass()))
+		{
+			return static_cast<USceneComponent*>(SelectedComponent);
+		}
+
+		return nullptr;
 	}
 
 	if (SelectedActor != nullptr)
@@ -526,13 +536,13 @@ USceneComponent* FEditor::GetTransformTarget() const
 
 void FEditor::RemoveSelectedComponent()
 {
-	if (SelectedActor == nullptr || SelectedSceneComponent == nullptr)
+	if (SelectedActor == nullptr || SelectedComponent == nullptr)
 	{
 		return;
 	}
 
 	AActor* Actor = SelectedActor;
-	if (Actor->RemoveComponent(SelectedSceneComponent))
+	if (Actor->RemoveComponent(SelectedComponent))
 	{
 		SetSelectedActor(Actor);
 	}

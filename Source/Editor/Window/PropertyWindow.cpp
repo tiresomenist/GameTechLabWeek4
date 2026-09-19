@@ -61,35 +61,41 @@ void UPropertyWindow::InitializeWindow(FEditor* InEditor, const FString& Name)
 void UPropertyWindow::GetSelectedValue()
 {
 	USceneComponent* NewComponent = Editor->GetTransformTarget();
-	if (SelectedComponent != NewComponent)
+	if (TransformTarget != NewComponent)
 	{
-		SelectedComponent = NewComponent;
+		TransformTarget = NewComponent;
 		bEditingRotation = false;
 	}
 
-	if (!SelectedComponent)
+	InspectedComponent = Editor->GetSelectedComponent();
+	if (!InspectedComponent)
+	{
+		InspectedComponent = TransformTarget;
+	}
+
+	if (!TransformTarget)
 	{
 		bEditingRotation = false;
 		return;
 	}
-	Translation = SelectedComponent->GetRelativeLocation();
-	OScale = SelectedComponent->GetRelativeScale3D();
+	Translation = TransformTarget->GetRelativeLocation();
+	OScale = TransformTarget->GetRelativeScale3D();
 	// 입력 중에는 창의 임시 값을 유지함
 	if (!bEditingRotation)
 	{
-		RotationDegree = SelectedComponent->GetRelativeRotator();
+		RotationDegree = TransformTarget->GetRelativeRotator();
 	}
 }
 
 void UPropertyWindow::SetSelectedValue(bool bSetRotation)
 {
-	if (!SelectedComponent) return;
-	SelectedComponent->SetRelativeLocation(Translation);
+	if (!TransformTarget) return;
+	TransformTarget->SetRelativeLocation(Translation);
 	if (bSetRotation)
 	{
-		SelectedComponent->SetRelativeRotation(RotationDegree);
+		TransformTarget->SetRelativeRotation(RotationDegree);
 	}
-	SelectedComponent->SetRelativeScale3D(OScale);
+	TransformTarget->SetRelativeScale3D(OScale);
 }
 
 bool UPropertyWindow::DrawRotationField(const char* ID, float& Degree, bool& bRotationActive)
@@ -110,13 +116,16 @@ bool UPropertyWindow::DrawRotationField(const char* ID, float& Degree, bool& bRo
 void UPropertyWindow::RemoveSelectedComponent()
 {
 	Editor->RemoveSelectedComponent();
-	SelectedComponent = nullptr;
+	InspectedComponent = nullptr;
+	TransformTarget = nullptr;
+	bEditingRotation = false;
 }
 
 void UPropertyWindow::DeleteSelectedActor()
 {
 	Editor->DeleteSelectedActor();
-	SelectedComponent = nullptr;
+	InspectedComponent = nullptr;
+	TransformTarget = nullptr;
 	bEditingRotation = false;
 }
 
@@ -206,10 +215,16 @@ void UPropertyWindow::RenderComponentListSection(AActor* Actor)
 			bHasOtherComponents = true;
 		}
 
-		ImGui::TextDisabled("%s", Component->GetName().ToString().c_str());
+		const FString Label = std::format("{}###Component{}", Component->GetName().ToString(), Component->GetUUID());
+
+		if (ImGui::Selectable(Label.c_str(), Editor->GetSelectedComponent() == Component))
+		{
+			Editor->SetSelectedComponent(Component);
+			GetSelectedValue();
+		}
 	}
 
-	if (Editor->GetSelectedSceneComponent() != nullptr && Editor->GetSelectedSceneComponent()->GetOwner() == Actor)
+	if (Editor->GetSelectedComponent() != nullptr && Editor->GetSelectedComponent()->GetOwner() == Actor)
 	{
 		if (ImGui::Button("Remove Selected Component"))
 		{
@@ -248,7 +263,7 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 	
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
-		Editor->SetSelectedSceneComponent(Component);
+		Editor->SetSelectedComponent(Component);
 		GetSelectedValue();
 	}
 
@@ -289,78 +304,6 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 	if (!ImGui::Button(bAddingStaticMesh && FindStaticMeshComponent(Actor)
 		? "Apply Static Mesh##Action" : "Add Component##Action")) return;
 
-	const FString ActorLabel = std::format("{}##Actor{}", Actor->GetName().ToString(), Actor->GetUUID());
-	const ImGuiTreeNodeFlags ActorFlags =
-		ImGuiTreeNodeFlags_OpenOnArrow |
-		ImGuiTreeNodeFlags_OpenOnDoubleClick |
-		ImGuiTreeNodeFlags_DefaultOpen |
-		(Actor == Actor && Editor->GetSelectedSceneComponent() == nullptr ? ImGuiTreeNodeFlags_Selected : 0);
-
-	const bool bOpen = ImGui::TreeNodeEx(ActorLabel.c_str(), ActorFlags);
-	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
-	{
-		Editor->SetSelectedActor(Actor);
-	}
-
-	auto RenderComponentTree = [this](auto&& Self, USceneComponent* Component, bool bIsRoot) -> void
-		{
-			const FString DisplayName = bIsRoot
-				? std::format("{} (Root)", Component->GetName().ToString())
-				: Component->GetName().ToString();
-			const FString ComponentLabel = std::format(
-				"{}##Component{}", DisplayName, Component->GetUUID());
-			const bool bHasChildren = !Component->GetAttachChildren().IsEmpty();
-			const ImGuiTreeNodeFlags ComponentFlags = bHasChildren
-				? ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen
-				: ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Bullet;
-
-			const bool bComponentOpen = ImGui::TreeNodeEx(
-				ComponentLabel.c_str(),
-				ComponentFlags | (Editor->GetSelectedSceneComponent() == Component ? ImGuiTreeNodeFlags_Selected : 0));
-			if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
-			{
-				Editor->SetSelectedSceneComponent(Component);
-			}
-
-			if (bHasChildren && bComponentOpen)
-			{
-				for (USceneComponent* Child : Component->GetAttachChildren())
-				{
-					if (Child != nullptr) Self(Self, Child, false);
-				}
-				ImGui::TreePop();
-			}
-		};
-
-	if (USceneComponent* Root = Actor->GetRootComponent())
-	{
-		RenderComponentTree(RenderComponentTree, Root, true);
-	}
-
-	// Root에 연결되지 않은 SceneComponent도 잃지 않고 Actor 바로 아래에 표시한다.
-	for (UActorComponent* Component : Actor->GetComponents())
-	{
-		if (!Component->IsA(USceneComponent::GetClass())) continue;
-
-		USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
-		if (SceneComponent == Actor->GetRootComponent() || SceneComponent->GetAttachParent() != nullptr)
-		{
-			continue;
-		}
-
-		// UUID Widget처럼 Root가 될 수 없는 보조 컴포넌트는 편집 대상이 아님을 표시한다.
-		if (!SceneComponent->CanBeRootComponent())
-		{
-			const FString HelperLabel = std::format(
-				"{} (Helper)##Component{}", SceneComponent->GetName().ToString(), SceneComponent->GetUUID());
-			ImGui::TextDisabled("%s", HelperLabel.c_str());
-			continue;
-		}
-
-		RenderComponentTree(RenderComponentTree, SceneComponent, false);
-	}
-	ImGui::TreePop();
-
 	UActorComponent* AddedComponent = nullptr;
 	if (bAddingStaticMesh)
 	{
@@ -387,9 +330,10 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 	{
 		EnsurePrimitiveWidget(Actor);
 	}
-	if (AddedComponent != nullptr && AddedComponent->IsA(USceneComponent::GetClass()))
+	if (AddedComponent != nullptr)
 	{
-		Editor->SetSelectedSceneComponent(static_cast<USceneComponent*>(AddedComponent));
+		Editor->SetSelectedComponent(AddedComponent);
+		GetSelectedValue();
 	}
 }
 
@@ -470,13 +414,13 @@ bool UPropertyWindow::RenderTransformSection(bool& bRotationActive)
 
 void UPropertyWindow::RenderSelectedComponentDetails()
 {
-	if (SelectedComponent == nullptr) return;
+	if (InspectedComponent == nullptr) return;
 
 	// 타입별 상세 항목은 여기만 확장한다. 공통 레이아웃과 섞지 않는다.
-	if (SelectedComponent->IsA(UFlipbookComponent::GetClass()) &&
+	if (InspectedComponent->IsA(UFlipbookComponent::GetClass()) &&
 		ImGui::CollapsingHeader("SubUV", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		auto* Flame = static_cast<UFlipbookComponent*>(SelectedComponent);
+		auto* Flame = static_cast<UFlipbookComponent*>(InspectedComponent);
 		int Grid[2] = { Flame->GetColumns(), Flame->GetRows() };
 		if (ImGui::InputInt2("Columns / Rows", Grid)) Flame->SetAtlasGrid(Grid[0], Grid[1]);
 		int FrameCount = Flame->GetFrameCount();
@@ -496,10 +440,10 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		if (ImGui::SliderInt("Frame", &Frame, 0, Flame->GetFrameCount() - 1)) { Flame->SetCurrentFrame(Frame); Flame->SetPlaying(false); }
 	}
 
-	if (SelectedComponent->IsA(UStaticMeshComponent::GetClass()) &&
+	if (InspectedComponent->IsA(UStaticMeshComponent::GetClass()) &&
 		ImGui::CollapsingHeader("Static Mesh", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		auto* MeshComp = static_cast<UStaticMeshComponent*>(SelectedComponent);
+		auto* MeshComp = static_cast<UStaticMeshComponent*>(InspectedComponent);
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
 		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
 		std::string CurrentTexPath = MeshComp->GetMaterialPath().c_str();
@@ -518,10 +462,10 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		ImGui::TextDisabled("Type texture path and press Enter.");
 	}
 
-	if (SelectedComponent->IsA(USpotLightComponent::GetClass()) &&
+	if (InspectedComponent->IsA(USpotLightComponent::GetClass()) &&
 		ImGui::CollapsingHeader("SpotLight", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		auto* SpotLight = static_cast<USpotLightComponent*>(SelectedComponent);
+		auto* SpotLight = static_cast<USpotLightComponent*>(InspectedComponent);
 		ImGui::PushID(SpotLight);
 		const FVector& CurrentColor = SpotLight->GetLightColor();
 		float Color[3] { CurrentColor.X, CurrentColor.Y, CurrentColor.Z };
@@ -539,10 +483,10 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		ImGui::PopID();
 	}
 
-	if (SelectedComponent->IsA(UTextComponent::GetClass()) &&
+	if (InspectedComponent->IsA(UTextComponent::GetClass()) &&
 		ImGui::CollapsingHeader("Text", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		auto* TextComp = static_cast<UTextComponent*>(SelectedComponent);
+		auto* TextComp = static_cast<UTextComponent*>(InspectedComponent);
 		FString Text = TextComp->GetText();
 		if (ImGui::InputText("Text", &Text)) TextComp->SetText(Text);
 	}
@@ -572,14 +516,19 @@ void UPropertyWindow::Render(float DeltaTime)
 	RenderComponentListSection(SelectedActor);
 	RenderActionsSection(SelectedActor);
 
-	if (SelectedComponent != nullptr && SelectedComponent->GetOwner() == SelectedActor)
+	if (TransformTarget)
 	{
 		ImGui::Separator();
 		bool bRotationActive = false;
 		const bool bRotationChanged = RenderTransformSection(bRotationActive);
-		RenderSelectedComponentDetails();
+
 		SetSelectedValue(bRotationChanged);
 		bEditingRotation = bRotationActive;
+	}
+
+	if (InspectedComponent)
+	{
+		RenderSelectedComponentDetails();
 	}
 
 	ImGui::End();
