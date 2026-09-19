@@ -49,7 +49,18 @@ void FRenderer::Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height
 	bImGuiContextCreated = true;
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.Fonts->AddFontFromFileTTF("Assets/Fonts/Pretendard-Regular.ttf", 16.0f);
+	io.Fonts->AddFontFromFileTTF("Assets/Fonts/Pretendard-Regular.ttf");
+
+	ImGuiStyle& Style = ImGui::GetStyle();
+	Style.FontSizeBase = 16.0f;
+	Style.FontScaleMain = 1.0f;
+
+	const float DPISCale = GetDpiForWindow(HWnd) / 96.0f;
+	Style.FontScaleDpi = DPISCale;
+	io.ConfigDpiScaleFonts = true;
+	Style.ScaleAllSizes(DPISCale);
+
+	Style.WindowMenuButtonPosition = ImGuiDir_None;
 
 	// Setup Platform/Renderer backends
 	bImGuiWin32Initialized = ImGui_ImplWin32_Init(HWnd);
@@ -131,7 +142,6 @@ void FRenderer::BeginFrame()
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
-	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 	PrepareRTVDSV();
 }
 
@@ -373,6 +383,8 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	}
 
 	BeginFrame();
+
+	Editor->GetMenuLayout().Draw();
 
 	for (const FRenderView& View : Views)
 	{

@@ -33,12 +33,12 @@ FLineDrawRequest UWorldAxisGizmo::BuildLineDrawRequest(const FGrid& Grid, const 
     const float MaxZ = static_cast<float>(CameraPosition.Z + Half * 2.0);
 
     Request.Vertices = {
-        { MinX, 0, 0, 1, 0, 0, 1 },
-        { MaxX, 0, 0, 1, 0, 0, 1 },
-        { 0, MinY, 0, 0, 1, 0, 1 },
-        { 0, MaxY, 0, 0, 1, 0, 1 },
-        { 0, 0, MinZ, 0, 0, 1, 1 },
-        { 0, 0, MaxZ, 0, 0, 1, 1 }
+        { MinX, 0, 0, 0.645f, 0.005f, 0.041f, 1 },
+        { MaxX, 0, 0, 0.645f, 0.005f, 0.041f, 1 },
+        { 0, MinY, 0, 0.051f, 0.352f, 0.024f, 1 },
+        { 0, MaxY, 0, 0.051f, 0.352f, 0.024f, 1 },
+        { 0, 0, MinZ, 0.013f, 0.133f, 0.913f, 1 },
+        { 0, 0, MaxZ, 0.013f, 0.133f, 0.913f, 1 }
     };
 
     Request.Indices = { 0, 1, 2, 3, 4, 5 };

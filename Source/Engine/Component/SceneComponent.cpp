@@ -42,8 +42,8 @@ USceneComponent::~USceneComponent()
     DetachFromParent();
 
     // 부모가 먼저 제거되어도 자식이 해제된 부모를 참조하지 않게 한다.
-    const std::vector<USceneComponent*> Children = AttachChildren;
-    AttachChildren.clear();
+    const TArray<USceneComponent*> Children = AttachChildren;
+    AttachChildren.Empty();
     for (USceneComponent* Child : Children)
     {
         if (Child != nullptr && Child->AttachParent == this)
@@ -78,7 +78,7 @@ bool USceneComponent::AttachTo(USceneComponent* Parent)
 
     DetachFromParent();
     AttachParent = Parent;
-    AttachParent->AttachChildren.push_back(this);
+    AttachParent->AttachChildren.Add(this);
     UpdateWorldTransform();
     return true;
 }
@@ -90,8 +90,8 @@ void USceneComponent::DetachFromParent()
         return;
     }
 
-    std::vector<USceneComponent*>& Siblings = AttachParent->AttachChildren;
-    Siblings.erase(std::remove(Siblings.begin(), Siblings.end(), this), Siblings.end());
+    TArray<USceneComponent*>& Siblings = AttachParent->AttachChildren;
+    Siblings.Remove(this);
     AttachParent = nullptr;
     UpdateWorldTransform();
 }
@@ -196,6 +196,9 @@ void USceneComponent::Serialize(FArchive& Archive)
     };
     Archive.Float3OrDefault("Scale", Scale, 1.0f);
 
+	bool bVisibleValue = bVisible;
+    Archive.OptionalField("bVisible", bVisibleValue);
+
     // 만약 로딩모드면 복원한값으로 쿼터니언, 월드행렬 재계산
     if (Archive.IsLoading())
     {
@@ -203,8 +206,15 @@ void USceneComponent::Serialize(FArchive& Archive)
         RelativeRotator = FRotator(Rotation[1], Rotation[2], Rotation[0]);
         RelativeRotation = RelativeRotator.ToQuaternion();
         RelativeScale3D = FVector(Scale[0], Scale[1], Scale[2]);
+		bVisible = bVisibleValue;
         UpdateWorldTransform();
     }
+}
+
+bool USceneComponent::IsVisible() const
+{
+	const AActor* Owner = GetOwner();
+	return Owner && Owner->IsVisible() && bVisible;
 }
 
 void USceneComponent::SetRelativeRotation(const FRotator& Rotation)

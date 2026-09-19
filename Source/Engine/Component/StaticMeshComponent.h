@@ -18,10 +18,7 @@ public:
     const FName& GetStaticMeshKey() const { return MeshKey; }
     const FString& GetMaterialPath() const { return MaterialPath; }
 
-    bool IsVisible() { return bIsVisible; }
-    void SetVisibility(bool InVisibility) { bIsVisible = InVisibility; }
 private:
-    bool bIsVisible = true;
     FName MeshKey;
     FString MaterialPath;
     FTextureResource* MaterialTexture = nullptr;

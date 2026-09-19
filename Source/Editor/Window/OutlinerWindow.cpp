@@ -1,20 +1,26 @@
 #include "pch.h"
 #include "OutlinerWindow.h"
+
 #include "Editor/Editor.h"
 #include "Engine/Scene/Scene.h"
 #include "Engine/Actor/Actor.h"
 #include "Engine/Component/ActorComponent.h"
 #include "Engine/Component/SceneComponent.h"
-
-void UOutlinerWindow::Initialize(FEditor* InEditor)
-{
-	UEditorWindow::Initialize(InEditor);
-}
+#include "Engine/Component/StaticMeshComponent.h"
+#include "ImGui/imgui_stdlib.h"
 
 void UOutlinerWindow::Render(float DeltaTime)
 {
-	AActor* SelectedActor = Editor->GetSelectedActor();
-	ImGui::Begin("Outliner");
+	bRenameInputDrawn = false;
+
+	if (!bOpen)
+	{
+		return;
+	}
+
+	ImGui::SetNextWindowSize(ImVec2(380.0f, 640.0f), ImGuiCond_FirstUseEver);
+
+	ImGui::Begin(Name.c_str(), &bOpen);
 
 	UScene* Scene = Editor->GetCurrentScene();
 	if (Scene == nullptr)
@@ -23,90 +29,292 @@ void UOutlinerWindow::Render(float DeltaTime)
 		return;
 	}
 
-	Scene->ForEachActor([&](AActor* Actor)
+	const bool bCanUseShortcuts =
+		RenameTarget == nullptr &&
+		ImGui::IsWindowFocused() &&
+		!ImGui::IsAnyItemActive() &&
+		!ImGui::GetIO().WantTextInput &&
+		!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup | ImGuiPopupFlags_AnyPopupLevel);
+
+	if (bCanUseShortcuts)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_F2, false))
 		{
-			const FString ActorLabel = std::format("{}##Actor{}", Actor->GetName().ToString(), Actor->GetUUID());
-			const ImGuiTreeNodeFlags ActorFlags =
-				ImGuiTreeNodeFlags_OpenOnArrow |
-				ImGuiTreeNodeFlags_OpenOnDoubleClick |
-				ImGuiTreeNodeFlags_DefaultOpen |
-				(SelectedActor == Actor ? ImGuiTreeNodeFlags_Selected : 0);
+			RequestRename(Editor->GetSelectedActor());
+		}
+		if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+		{
+			PendingDeleteTarget = Editor->GetSelectedActor();
+		}
+	}
 
-			const bool bOpen = ImGui::TreeNodeEx(ActorLabel.c_str(), ActorFlags);
-			if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::InvisibleButton("##DropTop", ImVec2(-1.0f, 4.0f));
+	if (ImGui::BeginDragDropTarget())
+	{
+		if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("EDITOR_ACTOR"))
+		{
+			AActor* SourceActor = *static_cast<AActor**>(Payload->Data);
+			if (SourceActor != nullptr)
 			{
-				// Actor Transform은 RootComponent가 대표한다. 빈 Actor에는 기즈모를 띄우지 않는다.
-				if (USceneComponent* Root = Actor->GetRootComponent())
-				{
-					Editor->SetSelectedSceneComponent(Root);
-				}
-				else
-				{
-					Editor->SetSelectedActor(Actor);
-				}
+				PendingReparentSource = SourceActor;
+				PendingReparentTarget = nullptr;
 			}
+		}
+		ImGui::EndDragDropTarget();
+	}
+	ImGui::PopStyleVar();
 
-			if (!bOpen) return;
+	if (ImGui::BeginTable("ActorTable", 2, ImGuiTableFlags_SizingStretchProp))
+	{
+		ImGui::TableSetupColumn("##Name", ImGuiTableColumnFlags_WidthStretch);
+		ImGui::TableSetupColumn("##Visible", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_IndentDisable, ImGui::GetFrameHeight());
 
-			auto RenderComponentTree = [&](auto&& Self, USceneComponent* Component, bool bIsRoot) -> void
+		Scene->ForEachActor([this](AActor* Actor)
+		{
+			if (Actor->GetParentActor() == nullptr)
 			{
-				const FString DisplayName = bIsRoot
-					? std::format("{} (Root)", Component->GetName().ToString())
-					: Component->GetName().ToString();
-				const FString ComponentLabel = std::format(
-					"{}##Component{}", DisplayName, Component->GetUUID());
-				const bool bHasChildren = !Component->GetAttachChildren().empty();
-				const ImGuiTreeNodeFlags ComponentFlags = bHasChildren
-					? ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen
-					: ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Bullet;
-
-				const bool bComponentOpen = ImGui::TreeNodeEx(
-					ComponentLabel.c_str(),
-					ComponentFlags | (Editor->GetSelectedSceneComponent() == Component ? ImGuiTreeNodeFlags_Selected : 0));
-				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
-				{
-					Editor->SetSelectedSceneComponent(Component);
-				}
-
-				if (bHasChildren && bComponentOpen)
-				{
-					for (USceneComponent* Child : Component->GetAttachChildren())
-					{
-						if (Child != nullptr) Self(Self, Child, false);
-					}
-					ImGui::TreePop();
-				}
-			};
-
-			if (USceneComponent* Root = Actor->GetRootComponent())
-			{
-				RenderComponentTree(RenderComponentTree, Root, true);
+				DrawActorTree(Actor);
 			}
-
-			// Root에 연결되지 않은 SceneComponent도 잃지 않고 Actor 바로 아래에 표시한다.
-			for (UActorComponent* Component : Actor->GetComponents())
-			{
-				if (!Component->IsA(USceneComponent::GetClass())) continue;
-
-				USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
-				if (SceneComponent == Actor->GetRootComponent() || SceneComponent->GetAttachParent() != nullptr)
-				{
-					continue;
-				}
-
-				// UUID Widget처럼 Root가 될 수 없는 보조 컴포넌트는 편집 대상이 아님을 표시한다.
-				if (!SceneComponent->CanBeRootComponent())
-				{
-					const FString HelperLabel = std::format(
-						"{} (Helper)##Component{}", SceneComponent->GetName().ToString(), SceneComponent->GetUUID());
-					ImGui::TextDisabled("%s", HelperLabel.c_str());
-					continue;
-				}
-
-				RenderComponentTree(RenderComponentTree, SceneComponent, false);
-			}
-			ImGui::TreePop();
 		});
+		
+		ImGui::EndTable();
+	}
 
+	if (PendingDeleteTarget)
+	{
+		Editor->SetSelectedActor(PendingDeleteTarget);
+		Editor->DeleteSelectedActor();
+
+		PendingDeleteTarget = nullptr;
+		FinishRename(false);
+	}
+	else if (RenameTarget && !bFocusRenameInput && !bRenameInputDrawn)
+	{
+		FinishRename(true);
+	}
+
+	if (PendingReparentSource)
+	{
+		PendingReparentSource->SetParentActor(PendingReparentTarget);
+		PendingReparentSource = nullptr;
+		PendingReparentTarget = nullptr;
+	}
+	
 	ImGui::End();
+}
+
+void UOutlinerWindow::DrawActorTree(AActor* Actor)
+{
+	if (Actor == nullptr)
+	{
+		return;
+	}
+
+	ImGui::TableNextRow();
+	ImGui::TableSetColumnIndex(0);
+
+	const bool bRenaming = RenameTarget == Actor;
+	const bool bHasChildren = !Actor->GetChildActors().IsEmpty();
+
+	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
+	if (bHasChildren)
+	{
+		Flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+	}
+	else
+	{
+		Flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+	}
+	if (bRenaming)
+	{
+		Flags &= ~ImGuiTreeNodeFlags_SpanAvailWidth;
+		Flags |= ImGuiTreeNodeFlags_AllowOverlap;
+	}
+
+	if (Editor->GetSelectedActor() == Actor)
+	{
+		Flags |= ImGuiTreeNodeFlags_Selected;
+	}
+
+	const FString Label = std::format("{}###Actor{}", bRenaming ? "" : Actor->GetName().ToString(), Actor->GetUUID());
+
+	const ImVec2 RowStart = ImGui::GetCursorScreenPos();
+	const float LabelSpacing = ImGui::GetTreeNodeToLabelSpacing();
+
+	const ImVec2 InputPosition(RowStart.x + LabelSpacing, RowStart.y);
+	const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - LabelSpacing);
+
+	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
+
+	if (ImGui::BeginDragDropSource())
+	{
+		ImGui::SetDragDropPayload("EDITOR_ACTOR", &Actor, sizeof(Actor));
+		ImGui::TextUnformatted(Actor->GetName().ToString().c_str());
+		ImGui::EndDragDropSource();
+	}
+
+	if (ImGui::BeginDragDropTarget())
+	{
+		if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("EDITOR_ACTOR"))
+		{
+			AActor* SourceActor = *static_cast<AActor**>(Payload->Data);
+			if (CanReparent(SourceActor, Actor))
+			{
+				PendingReparentSource = SourceActor;
+				PendingReparentTarget = Actor;
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
+
+	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+	{
+		Editor->SetSelectedActor(Actor);
+	}
+
+	if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight))
+	{
+		if (ImGui::IsWindowAppearing())
+		{
+			Editor->SetSelectedActor(Actor);
+		}
+
+		if (ImGui::MenuItem("Rename", "F2"))
+		{
+			RequestRename(Actor);
+		}
+
+		if (ImGui::MenuItem("Delete", "Delete"))
+		{
+			PendingDeleteTarget = Actor;
+		}
+
+		ImGui::EndPopup();
+	}
+
+	if (bRenaming)
+	{
+		DrawRenameInput(Actor, InputPosition, InputWidth);
+	}
+
+	ImGui::TableSetColumnIndex(1);
+	if (Editor->GetSelectedActor() == Actor)
+	{
+		bool bVisible = Actor->IsVisible();
+
+		ImGui::PushID(Actor);
+		if (ImGui::Checkbox("##Visible", &bVisible))
+		{
+			SetVisibilitySubtree(Actor, bVisible);
+		}
+		ImGui::PopID();
+	}
+
+	ImGui::TableSetColumnIndex(0);
+
+	if (bHasChildren && bNodeOpen)
+	{
+		for (AActor* Child : Actor->GetChildActors())
+		{
+			if (Child)
+			{
+				DrawActorTree(Child);
+			}
+		}
+		ImGui::TreePop();
+	}
+}
+
+void UOutlinerWindow::SetVisibilitySubtree(AActor* Actor, bool bVisible)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	Actor->SetVisibility(bVisible);
+
+	for (AActor* Child : Actor->GetChildActors())
+	{
+		if (Child)
+		{
+			SetVisibilitySubtree(Child, bVisible);
+		}
+	}
+}
+
+void UOutlinerWindow::DrawRenameInput(AActor* Actor, const ImVec2& Position, float Width)
+{
+	ImGui::SameLine();
+	ImGui::SetCursorScreenPos(Position);
+	ImGui::SetNextItemWidth(Width);
+
+	ImGui::PushID(Actor);
+
+	if (bFocusRenameInput)
+	{
+		ImGui::SetKeyboardFocusHere();
+		bFocusRenameInput = false;
+	}
+
+	const bool bEscapePressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+	const bool bEnter = ImGui::InputText("##Rename", &RenameBuffer, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+	
+	if (bEscapePressed && (ImGui::IsItemActive() || ImGui::IsItemDeactivated()))
+	{
+		FinishRename(false);
+	}
+	else if (bEnter || ImGui::IsItemDeactivated())
+	{
+		FinishRename(true);
+	}
+
+	ImGui::PopID();
+
+	bRenameInputDrawn = true;
+}
+
+void UOutlinerWindow::RequestRename(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	RenameTarget = Actor;
+
+	const FString CurrentName = Actor->GetName().ToString();
+	RenameBuffer = CurrentName;
+	bFocusRenameInput = true;
+}
+
+void UOutlinerWindow::FinishRename(bool bApply)
+{
+	if (bApply && RenameTarget && !RenameBuffer.empty())
+	{
+		RenameTarget->SetName(FName(RenameBuffer));
+	}
+
+	RenameTarget = nullptr;
+	bFocusRenameInput = false;
+	RenameBuffer.clear();
+}
+
+bool UOutlinerWindow::CanReparent(AActor* Source, AActor* Target) const
+{
+	if (!Source || !Target)
+	{
+		return false;
+	}
+	
+	for (AActor* Current = Target; Current != nullptr; Current = Current->GetParentActor())
+	{
+		if (Current == Source)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }

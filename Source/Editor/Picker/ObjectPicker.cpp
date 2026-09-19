@@ -139,14 +139,11 @@ USceneComponent* FObjectPicker::Pick()
 			if (!Primitive) return;
 
 			// Visible 끈 오브젝트는 피킹되지 않음
-			if (Primitive->IsA(UStaticMeshComponent::GetClass()))
+			if (!Primitive->IsVisible())
 			{
-				auto* StaticMesh = static_cast<UStaticMeshComponent*>(Primitive);
-				if (!StaticMesh->IsVisible())
-				{
-					return;
-				}
+				return;
 			}
+
 			FVector BoundsMin;
 			FVector BoundsMax;
 			if (!Primitive->GetLocalBounds(BoundsMin, BoundsMax)) return;
@@ -213,6 +210,10 @@ USceneComponent* FObjectPicker::Pick()
 				}
 
 				auto* SpotLight = static_cast<USpotLightComponent*>(Component);
+				if (!SpotLight->IsVisible())
+				{
+					continue;
+				}
 
 				// 실제 렌더링과 동일한 행렬 및 로컬 범위를 조회함
 				const FPrimitiveRenderData IconData = SpotLight->BuildIconRenderData(Camera, false);
