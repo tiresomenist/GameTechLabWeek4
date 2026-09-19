@@ -22,17 +22,14 @@ void UStaticMeshComponent::Serialize(FArchive& Archive)
     FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
         ? FString{} : MeshKey.ToString();
     FString MaterialPathValue = MaterialPath;
-    bool bVisibleValue = bIsVisible;
 
     Archive.OptionalField("MeshKey", MeshKeyValue);
     const bool bHasMaterial = Archive.OptionalField("MaterialPath", MaterialPathValue);
-    const bool bHasVisibility = Archive.OptionalField("bIsVisible", bVisibleValue);
 
     if (Archive.IsLoading())
     {
         SetStaticMesh(FName(MeshKeyValue));
         if (bHasMaterial) SetMaterial(MaterialPathValue);
-        if (bHasVisibility) SetVisibility(bVisibleValue);
     }
 }
 

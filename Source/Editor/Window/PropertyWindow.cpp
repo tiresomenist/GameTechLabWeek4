@@ -131,27 +131,6 @@ void UPropertyWindow::DeleteSelectedActor()
 
 void UPropertyWindow::RenderActorSection(AActor* SelectedActor)
 {
-	//bool bVisible = true;
-	//for (UActorComponent* Component : SelectedActor->GetComponents())
-	//{
-	//	if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
-	//	{
-	//		bVisible = static_cast<UStaticMeshComponent*>(Component)->IsVisible();
-	//		break;
-	//	}
-	//}
-
-	//if (ImGui::Checkbox("Visible", &bVisible))
-	//{
-	//	for (UActorComponent* Component : SelectedActor->GetComponents())
-	//	{
-	//		if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
-	//		{
-	//			static_cast<UStaticMeshComponent*>(Component)->SetVisibility(bVisible);
-	//		}
-	//	}
-	//}
-
 	const FString ActorName = SelectedActor->GetName().ToString();
 	ImGui::Text("Actor Name");
 	if (NameEditingActor != SelectedActor)
@@ -337,14 +316,6 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 	}
 }
 
-void UPropertyWindow::RenderActionsSection(AActor* SelectedActor)
-{
-	if (ImGui::Button("Delete Actor"))
-	{
-		DeleteSelectedActor();
-	}
-}
-
 bool UPropertyWindow::RenderTransformSection(bool& bRotationActive)
 {
 	if (!ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) return false;
@@ -514,7 +485,21 @@ void UPropertyWindow::Render(float DeltaTime)
 	ImGui::Separator();
 	RenderAddComponentSection(SelectedActor);
 	RenderComponentListSection(SelectedActor);
-	RenderActionsSection(SelectedActor);
+
+	if (USceneComponent* Component = Editor->GetSelectedSceneComponent())
+	{
+		bool bVisible = Component->GetVisibility();
+		if (ImGui::Checkbox("Visible", &bVisible))
+		{
+			Component->SetVisibility(bVisible);
+		}
+
+		if (bVisible && !Component->IsVisible())
+		{
+			ImGui::SameLine();
+			ImGui::TextDisabled("Hidden by Actor");
+		}
+	}
 
 	if (TransformTarget)
 	{

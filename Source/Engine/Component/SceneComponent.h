@@ -48,6 +48,10 @@ public:
 
     virtual void Serialize(FArchive& Archive) override;
 
+    bool GetVisibility() const { return bVisible; }
+    void SetVisibility(bool bIsVisible) { bVisible = bIsVisible; }
+    bool IsVisible() const;
+
 protected:
     // 로컬 트랜스폼
     FVector RelativeLocation;
@@ -69,5 +73,7 @@ private:
 
     //편집, 저장용 각도
     FRotator RelativeRotator;
+
+    bool bVisible = true;
 };
 

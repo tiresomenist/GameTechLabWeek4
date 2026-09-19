@@ -5,6 +5,12 @@
 #include "Engine/Actor/Actor.h"
 #include "Engine/Component/ActorComponent.h"
 #include "Engine/Component/SceneComponent.h"
+#include "Engine/Component/StaticMeshComponent.h"
+
+void UOutlinerWindow::InitializeWindow(FEditor* InEditor, const FString& InName)
+{
+	UEditorWindow::InitializeWindow(InEditor, InName);
+}
 
 void UOutlinerWindow::Render(float DeltaTime)
 {
@@ -26,14 +32,22 @@ void UOutlinerWindow::Render(float DeltaTime)
 		return;
 	}
 
-	Scene->ForEachActor([this](AActor* Actor)
+	if (ImGui::BeginTable("ActorTable", 2, ImGuiTableFlags_SizingStretchProp))
+	{
+		ImGui::TableSetupColumn("##Name", ImGuiTableColumnFlags_WidthStretch);
+		ImGui::TableSetupColumn("##Visible", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_IndentDisable, ImGui::GetFrameHeight());
+
+		Scene->ForEachActor([this](AActor* Actor)
 		{
 			if (Actor->GetParentActor() == nullptr)
 			{
 				DrawActorTree(Actor);
 			}
 		});
-
+		
+		ImGui::EndTable();
+	}
+	
 	ImGui::End();
 }
 
@@ -44,9 +58,12 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 		return;
 	}
 
+	ImGui::TableNextRow();
+	ImGui::TableSetColumnIndex(0);
+
 	const bool bHasChildren = !Actor->GetChildActors().IsEmpty();
 
-	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
 	if (bHasChildren)
 	{
 		Flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
@@ -70,6 +87,21 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 		Editor->SetSelectedActor(Actor);
 	}
 
+	ImGui::TableSetColumnIndex(1);
+	if (Editor->GetSelectedActor() == Actor)
+	{
+		bool bVisible = Actor->IsVisible();
+
+		ImGui::PushID(Actor);
+		if (ImGui::Checkbox("##Visible", &bVisible))
+		{
+			SetVisibilitySubtree(Actor, bVisible);
+		}
+		ImGui::PopID();
+	}
+
+	ImGui::TableSetColumnIndex(0);
+
 	if (bHasChildren && bNodeOpen)
 	{
 		for (AActor* Child : Actor->GetChildActors())
@@ -80,5 +112,23 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 			}
 		}
 		ImGui::TreePop();
+	}
+}
+
+void UOutlinerWindow::SetVisibilitySubtree(AActor* Actor, bool bVisible)
+{
+		if (!Actor)
+	{
+		return;
+	}
+
+	Actor->SetVisibility(bVisible);
+
+	for (AActor* Child : Actor->GetChildActors())
+	{
+		if (Child)
+		{
+			SetVisibilitySubtree(Child, bVisible);
+		}
 	}
 }

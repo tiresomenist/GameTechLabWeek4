@@ -46,7 +46,6 @@ public:
 	void RenderComponentListSection(AActor* Actor);
 	void DrawComponentTree(USceneComponent* Component);
 	void RenderAddComponentSection(AActor* Actor);
-	void RenderActionsSection(AActor* SelectedActor);
 	bool RenderTransformSection(bool& bRotationActive);
 	void RenderSelectedComponentDetails();
 

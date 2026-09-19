@@ -196,6 +196,9 @@ void USceneComponent::Serialize(FArchive& Archive)
     };
     Archive.Float3OrDefault("Scale", Scale, 1.0f);
 
+	bool bVisibleValue = bVisible;
+    Archive.OptionalField("bVisible", bVisibleValue);
+
     // 만약 로딩모드면 복원한값으로 쿼터니언, 월드행렬 재계산
     if (Archive.IsLoading())
     {
@@ -203,8 +206,15 @@ void USceneComponent::Serialize(FArchive& Archive)
         RelativeRotator = FRotator(Rotation[1], Rotation[2], Rotation[0]);
         RelativeRotation = RelativeRotator.ToQuaternion();
         RelativeScale3D = FVector(Scale[0], Scale[1], Scale[2]);
+		bVisible = bVisibleValue;
         UpdateWorldTransform();
     }
+}
+
+bool USceneComponent::IsVisible() const
+{
+	const AActor* Owner = GetOwner();
+	return Owner && Owner->IsVisible() && bVisible;
 }
 
 void USceneComponent::SetRelativeRotation(const FRotator& Rotation)
