@@ -47,7 +47,6 @@ void UOutlinerWindow::Render(float DeltaTime)
 			PendingDeleteTarget = Editor->GetSelectedActor();
 		}
 	}
-	
 
 	if (ImGui::BeginTable("ActorTable", 2, ImGuiTableFlags_SizingStretchProp))
 	{

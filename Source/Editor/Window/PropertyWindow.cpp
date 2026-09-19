@@ -129,7 +129,7 @@ void UPropertyWindow::DeleteSelectedActor()
 	bEditingRotation = false;
 }
 
-void UPropertyWindow::RenderComponentListSection(AActor* Actor)
+void UPropertyWindow::RenderComponentTreeSection(AActor* Actor)
 {
 	if (!Actor)
 	{
@@ -141,55 +141,82 @@ void UPropertyWindow::RenderComponentListSection(AActor* Actor)
 		return;
 	}
 
-	USceneComponent* Root = Actor->GetRootComponent();
-	DrawComponentTree(Root);
-
-	// Root에 연결되지 않은 SceneComponent
-	for (UActorComponent* Component : Actor->GetComponents())
+	if (ImGui::BeginChild("ComponentTree", ImVec2(0.0f, 200.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY))
 	{
-		if (!Component || !Component->IsA(USceneComponent::GetClass()))
+		const bool bCanUseShortcuts =
+			ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) &&
+			RenameTarget == nullptr &&
+			!ImGui::IsAnyItemActive() &&
+			!ImGui::GetIO().WantTextInput &&
+			!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup | ImGuiPopupFlags_AnyPopupLevel);
+
+		if (bCanUseShortcuts)
 		{
-			continue;
+			if (ImGui::IsKeyPressed(ImGuiKey_F2, false))
+			{
+				RequestRename(Editor->GetSelectedComponent());
+			}
+			if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+			{
+				PendingDeleteTarget = Editor->GetSelectedComponent();
+			}
 		}
 
-		USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
-		if (SceneComponent != Root && SceneComponent->GetAttachParent() == nullptr)
+		USceneComponent* Root = Actor->GetRootComponent();
+		DrawComponentTree(Root);
+
+		// Root에 연결되지 않은 SceneComponent
+		for (UActorComponent* Component : Actor->GetComponents())
 		{
-			DrawComponentTree(SceneComponent);
+			if (!Component || !Component->IsA(USceneComponent::GetClass()))
+			{
+				continue;
+			}
+
+			USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
+			if (SceneComponent != Root && SceneComponent->GetAttachParent() == nullptr)
+			{
+				DrawComponentTree(SceneComponent);
+			}
+		}
+
+		// Transform 계층 구조가 없는 SceneComponent
+		bool bHasOtherComponents = false;
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (!Component || Component->IsA(USceneComponent::GetClass()))
+			{
+				continue;
+			}
+
+			if (!bHasOtherComponents)
+			{
+				ImGui::SeparatorText("Other Components");
+				bHasOtherComponents = true;
+			}
+
+			const FString Label = std::format("{}###Component{}", Component->GetName().ToString(), Component->GetUUID());
+
+			if (RenameTarget == Component)
+			{
+				const ImVec2 InputPosition = ImGui::GetCursorScreenPos();
+				const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+
+				DrawRenameInput(Component, InputPosition, InputWidth);
+			}
+			else
+			{
+				if (ImGui::Selectable(Label.c_str(), Editor->GetSelectedComponent() == Component))
+				{
+					Editor->SetSelectedComponent(Component);
+					GetSelectedValue();
+				}
+				DrawComponentContextMenu(Component);
+			}
 		}
 	}
 
-	// Transform 계층 구조가 없는 SceneComponent
-	bool bHasOtherComponents = false;
-	for (UActorComponent* Component : Actor->GetComponents())
-	{
-		if (!Component || Component->IsA(USceneComponent::GetClass()))
-		{
-			continue;
-		}
-		
-		if (!bHasOtherComponents)
-		{
-			ImGui::SeparatorText("Other Components");
-			bHasOtherComponents = true;
-		}
-
-		const FString Label = std::format("{}###Component{}", Component->GetName().ToString(), Component->GetUUID());
-
-		if (ImGui::Selectable(Label.c_str(), Editor->GetSelectedComponent() == Component))
-		{
-			Editor->SetSelectedComponent(Component);
-			GetSelectedValue();
-		}
-	}
-
-	if (Editor->GetSelectedComponent() != nullptr && Editor->GetSelectedComponent()->GetOwner() == Actor)
-	{
-		if (ImGui::Button("Remove Selected Component"))
-		{
-			RemoveSelectedComponent();
-		}
-	}
+	ImGui::EndChild();
 }
 
 void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
@@ -199,9 +226,11 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 		return;
 	}
 
+	const bool bRenaming = RenameTarget == Component;
 	const bool bHasChildren = !Component->GetAttachChildren().IsEmpty();
 	const bool bIsRoot = Component == Component->GetOwner()->GetRootComponent();
-	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+
+	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
 	if (bHasChildren)
 	{
 		Flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
@@ -210,13 +239,27 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 	{
 		Flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 	}
+	if (bRenaming)
+	{
+		Flags &= ~ImGuiTreeNodeFlags_SpanAvailWidth;
+		Flags |= ImGuiTreeNodeFlags_AllowOverlap;
+	}
 
 	if (Editor->GetSelectedSceneComponent() == Component)
 	{
 		Flags |= ImGuiTreeNodeFlags_Selected;
 	}
 
-	const FString Label = std::format("{}{}###Component{}", Component->GetName().ToString(), bIsRoot ? " (Root)" : "", Component->GetUUID());
+	const FString DisplayLabel = std::format("{}{}", 
+		bRenaming ? "" : Component->GetName().ToString(),
+		!bRenaming && bIsRoot ? " (Root)" : "");
+	const FString Label = std::format("{}###Component{}", DisplayLabel, Component->GetUUID());
+
+	const ImVec2 RowStart = ImGui::GetCursorScreenPos();
+	const float LabelSpacing = ImGui::GetTreeNodeToLabelSpacing();
+
+	const ImVec2 InputPosition(RowStart.x + LabelSpacing, RowStart.y);
+	const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - LabelSpacing);
 
 	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
 	
@@ -224,6 +267,14 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 	{
 		Editor->SetSelectedComponent(Component);
 		GetSelectedValue();
+	}
+
+	DrawComponentContextMenu(Component);
+
+	if (bRenaming)
+	{
+		ImGui::SameLine();
+		DrawRenameInput(Component, InputPosition, InputWidth);
 	}
 
 	if (bHasChildren && bNodeOpen)
@@ -445,6 +496,8 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 
 void UPropertyWindow::Render(float DeltaTime)
 {
+	bRenameInputDrawn = false;
+
 	if (!bOpen)
 	{
 		return;
@@ -463,7 +516,7 @@ void UPropertyWindow::Render(float DeltaTime)
 
 	ImGui::SeparatorText(SelectedActor->GetName().ToString().c_str());
 	RenderAddComponentSection(SelectedActor);
-	RenderComponentListSection(SelectedActor);
+	RenderComponentTreeSection(SelectedActor);
 
 	if (USceneComponent* Component = Editor->GetSelectedSceneComponent())
 	{
@@ -495,5 +548,98 @@ void UPropertyWindow::Render(float DeltaTime)
 		RenderSelectedComponentDetails();
 	}
 
+	if (PendingDeleteTarget)
+	{
+		Editor->SetSelectedComponent(PendingDeleteTarget);
+		RemoveSelectedComponent();
+
+		PendingDeleteTarget = nullptr;
+		FinishRename(false);
+	}
+	else if (RenameTarget && !bFocusRenameInput && !bRenameInputDrawn)
+	{
+		FinishRename(true);
+	}
+
 	ImGui::End();
+}
+
+void UPropertyWindow::DrawComponentContextMenu(UActorComponent* Component)
+{
+	if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight))
+	{
+		if (ImGui::IsWindowAppearing())
+		{
+			Editor->SetSelectedComponent(Component);
+			GetSelectedValue();
+		}
+
+		if (ImGui::MenuItem("Rename", "F2"))
+		{
+			RequestRename(Component);
+		}
+
+		if (ImGui::MenuItem("Delete", "Delete"))
+		{
+			PendingDeleteTarget = Component;
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
+void UPropertyWindow::DrawRenameInput(UActorComponent* Component, const ImVec2& Position, float Width)
+{
+	ImGui::SetCursorScreenPos(Position);
+	ImGui::SetNextItemWidth(Width);
+
+	ImGui::PushID(Component);
+
+	if (bFocusRenameInput)
+	{
+		ImGui::SetKeyboardFocusHere();
+		bFocusRenameInput = false;
+	}
+
+	const bool bEscapePressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+	const bool bEnter = ImGui::InputText("##Rename", &RenameBuffer, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+
+	if (bEscapePressed && (ImGui::IsItemActive() || ImGui::IsItemDeactivated()))
+	{
+		FinishRename(false);
+	}
+	else if (bEnter || ImGui::IsItemDeactivated())
+	{
+		FinishRename(true);
+	}
+
+	ImGui::PopID();
+
+	bRenameInputDrawn = true;
+}
+
+void UPropertyWindow::RequestRename(UActorComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	RenameTarget = Component;
+
+	const FString CurrentName = Component->GetName().ToString();
+	RenameBuffer = CurrentName;
+	bFocusRenameInput = true;
+}
+
+void UPropertyWindow::FinishRename(bool bApply)
+{
+	if (bApply && RenameTarget && !RenameBuffer.empty())
+	{
+		RenameTarget->SetName(FName(RenameBuffer));
+	}
+
+	RenameTarget = nullptr;
+	bFocusRenameInput = false;
+	RenameBuffer.clear();
 }

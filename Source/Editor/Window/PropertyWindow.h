@@ -42,12 +42,25 @@ public:
 	void DeleteSelectedActor();
 
 	bool DrawRotationField(const char* ID, float& Degree, bool& bRotationActive);
-	void RenderComponentListSection(AActor* Actor);
+	void RenderComponentTreeSection(AActor* Actor);
 	void DrawComponentTree(USceneComponent* Component);
 	void RenderAddComponentSection(AActor* Actor);
 	bool RenderTransformSection(bool& bRotationActive);
 	void RenderSelectedComponentDetails();
 
 	void Render(float DeltaTime) override;
+
+	void DrawComponentContextMenu(UActorComponent* Component);
+	void DrawRenameInput(UActorComponent* Component, const ImVec2& Position, float Width);
+
+	void RequestRename(UActorComponent* Component);
+	void FinishRename(bool bApply);
+
+	UActorComponent* RenameTarget = nullptr;
+	FString RenameBuffer;
+	bool bFocusRenameInput = false;
+	bool bRenameInputDrawn = false;
+
+	UActorComponent* PendingDeleteTarget = nullptr;
 };
 
