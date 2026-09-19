@@ -19,6 +19,22 @@
 #include "Engine/Object/ClassRegistry.h"
 #include "Engine/Log.h"
 
+namespace
+{
+	struct FPendingActorInfo
+	{
+		AActor* Actor;
+		std::optional<uint32> ParentActorUUID;
+		std::optional<uint32> RootComponentUUID;
+	};
+
+	struct FPendingComponentInfo
+	{
+		USceneComponent* Component;
+		std::optional<uint32> AttachParentUUID;
+	};
+}
+
 FSceneType* UScene::GetStaticSceneType()
 {
     static FSceneType Type
@@ -62,119 +78,250 @@ void UScene::CreateMainCamera()
     MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
 }
 
-void UScene::Serialize(FArchive& Archive) {
+void UScene::Serialize(FArchive& Archive)
+{
     const bool bLoading = Archive.IsLoading();
-    TArray<UActorComponent*> SavedComponents;
 
-    // 저장할 컴포넌트를 모아 맵의 원소 개수를 먼저 확정한다.
+    std::optional<uint32> PendingMainCameraUUID;
+    if (!bLoading)
+    {
+	    if (MainCamera != nullptr)
+	    {
+			uint32 MainCameraUUID = MainCamera->GetUUID();
+			Archive.Field("MainCameraComponentUUID", MainCameraUUID);
+	    }
+    }
+    else
+    {
+		uint32 MainCameraComponentUUID = 0;
+		if (Archive.OptionalField("MainCameraComponentUUID", MainCameraComponentUUID))
+		{
+			PendingMainCameraUUID = MainCameraComponentUUID;
+		}
+    }
+
+    TArray<FPendingActorInfo> PendingActorInfos;
+    TArray<FPendingComponentInfo> PendingComponentInfos;
+
+    TMap<uint32, AActor*> ActorsByUUID;
+    TMap<uint32, UActorComponent*> ComponentsByUUID;
+
+    // 액터 처리
+    TArray<AActor*> SavedActors;
     if (!bLoading)
     {
         for (AActor* Actor : Actors)
         {
-            for (UActorComponent* Component : Actor->GetComponents())
-            {
-                // 지금기준 UUID용 UUID는 저장하지 않음.
-                if (!Component->IsA(UWidgetComponent::GetClass()))
-                    SavedComponents.Add(Component);
-            }
+            SavedActors.Add(Actor);
         }
     }
-    uint32 Count = static_cast<uint32>(SavedComponents.Num());
-    if (!Archive.BeginMap("Primitives", Count))
-        throw std::runtime_error("Missing scene primitives.");
+    uint32 ActorCount = static_cast<uint32>(SavedActors.Num());
+    if (!Archive.BeginMap("Actors", ActorCount))
+        throw std::runtime_error("Missing scene actors.");
 
-    // 키값:UUID
-    for (uint32 Index = 0; Index < Count; ++Index)
+    if (bLoading) PendingActorInfos.Reserve(ActorCount);
+    for (uint32 Index = 0; Index < ActorCount; ++Index)
     {
-        UActorComponent* Component = bLoading ? nullptr : SavedComponents[Index];
-        FString Key = bLoading ? FString{} : std::to_string(Component->GetUUID());
+        AActor* Actor = bLoading ? nullptr : SavedActors[Index];
+        FString Key = bLoading ? FString{} : std::to_string(Actor->GetUUID());
         Archive.BeginMapEntry(Index, Key);
 
-        FString TypeText = bLoading ? FString{} : Component->GetInstanceClass()->Name.ToString();
+        FString TypeText = bLoading ? FString{} : Actor->GetInstanceClass()->Name.ToString();
         Archive.Field("Type", TypeText);
 
         if (!bLoading)
         {
-            // 객체 생성에 필요한 식별 정보와 소유 Actor 정보를 기록한다.
-            AActor* Actor = Component->GetOwner();
-            uint32 UUID = Component->GetUUID();
-            uint32 ActorUUID = Actor->GetUUID();
-            FString ActorName = Actor->GetName().ToString();
-
-            Archive.Field("UUID", UUID);
-            Archive.OptionalField("ActorUUID", ActorUUID);
-            Archive.OptionalField("ActorName", ActorName);
-            Component->Serialize(Archive);
+            AActor* ParentActor = Actor->GetParentActor();
+            if (ParentActor != nullptr)
+            {
+                uint32 ParentActorUUID = ParentActor->GetUUID();
+                Archive.Field("ParentActorUUID", ParentActorUUID);
+            }
+            USceneComponent* RootComponent = Actor->GetRootComponent();
+            if (RootComponent != nullptr)
+            {
+                uint32 RootComponentUUID = RootComponent->GetUUID();
+                Archive.Field("RootComponentUUID", RootComponentUUID);
+            }
+            Actor->Serialize(Archive);
         }
         else
         {
-            // 저장된 타입을 실제 생성할 컴포넌트 클래스로 해석한다.
-            const FName TypeName(TypeText);
-            const FResolvedSceneType Resolved = ResolveSceneType(TypeName);
-            if (!Resolved.IsValid())
+            // 저장된 타입을 실제 생성할 액터 클래스로 해석한다.
+            const FResolvedSceneType Resolved = ResolveSceneType(TypeText);
+            if (Resolved.Kind != ESceneTypeKind::Actor || !Resolved.IsValid())
                 throw std::runtime_error("Unsupported scene type: " + TypeText);
 
-            // 구형 파일의 UUID 위젯은 직접 복원하지 않고 마지막에 다시 생성한다.
-            if (Resolved.Kind == ESceneTypeKind::SkipRuntimeWidget)
-            {
-                Archive.EndMapEntry();
-                continue;
-            }
-
-            // 기존 로더와 동일하게 맵의 키를 실제 컴포넌트 UUID로 사용한다.
             const uint32 UUID = ParseSceneUUID(Key);
-            uint32 ActorUUID = 0;
-            FString ActorName;
-            const bool bHasActorUUID = Archive.OptionalField("ActorUUID", ActorUUID);
-            const bool bHasActorName = Archive.OptionalField("ActorName", ActorName);
-            AActor* Actor = nullptr;
+            uint32 ParentActorUUID = 0;
+            uint32 RootComponentUUID = 0;
+            const bool bHasParentActorUUID = Archive.OptionalField("ParentActorUUID", ParentActorUUID);
+            const bool bHasRootComponentUUID = Archive.OptionalField("RootComponentUUID", RootComponentUUID);
 
-            // 같은 ActorUUID를 가진 컴포넌트는 하나의 Actor에 모아서 복원한다.
-            if (bHasActorUUID)
-            {
-                for (AActor* ExistingActor : Actors)
-                {
-                    if (ExistingActor->GetUUID() == ActorUUID)
-                    {
-                        Actor = ExistingActor;
-                        break;
-                    }
-                }
-                if (Actor == nullptr)
-                    Actor = SpawnActor<AActor*>(AActor::GetClass(), ActorUUID);
-            }
-            else
-            {
-                // Actor 정보가 없는 구형 씬은 컴포넌트마다 Actor를 생성한다.
-                Actor = SpawnActor<AActor*>(AActor::GetClass());
-            }
+            AActor* Actor = SpawnActor<AActor*>(Resolved.ClassType, UUID);
+            Actor->Serialize(Archive);
+            ActorsByUUID.Add(UUID, Actor);
 
-            if (bHasActorName)
-                Actor->SetName(FName(ActorName));
-
-            // 객체 생성 후 동일한 Archive 위치에서 컴포넌트 속성을 복원한다.
-            Component = Actor->CreateComponent(Resolved.ClassType, UUID);
-            if (Component == nullptr)
-                throw std::runtime_error("Failed to create scene component: " + TypeText);
-            Component->Serialize(Archive);
-
-            // Cube 등 구형 타입 이름은 StaticMeshComponent의 MeshKey로 복원한다.
-            if (Resolved.Kind == ESceneTypeKind::LegacyStaticMesh)
-                static_cast<UStaticMeshComponent*>(Component)->SetStaticMesh(TypeName);
-
-            if (MainCamera == nullptr && Component->IsA(UCameraComponent::GetClass()))
-                MainCamera = static_cast<UCameraComponent*>(Component);
-
-            UE_LOG("[Object Restored] UUID:{} Name:{} ActorName:{}",
-                Component->GetUUID(), Component->GetName().ToString(), Actor->GetName().ToString());
+            PendingActorInfos.Add({ Actor,
+                bHasParentActorUUID ? std::optional(ParentActorUUID) : std::nullopt,
+                bHasRootComponentUUID ? std::optional(RootComponentUUID) : std::nullopt });
         }
 
         Archive.EndMapEntry();
     }
+
     Archive.EndMap();
 
-    // 모든 컴포넌트가 복원된 뒤 런타임 UUID 표시를 구성한다.
-    if (bLoading) EnsureUUIDWidgets();
+    // 컴포넌트 처리
+    TArray<UActorComponent*> SavedComponents;
+	if (!bLoading)
+	{
+		for (AActor* Actor : Actors)
+		{
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				// 지금기준 UUID용 UUID는 저장하지 않음.
+				if (!Component->IsA(UWidgetComponent::GetClass()))
+					SavedComponents.Add(Component);
+			}
+		}
+	}
+
+	uint32 ComponentCount = static_cast<uint32>(SavedComponents.Num());
+	if (!Archive.BeginMap("Components", ComponentCount))
+		throw std::runtime_error("Missing scene components.");
+
+	if (bLoading) PendingComponentInfos.Reserve(ComponentCount);
+    for (uint32 Index = 0; Index < ComponentCount; ++Index)
+    {
+		UActorComponent* Component = bLoading ? nullptr : SavedComponents[Index];
+		FString Key = bLoading ? FString{} : std::to_string(Component->GetUUID());
+        Archive.BeginMapEntry(Index, Key);
+
+		FString TypeText = bLoading ? FString{} : Component->GetInstanceClass()->Name.ToString();
+        Archive.Field("Type", TypeText);
+
+        if (!bLoading)
+        {
+			AActor* Owner = Component->GetOwner();
+            if (Owner == nullptr)
+				throw std::runtime_error("Saved component has no owner actor.");
+
+			uint32 OwnerActorUUID = Owner->GetUUID();
+			Archive.Field("OwnerActorUUID", OwnerActorUUID);
+
+            if (Component->IsA(USceneComponent::GetClass()))
+            {
+				USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
+				USceneComponent* AttachParent = SceneComponent->GetAttachParent();
+				if (AttachParent != nullptr)
+				{
+					uint32 AttachParentUUID = AttachParent->GetUUID();
+					Archive.Field("AttachParentUUID", AttachParentUUID);
+				}
+            }
+
+            Component->Serialize(Archive);
+        }
+        else
+        {
+			const FResolvedSceneType Resolved = ResolveSceneType(TypeText);
+			if (Resolved.Kind != ESceneTypeKind::Component || !Resolved.IsValid())
+				throw std::runtime_error("Unsupported scene type: " + TypeText);
+
+			const uint32 UUID = ParseSceneUUID(Key);
+
+            uint32 OwnerActorUUID;
+			Archive.Field("OwnerActorUUID", OwnerActorUUID);
+            
+			AActor** OwnerPtr = ActorsByUUID.Find(OwnerActorUUID);
+			if (OwnerPtr == nullptr || *OwnerPtr == nullptr)
+				throw std::runtime_error("Invalid owner actor UUID: " + std::to_string(OwnerActorUUID));
+
+            uint32 AttachParentUUID = 0;
+			const bool bHasAttachParentUUID = Archive.OptionalField("AttachParentUUID", AttachParentUUID);
+			Component = (*OwnerPtr)->CreateComponent(Resolved.ClassType, UUID);
+			if (Component == nullptr)
+				throw std::runtime_error("Failed to create scene component: " + TypeText);
+
+            Component->Serialize(Archive);
+            ComponentsByUUID.Add(UUID, Component);
+
+            if (Component->IsA(USceneComponent::GetClass()))
+            {
+                PendingComponentInfos.Add({
+                    .Component = static_cast<USceneComponent*>(Component),
+                    .AttachParentUUID = bHasAttachParentUUID ? std::optional(AttachParentUUID) : std::nullopt
+	            });
+            }
+        }
+
+        Archive.EndMapEntry();
+    }
+
+    Archive.EndMap();
+
+    if (!bLoading) return;
+    	
+    // 모든 액터와 컴포넌트가 생성된 뒤 연결하는 과정
+    // 액터 계층 구조 연결
+    for (const auto& Pending : PendingActorInfos)
+    {
+	    if (!Pending.ParentActorUUID)
+	    {
+            continue;
+	    }
+
+		AActor** ParentActorPtr = ActorsByUUID.Find(*Pending.ParentActorUUID);
+        if (ParentActorPtr == nullptr || *ParentActorPtr == nullptr || !Pending.Actor->SetParentActor(*ParentActorPtr))
+			throw std::runtime_error("Failed to set parent actor for UUID: " + std::to_string(Pending.Actor->GetUUID()));
+    }
+
+    // 씬 컴포넌트 계층 구조 연결
+	for (const auto& Pending : PendingComponentInfos)
+	{
+		if (!Pending.AttachParentUUID)
+		{
+            Pending.Component->DetachFromParent();
+			continue;
+		}
+
+		UActorComponent** AttachParentPtr = ComponentsByUUID.Find(*Pending.AttachParentUUID);
+		if (AttachParentPtr == nullptr || !(*AttachParentPtr)->IsA(USceneComponent::GetClass()))
+			throw std::runtime_error("Invalid attach parent UUID: " + std::to_string(*Pending.AttachParentUUID));
+
+		USceneComponent* AttachParent = static_cast<USceneComponent*>(*AttachParentPtr);
+        if (!Pending.Component->AttachTo(AttachParent))
+            throw std::runtime_error("Failed to attach component UUID: " + std::to_string(Pending.Component->GetUUID()));
+	}
+
+    // 액터 루트 컴포넌트 연결
+    for (const auto& Pending : PendingActorInfos)
+    {
+		if (!Pending.RootComponentUUID)
+		{
+			continue;
+		}
+
+		UActorComponent** RootComponentPtr = ComponentsByUUID.Find(*Pending.RootComponentUUID);
+		if (RootComponentPtr == nullptr || !(*RootComponentPtr)->IsA(USceneComponent::GetClass()))
+			throw std::runtime_error("Invalid root component UUID: " + std::to_string(*Pending.RootComponentUUID));
+
+		Pending.Actor->SetRootComponent(static_cast<USceneComponent*>(*RootComponentPtr));
+    }
+
+    // 카메라 연결
+    MainCamera = nullptr;
+    if (PendingMainCameraUUID)
+    {
+		UActorComponent** CameraPtr = ComponentsByUUID.Find(*PendingMainCameraUUID);
+        if (CameraPtr == nullptr || *CameraPtr == nullptr || !(*CameraPtr)->IsA(UCameraComponent::GetClass()))
+            throw std::runtime_error("Invalid main camera component");
+
+		MainCamera = static_cast<UCameraComponent*>(*CameraPtr);
+    }
+
+    EnsureUUIDWidgets();
 }
 
 

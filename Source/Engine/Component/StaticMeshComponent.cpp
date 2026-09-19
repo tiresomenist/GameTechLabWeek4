@@ -31,18 +31,15 @@ void UStaticMeshComponent::Serialize(FArchive& Archive)
 {
     Super::Serialize(Archive);
 	// 로딩모드이거나 메시키가 없으면 None으로 처리
-	//FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
-	//	? FString{} : MeshKey.ToString();
-	//FString MaterialPathValue = MaterialPath;
+	FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
+		? FString{} : MeshKey.ToString();
 
-	//Archive.OptionalField("MeshKey", MeshKeyValue);
-	//const bool bHasMaterial = Archive.OptionalField("MaterialPath", MaterialPathValue);
+	Archive.OptionalField("MeshKey", MeshKeyValue);
 
-	//if (Archive.IsLoading())
-	//{
-	//	SetStaticMesh(FName(MeshKeyValue));
-	//	if (bHasMaterial) SetMaterial(MaterialPathValue);
-	//}
+	if (Archive.IsLoading())
+	{
+		SetStaticMesh(FName(MeshKeyValue));
+	}
 }
 
 

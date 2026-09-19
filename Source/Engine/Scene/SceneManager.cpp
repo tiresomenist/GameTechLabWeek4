@@ -128,7 +128,7 @@ void GSceneManager::InternalLoadScene()
         }
         else
         {
-            Reader = std::make_unique<FJsonReader>(R"({"Version":1,"NextUUID":0,"Primitives":{}})");
+            Reader = std::make_unique<FJsonReader>(R"({"Version":1,"NextUUID":0,"Actors":{},"Components":{}})");
         }
         NextUUID = ValidateSceneArchive(*Reader);
         Reader->ResetToRoot();

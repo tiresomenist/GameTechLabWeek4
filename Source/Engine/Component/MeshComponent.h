@@ -8,7 +8,6 @@ class UMeshComponent : public UPrimitiveComponent
 
 public:
     //virtual FMeshResource* GetMeshResource() const override;
-    virtual void Serialize(FArchive& Archive) override;
 
     virtual FMeshResource* GetMeshResource() const override { return nullptr; }
 
@@ -21,10 +20,6 @@ public:
     
     virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
 
-    bool IsVisible() { return bIsVisible; }
-    void SetVisibility(bool InVisibility) { bIsVisible = InVisibility; }
 protected:
     TArray<FMaterial*> OverrideMaterialList;
-private:
-    bool bIsVisible = true;
 };

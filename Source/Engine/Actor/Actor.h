@@ -29,6 +29,8 @@ public:
     virtual void Tick(float DeltaTime);
     virtual void EndPlay();
 
+    virtual void Serialize(FArchive& Archive) override;
+
     bool IsVisible() const { return bVisible; }
     void SetVisibility(bool bIsVisible) { bVisible = bIsVisible; }
 

@@ -17,6 +17,7 @@
 enum class ESceneTypeKind
 {
     Unsupported,
+    Actor,
     Component,
     LegacyStaticMesh,
     SkipRuntimeWidget
@@ -36,13 +37,15 @@ struct FResolvedSceneType
         }
 
         return
-            (Kind == ESceneTypeKind::Component || Kind == ESceneTypeKind::LegacyStaticMesh) && ClassType != nullptr;
+            (Kind == ESceneTypeKind::Actor || Kind == ESceneTypeKind::Component || Kind == ESceneTypeKind::LegacyStaticMesh) && ClassType != nullptr;
     }
 };
 
 inline FResolvedSceneType ResolveSceneType(const FName& TypeName)
 {
     // 반복 사용하는 타입 이름을 최초 호출 시 한 번 생성함
+    static const FName ActorType("Actor");
+
     static const FName StaticMeshType("StaticMeshComponent");
     static const FName CameraType("CameraComponent");
     static const FName TextType("Text");
@@ -54,6 +57,11 @@ inline FResolvedSceneType ResolveSceneType(const FName& TypeName)
     static const FName FlipbookAlias("FlipbookComponent");
 
     if (TypeName.IsNone()) { return {}; }
+
+    if (TypeName == ActorType)
+    {
+        return { ESceneTypeKind::Actor, FClassRegistry::FindClassType(ActorType) };
+    }
 
     // UUID 위젯은 씬 복원 후 다시 생성하므로 직접 복원하지 않음
     if (TypeName == WidgetType)
@@ -113,7 +121,6 @@ inline FResolvedSceneType ResolveSceneType(const FName& TypeName)
     return {};
 }
 
-
 inline uint32 ParseSceneUUID(FStringView Text, bool AllowExhaustedCounter = false)
 {
     if (Text.empty()) throw std::runtime_error("Empty UUID");
@@ -142,8 +149,29 @@ inline uint32 ValidateSceneArchive(FArchive& Archive)
 
     // 모든 컴포넌트 키가 유효하며 다음 발급 UUID보다 작은지 검사한다.
     uint32 Count = 0;
-    if (!Archive.BeginMap("Primitives", Count))
-        throw std::runtime_error("Missing scene primitives.");
+    if (!Archive.BeginMap("Actors", Count))
+        throw std::runtime_error("Missing scene actors.");
+
+    for (uint32 Index = 0; Index < Count; ++Index)
+    {
+        FString Key;
+        Archive.BeginMapEntry(Index, Key);
+        if (ParseSceneUUID(Key) >= NextUUID)
+            throw std::runtime_error("Actor UUID must be less than NextUUID.");
+
+        // 실제 복원과 같은 타입 해석 규칙으로 지원 여부를 확인한다.
+        FString TypeText;
+        Archive.Field("Type", TypeText);
+		FResolvedSceneType Resolved = ResolveSceneType(FName(TypeText));
+        if (Resolved.Kind != ESceneTypeKind::Actor || !Resolved.IsValid())
+            throw std::runtime_error("Unsupported scene type: " + TypeText);
+
+        Archive.EndMapEntry();
+    }
+    Archive.EndMap();
+
+	if (!Archive.BeginMap("Components", Count))
+		throw std::runtime_error("Missing scene components.");
 
     for (uint32 Index = 0; Index < Count; ++Index)
     {
@@ -152,14 +180,15 @@ inline uint32 ValidateSceneArchive(FArchive& Archive)
         if (ParseSceneUUID(Key) >= NextUUID)
             throw std::runtime_error("Component UUID must be less than NextUUID.");
 
-        // 실제 복원과 같은 타입 해석 규칙으로 지원 여부를 확인한다.
         FString TypeText;
         Archive.Field("Type", TypeText);
-        if (!ResolveSceneType(FName(TypeText)).IsValid())
-            throw std::runtime_error("Unsupported scene type: " + TypeText);
+		FResolvedSceneType Resolved = ResolveSceneType(FName(TypeText));
+		if (Resolved.Kind != ESceneTypeKind::Component && !Resolved.IsValid())
+			throw std::runtime_error("Unsupported scene type: " + TypeText);
 
-        Archive.EndMapEntry();
+		Archive.EndMapEntry();
     }
     Archive.EndMap();
+
     return NextUUID;
 }
