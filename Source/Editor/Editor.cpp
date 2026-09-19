@@ -428,6 +428,8 @@ void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 		}
 
 		Actor->CreateComponent(UWidgetComponent::GetClass());
+
+		SetSelectedActor(Actor);
 	}
 }
 
@@ -449,6 +451,8 @@ void FEditor::SpawnComponent(FClassType* ComponentClass, int Count)
 		{
 			Actor->CreateComponent(UWidgetComponent::GetClass());
 		}
+
+		SetSelectedComponent(Component);
 	}
 }
 
