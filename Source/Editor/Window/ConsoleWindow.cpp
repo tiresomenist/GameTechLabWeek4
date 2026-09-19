@@ -87,8 +87,14 @@ void UConsoleWindow::Render(float DeltaTime)
 		ImGuiCol_ButtonActive,
 		ImVec4(0.05f, 0.05f, 0.05f, 1.0f)
 	);
+
+	ImGui::PushStyleColor(
+		ImGuiCol_Text,
+		ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
+	);
 	ImGui::Begin(Name.c_str(), &bOpen);
 	{
+		ImGui::PopStyleColor();
 		if (ImGui::Button("Add Debug Text"))
 		{
 			AddDebugText("[Debug] Test");

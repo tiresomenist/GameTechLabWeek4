@@ -60,7 +60,7 @@ void UPropertyWindow::InitializeWindow(FEditor* InEditor, const FString& Name)
 
 void UPropertyWindow::GetSelectedValue()
 {
-	USceneComponent* NewComponent = Editor->GetSelectedSceneComponent();
+	USceneComponent* NewComponent = Editor->GetTransformTarget();
 	if (SelectedComponent != NewComponent)
 	{
 		SelectedComponent = NewComponent;
@@ -122,29 +122,29 @@ void UPropertyWindow::DeleteSelectedActor()
 
 void UPropertyWindow::RenderActorSection(AActor* SelectedActor)
 {
-	bool bVisible = true;
-	for (UActorComponent* Component : SelectedActor->GetComponents())
-	{
-		if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
-		{
-			bVisible = static_cast<UStaticMeshComponent*>(Component)->IsVisible();
-			break;
-		}
-	}
+	//bool bVisible = true;
+	//for (UActorComponent* Component : SelectedActor->GetComponents())
+	//{
+	//	if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
+	//	{
+	//		bVisible = static_cast<UStaticMeshComponent*>(Component)->IsVisible();
+	//		break;
+	//	}
+	//}
 
-	if (ImGui::Checkbox("Visible", &bVisible))
-	{
-		for (UActorComponent* Component : SelectedActor->GetComponents())
-		{
-			if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
-			{
-				static_cast<UStaticMeshComponent*>(Component)->SetVisibility(bVisible);
-			}
-		}
-	}
+	//if (ImGui::Checkbox("Visible", &bVisible))
+	//{
+	//	for (UActorComponent* Component : SelectedActor->GetComponents())
+	//	{
+	//		if (Component && Component->IsA(UStaticMeshComponent::GetClass()))
+	//		{
+	//			static_cast<UStaticMeshComponent*>(Component)->SetVisibility(bVisible);
+	//		}
+	//	}
+	//}
 
 	const FString ActorName = SelectedActor->GetName().ToString();
-	ImGui::Text("Actor: %s", ActorName.c_str());
+	ImGui::Text("Actor Name");
 	if (NameEditingActor != SelectedActor)
 	{
 		NameEditingActor = SelectedActor;
@@ -154,38 +154,117 @@ void UPropertyWindow::RenderActorSection(AActor* SelectedActor)
 	}
 
 	ImGui::SetNextItemWidth(-1.0f);
-	if (ImGui::InputText("Actor Name", ActorNameBuffer.data(), ActorNameBuffer.size(),
+	if (ImGui::InputText("###ActorNameInput", ActorNameBuffer.data(), ActorNameBuffer.size(),
 		ImGuiInputTextFlags_EnterReturnsTrue) && ActorNameBuffer[0] != '\0')
 	{
 		SelectedActor->SetName(FName(ActorNameBuffer.data()));
 	}
 }
 
-void UPropertyWindow::RenderComponentListSection(AActor* SelectedActor)
+void UPropertyWindow::RenderComponentListSection(AActor* Actor)
 {
-	if (!ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) return;
-
-	for (UActorComponent* Component : SelectedActor->GetComponents())
+	if (!Actor)
 	{
-		const FString ComponentLabel = std::format("{}##{}", Component->GetName().ToString(), Component->GetUUID());
-		if (!Component->IsA(USceneComponent::GetClass()))
+		return;
+	}
+
+	if (!ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		return;
+	}
+
+	USceneComponent* Root = Actor->GetRootComponent();
+	DrawComponentTree(Root);
+
+	// Root에 연결되지 않은 SceneComponent
+	for (UActorComponent* Component : Actor->GetComponents())
+	{
+		if (!Component || !Component->IsA(USceneComponent::GetClass()))
 		{
-			ImGui::TextDisabled("%s", ComponentLabel.c_str());
 			continue;
 		}
 
 		USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
-		if (ImGui::Selectable(ComponentLabel.c_str(), SelectedComponent == SceneComponent))
+		if (SceneComponent != Root && SceneComponent->GetAttachParent() == nullptr)
 		{
-			Editor->SetSelectedSceneComponent(SceneComponent);
-			GetSelectedValue();
+			DrawComponentTree(SceneComponent);
+		}
+	}
+
+	// Transform 계층 구조가 없는 SceneComponent
+	bool bHasOtherComponents = false;
+	for (UActorComponent* Component : Actor->GetComponents())
+	{
+		if (!Component || Component->IsA(USceneComponent::GetClass()))
+		{
+			continue;
+		}
+		
+		if (!bHasOtherComponents)
+		{
+			ImGui::SeparatorText("Other Components");
+			bHasOtherComponents = true;
+		}
+
+		ImGui::TextDisabled("%s", Component->GetName().ToString().c_str());
+	}
+
+	if (Editor->GetSelectedSceneComponent() != nullptr && Editor->GetSelectedSceneComponent()->GetOwner() == Actor)
+	{
+		if (ImGui::Button("Remove Selected Component"))
+		{
+			RemoveSelectedComponent();
 		}
 	}
 }
 
-void UPropertyWindow::RenderAddComponentSection(AActor* SelectedActor)
+void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 {
-	if (!ImGui::CollapsingHeader("Add Component##Section", ImGuiTreeNodeFlags_DefaultOpen)) return;
+	if (Component == nullptr)
+	{
+		return;
+	}
+
+	const bool bHasChildren = !Component->GetAttachChildren().IsEmpty();
+	const bool bIsRoot = Component == Component->GetOwner()->GetRootComponent();
+	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+	if (bHasChildren)
+	{
+		Flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+	}
+	else
+	{
+		Flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+	}
+
+	if (Editor->GetSelectedSceneComponent() == Component)
+	{
+		Flags |= ImGuiTreeNodeFlags_Selected;
+	}
+
+	const FString Label = std::format("{}{}###Component{}", Component->GetName().ToString(), bIsRoot ? " (Root)" : "", Component->GetUUID());
+
+	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
+	
+	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+	{
+		Editor->SetSelectedSceneComponent(Component);
+		GetSelectedValue();
+	}
+
+	if (bHasChildren && bNodeOpen)
+	{
+		for (USceneComponent* Child : Component->GetAttachChildren())
+		{
+			DrawComponentTree(Child);
+		}
+		ImGui::TreePop();
+	}
+}
+
+void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
+{
+	if (!ImGui::CollapsingHeader("Add Component##Section")) return;
 
 	if (ImGui::BeginCombo("Component Type", SelectedAddComponentClass->DisplayName.c_str()))
 	{
@@ -207,20 +286,92 @@ void UPropertyWindow::RenderAddComponentSection(AActor* SelectedActor)
 		MeshSelection::DrawCombo("Mesh", SelectedMeshKey);
 	}
 
-	if (!ImGui::Button(bAddingStaticMesh && FindStaticMeshComponent(SelectedActor)
+	if (!ImGui::Button(bAddingStaticMesh && FindStaticMeshComponent(Actor)
 		? "Apply Static Mesh##Action" : "Add Component##Action")) return;
+
+	const FString ActorLabel = std::format("{}##Actor{}", Actor->GetName().ToString(), Actor->GetUUID());
+	const ImGuiTreeNodeFlags ActorFlags =
+		ImGuiTreeNodeFlags_OpenOnArrow |
+		ImGuiTreeNodeFlags_OpenOnDoubleClick |
+		ImGuiTreeNodeFlags_DefaultOpen |
+		(Actor == Actor && Editor->GetSelectedSceneComponent() == nullptr ? ImGuiTreeNodeFlags_Selected : 0);
+
+	const bool bOpen = ImGui::TreeNodeEx(ActorLabel.c_str(), ActorFlags);
+	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+	{
+		Editor->SetSelectedActor(Actor);
+	}
+
+	auto RenderComponentTree = [this](auto&& Self, USceneComponent* Component, bool bIsRoot) -> void
+		{
+			const FString DisplayName = bIsRoot
+				? std::format("{} (Root)", Component->GetName().ToString())
+				: Component->GetName().ToString();
+			const FString ComponentLabel = std::format(
+				"{}##Component{}", DisplayName, Component->GetUUID());
+			const bool bHasChildren = !Component->GetAttachChildren().IsEmpty();
+			const ImGuiTreeNodeFlags ComponentFlags = bHasChildren
+				? ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen
+				: ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Bullet;
+
+			const bool bComponentOpen = ImGui::TreeNodeEx(
+				ComponentLabel.c_str(),
+				ComponentFlags | (Editor->GetSelectedSceneComponent() == Component ? ImGuiTreeNodeFlags_Selected : 0));
+			if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+			{
+				Editor->SetSelectedSceneComponent(Component);
+			}
+
+			if (bHasChildren && bComponentOpen)
+			{
+				for (USceneComponent* Child : Component->GetAttachChildren())
+				{
+					if (Child != nullptr) Self(Self, Child, false);
+				}
+				ImGui::TreePop();
+			}
+		};
+
+	if (USceneComponent* Root = Actor->GetRootComponent())
+	{
+		RenderComponentTree(RenderComponentTree, Root, true);
+	}
+
+	// Root에 연결되지 않은 SceneComponent도 잃지 않고 Actor 바로 아래에 표시한다.
+	for (UActorComponent* Component : Actor->GetComponents())
+	{
+		if (!Component->IsA(USceneComponent::GetClass())) continue;
+
+		USceneComponent* SceneComponent = static_cast<USceneComponent*>(Component);
+		if (SceneComponent == Actor->GetRootComponent() || SceneComponent->GetAttachParent() != nullptr)
+		{
+			continue;
+		}
+
+		// UUID Widget처럼 Root가 될 수 없는 보조 컴포넌트는 편집 대상이 아님을 표시한다.
+		if (!SceneComponent->CanBeRootComponent())
+		{
+			const FString HelperLabel = std::format(
+				"{} (Helper)##Component{}", SceneComponent->GetName().ToString(), SceneComponent->GetUUID());
+			ImGui::TextDisabled("%s", HelperLabel.c_str());
+			continue;
+		}
+
+		RenderComponentTree(RenderComponentTree, SceneComponent, false);
+	}
+	ImGui::TreePop();
 
 	UActorComponent* AddedComponent = nullptr;
 	if (bAddingStaticMesh)
 	{
-		if (UStaticMeshComponent* StaticMesh = FindStaticMeshComponent(SelectedActor))
+		if (UStaticMeshComponent* StaticMesh = FindStaticMeshComponent(Actor))
 		{
 			StaticMesh->SetStaticMesh(SelectedMeshKey);
 			AddedComponent = StaticMesh;
 		}
 		else
 		{
-			AddedComponent = SelectedActor->CreateComponent(SelectedAddComponentClass);
+			AddedComponent = Actor->CreateComponent(SelectedAddComponentClass);
 			if (AddedComponent != nullptr)
 			{
 				static_cast<UStaticMeshComponent*>(AddedComponent)->SetStaticMesh(SelectedMeshKey);
@@ -229,12 +380,12 @@ void UPropertyWindow::RenderAddComponentSection(AActor* SelectedActor)
 	}
 	else
 	{
-		AddedComponent = SelectedActor->CreateComponent(SelectedAddComponentClass);
+		AddedComponent = Actor->CreateComponent(SelectedAddComponentClass);
 	}
 
 	if (AddedComponent != nullptr && AddedComponent->IsA(UPrimitiveComponent::GetClass()))
 	{
-		EnsurePrimitiveWidget(SelectedActor);
+		EnsurePrimitiveWidget(Actor);
 	}
 	if (AddedComponent != nullptr && AddedComponent->IsA(USceneComponent::GetClass()))
 	{
@@ -244,14 +395,6 @@ void UPropertyWindow::RenderAddComponentSection(AActor* SelectedActor)
 
 void UPropertyWindow::RenderActionsSection(AActor* SelectedActor)
 {
-	if (SelectedComponent != nullptr && SelectedComponent->GetOwner() == SelectedActor)
-	{
-		if (ImGui::Button("Remove Selected Component"))
-		{
-			RemoveSelectedComponent();
-		}
-		ImGui::SameLine();
-	}
 	if (ImGui::Button("Delete Actor"))
 	{
 		DeleteSelectedActor();
@@ -407,10 +550,11 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 
 void UPropertyWindow::Render(float DeltaTime)
 {
-	(void)DeltaTime;
-	if (!bOpen) return;
+	if (!bOpen)
+	{
+		return;
+	}
 
-	// 도킹 중에는 DockNode가 크기와 위치를 소유한다. 떠 있을 때만 이 값을 최초 크기로 사용한다.
 	ImGui::SetNextWindowSize(ImVec2(380.0f, 640.0f), ImGuiCond_FirstUseEver);
 	GetSelectedValue();
 
@@ -418,15 +562,14 @@ void UPropertyWindow::Render(float DeltaTime)
 	AActor* SelectedActor = Editor->GetSelectedActor();
 	if (SelectedActor == nullptr)
 	{
-		ImGui::TextDisabled("Select an actor in the viewport or Outliner.");
 		ImGui::End();
 		return;
 	}
 
 	RenderActorSection(SelectedActor);
 	ImGui::Separator();
-	RenderComponentListSection(SelectedActor);
 	RenderAddComponentSection(SelectedActor);
+	RenderComponentListSection(SelectedActor);
 	RenderActionsSection(SelectedActor);
 
 	if (SelectedComponent != nullptr && SelectedComponent->GetOwner() == SelectedActor)

@@ -37,7 +37,7 @@ public:
     bool AttachTo(USceneComponent* Parent);
     void DetachFromParent();
     USceneComponent* GetAttachParent() const { return AttachParent; }
-    const std::vector<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
+    const TArray<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
 
     const FMatrix& GetWorldMatrix() const;
     FVector GetWorldLocation() const
@@ -57,7 +57,7 @@ protected:
 
     // 계층 구조
     USceneComponent* AttachParent = nullptr;
-    std::vector<USceneComponent*> AttachChildren;
+    TArray<USceneComponent*> AttachChildren;
 
     // 최종 월드 행렬 캐싱
     mutable FMatrix CachedWorldMatrix;

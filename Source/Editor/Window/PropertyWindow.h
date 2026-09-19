@@ -30,6 +30,7 @@ private:
 	FName SelectedMeshKey;
 	AActor* NameEditingActor = nullptr;
 	std::array<char, 128> ActorNameBuffer {};
+
 public:
 	virtual void InitializeWindow(FEditor* InEditor, const FString& Name) override;
 
@@ -40,8 +41,9 @@ public:
 
 	bool DrawRotationField(const char* ID, float& Degree, bool& bRotationActive);
 	void RenderActorSection(AActor* SelectedActor);
-	void RenderComponentListSection(AActor* SelectedActor);
-	void RenderAddComponentSection(AActor* SelectedActor);
+	void RenderComponentListSection(AActor* Actor);
+	void DrawComponentTree(USceneComponent* Component);
+	void RenderAddComponentSection(AActor* Actor);
 	void RenderActionsSection(AActor* SelectedActor);
 	bool RenderTransformSection(bool& bRotationActive);
 	void RenderSelectedComponentDetails();

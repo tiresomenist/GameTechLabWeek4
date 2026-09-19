@@ -506,7 +506,22 @@ void FEditor::SetSelectedActor(AActor* Actor)
 {
 	SelectedActor = Actor;
 	SelectedSceneComponent = nullptr;
-	if (GizmoController != nullptr) GizmoController->SetSelectedObject(nullptr);
+	if (GizmoController != nullptr) GizmoController->SetSelectedObject(GetTransformTarget());
+}
+
+USceneComponent* FEditor::GetTransformTarget() const
+{
+	if (SelectedSceneComponent != nullptr)
+	{
+		return SelectedSceneComponent;
+	}
+
+	if (SelectedActor != nullptr)
+	{
+		return SelectedActor->GetRootComponent();
+	}
+
+	return nullptr;
 }
 
 void FEditor::RemoveSelectedComponent()

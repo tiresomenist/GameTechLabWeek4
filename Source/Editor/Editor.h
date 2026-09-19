@@ -109,6 +109,7 @@ public:
 	int32 GetActiveGizmoAxis() const { return GizmoController ? GizmoController->GetActiveAxis() : -1; }
 	void SetSelectedSceneComponent(USceneComponent* Component);
 	void SetSelectedActor(AActor* Actor);
+	USceneComponent* GetTransformTarget() const;
 
 	void RemoveSelectedComponent();
 	void DeleteSelectedActor();

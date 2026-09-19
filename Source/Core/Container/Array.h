@@ -57,6 +57,11 @@ public:
 		return Top;
 	}
 
+	void Remove(const T& Element)
+	{
+		Array.erase(std::remove(Array.begin(), Array.end(), Element), Array.end());
+	}
+
 	int Num() const
 	{
 		return Array.size();
