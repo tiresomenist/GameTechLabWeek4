@@ -352,42 +352,45 @@ bool UPropertyWindow::RenderTransformSection(bool& bRotationActive)
 	if (!ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) return false;
 
 	bool bRotationChanged = false;
-	const ImGuiTableFlags TableFlags = ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerV;
+	const ImGuiTableFlags TableFlags = ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV;
 	if (ImGui::BeginTable("TransformValues", 4, TableFlags))
 	{
 		ImGui::TableSetupColumn("##Label", ImGuiTableColumnFlags_WidthFixed, 78.0f);
-		ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch);
-		ImGui::TableSetupColumn("Y", ImGuiTableColumnFlags_WidthStretch);
-		ImGui::TableSetupColumn("Z", ImGuiTableColumnFlags_WidthStretch);
+		ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+		ImGui::TableSetupColumn("Y", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+		ImGui::TableSetupColumn("Z", ImGuiTableColumnFlags_WidthStretch, 1.0f);
 		ImGui::TableHeadersRow();
 
 		ImGui::TableNextRow();
 		ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted("Location");
-		ImGui::TableSetColumnIndex(1); ImGui::DragFloat("##translationX", &Translation.X, SnapSize); DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
-		ImGui::TableSetColumnIndex(2); ImGui::DragFloat("##translationY", &Translation.Y, SnapSize); DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
-		ImGui::TableSetColumnIndex(3); ImGui::DragFloat("##translationZ", &Translation.Z, SnapSize); DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
+		ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::DragFloat("##translationX", &Translation.X, SnapSize); DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
+		ImGui::TableSetColumnIndex(2); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::DragFloat("##translationY", &Translation.Y, SnapSize); DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
+		ImGui::TableSetColumnIndex(3); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::DragFloat("##translationZ", &Translation.Z, SnapSize); DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
 
 		ImGui::TableNextRow();
 		ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted("Rotation");
-		ImGui::TableSetColumnIndex(1); bRotationChanged |= DrawRotationField("##rotationR", RotationDegree.Roll, bRotationActive); DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
-		ImGui::TableSetColumnIndex(2); bRotationChanged |= DrawRotationField("##rotationP", RotationDegree.Pitch, bRotationActive); DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
-		ImGui::TableSetColumnIndex(3); bRotationChanged |= DrawRotationField("##rotationY", RotationDegree.Yaw, bRotationActive); DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
+		ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-FLT_MIN); bRotationChanged |= DrawRotationField("##rotationR", RotationDegree.Roll, bRotationActive); DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
+		ImGui::TableSetColumnIndex(2); ImGui::SetNextItemWidth(-FLT_MIN); bRotationChanged |= DrawRotationField("##rotationP", RotationDegree.Pitch, bRotationActive); DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
+		ImGui::TableSetColumnIndex(3); ImGui::SetNextItemWidth(-FLT_MIN); bRotationChanged |= DrawRotationField("##rotationY", RotationDegree.Yaw, bRotationActive); DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
 
 		ImGui::TableNextRow();
 		ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted("Scale");
 		ImGui::TableSetColumnIndex(1);
 		const FVector BeforeX = OScale;
 		float EditedX = OScale.X;
+		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::DragFloat("##scaleX", &EditedX, 0.001f)) { FVector Result; if (ApplyScaleEdit(BeforeX, 0, EditedX, bScaleLock, Result)) OScale = Result; }
 		DrawItemBottomLine(IM_COL32(210, 15, 57, 255), 2.0f);
 		ImGui::TableSetColumnIndex(2);
 		const FVector BeforeY = OScale;
 		float EditedY = OScale.Y;
+		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::DragFloat("##scaleY", &EditedY, 0.001f)) { FVector Result; if (ApplyScaleEdit(BeforeY, 1, EditedY, bScaleLock, Result)) OScale = Result; }
 		DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
 		ImGui::TableSetColumnIndex(3);
 		const FVector BeforeZ = OScale;
 		float EditedZ = OScale.Z;
+		ImGui::SetNextItemWidth(-FLT_MIN);
 		if (ImGui::DragFloat("##scaleZ", &EditedZ, 0.001f)) { FVector Result; if (ApplyScaleEdit(BeforeZ, 2, EditedZ, bScaleLock, Result)) OScale = Result; }
 		DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
 		ImGui::EndTable();
@@ -395,7 +398,7 @@ bool UPropertyWindow::RenderTransformSection(bool& bRotationActive)
 
 	char SnapPreview[32];
 	snprintf(SnapPreview, sizeof(SnapPreview), "%g", SnapSizeList[SelectedSnapIndex]);
-	ImGui::SetNextItemWidth((std::min)(180.0f, ImGui::GetContentRegionAvail().x * 0.55f));
+	ImGui::SetNextItemWidth((std::min)(80.0f, ImGui::GetContentRegionAvail().x * 0.55f));
 	if (ImGui::BeginCombo("Snap Size", SnapPreview))
 	{
 		for (int32 Index = 0; Index < SnapSizeList.Num(); ++Index)
@@ -447,8 +450,10 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 	{
 		auto* MeshComp = static_cast<UStaticMeshComponent*>(InspectedComponent);
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
+		ImGui::SetNextItemWidth(150.0f);
 		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
 		std::string CurrentTexPath = MeshComp->GetMaterialPath().c_str();
+		ImGui::SetNextItemWidth(150.0f);
 		if (ImGui::InputText("Texture Path", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue)) MeshComp->SetMaterial(FString(CurrentTexPath.c_str()));
 		ImGui::SameLine();
 		if (ImGui::Button("Browse..."))
