@@ -245,11 +245,45 @@ namespace
 
 void FEditor::Initialize()
 {
-	EditorCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
-	EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
-	EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+	//EditorCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	//EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
+	//EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+	
+	// TODO: 뷰포트 순서 하드코딩 되어있는 거 열거형으로 리팩토링
+	FViewportClient PerspectiveView;
+	UCameraComponent* PerspectiveCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	PerspectiveCamera->SetIsPerspective(true);
+	PerspectiveView.Initialize(EViewportType::Perspective, PerspectiveCamera);
+	Viewports.Add(PerspectiveView);
+	CurrEditedViewportIndex = 0;
 
-	CameraController.SetCamera(EditorCamera);
+	FViewportClient TopView;
+	UCameraComponent* TopCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	TopCamera->SetIsPerspective(false);
+	TopView.Initialize(EViewportType::Top, TopCamera);
+	Viewports.Add(TopView);
+
+	FViewportClient FrontView;
+	UCameraComponent* FrontCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	FrontCamera->SetIsPerspective(false);
+	FrontView.Initialize(EViewportType::Front, FrontCamera);
+	Viewports.Add(FrontView);
+
+	FViewportClient RightView;
+	UCameraComponent* RightCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	RightCamera->SetIsPerspective(false);
+	RightView.Initialize(EViewportType::Right, RightCamera);
+	Viewports.Add(RightView);
+
+	// 초기 뷰포트 크기 설정
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
+
+	// 기본으로 PerspectiveCamera 설정
+	EditorCamera = PerspectiveCamera;
+	CameraController.SetCamera(PerspectiveCamera);
+	
+	
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
@@ -300,9 +334,34 @@ void FEditor::Tick(float DeltaTime)
 	float Time = Engine.GetTime();
 	const bool bWasDragging = GizmoController->IsDragging();
 
+	const bool bLDown = Input.GetKey(GInputManager::EI_LMOUSE);
+	const bool bRDown = Input.GetKey(GInputManager::EI_RMOUSE);
+
+	// 드래그중이 아니고 처음 눌린 순간인지 판단
+	const bool bLFirstPressed = bLDown && !bPrevLDown;
+	const bool bRFirstPressed = bRDown && !bPrevRDown;
+
+	// 뷰포트 선택
+	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
+	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
+		float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
+		float y = bRFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+		for (uint32 i = 0; i < Viewports.Num(); ++i)
+		{
+			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
+			{
+				EditorCamera = Viewports[i].GetCamera();
+				CameraController.SetCamera(EditorCamera);
+				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
+				break;
+			}
+		}
+	}
+
 	if (Input.ConsumeLeftClick() &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
 	{
-		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo);
+		D3D11_VIEWPORT currViewport = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
+		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo, currViewport);
 		//기즈모가 선택되면 드래그 시작
 		if (SelectedGizmo != -1) {
 			if (Input.GetKey(GInputManager::EI_LMOUSE))
@@ -329,6 +388,7 @@ void FEditor::Tick(float DeltaTime)
 		int32 DX, DY;
 		Input.ConsumeRightDragDelta(DX, DY);
 	}
+
 	bool bRightClickDragging = Input.GetKey(GInputManager::EI_RMOUSE);
 	bool bAllowCameraMouse = !bWantToCaptureMouse;
 	bool bAllowCameraKeyboard = !bWantToCaptureKeyboard || (bAllowCameraMouse && bRightClickDragging);
@@ -342,6 +402,11 @@ void FEditor::Tick(float DeltaTime)
 	{
 		GizmoController->ChangeMod();
 	}
+
+	
+
+	bPrevLDown = bLDown;
+	bPrevRDown = bRDown;
 }
 
 void FEditor::Release()
@@ -596,6 +661,32 @@ UGizmo* FEditor::GetObjectAxisGizmo() const
 UObject* FEditor::SpawnObject(FClassType* Type)
 {
 	return FObjectFactory::ConstructEditorObject(Type);
+}
+
+void FEditor::OnResize(uint32 Width, uint32 Height)
+{	// 4개의 뷰포트들의 사이즈를 설정
+	// TODO: 고정크기가 아닌 가변 크기로 로직 바꾸어야 함.
+	if (Width == 0 || Height == 0) return;
+
+	if (Viewports.IsEmpty()) return;
+
+	const float HalfWidth = Width * 0.5f;
+	const float HalfHeight = Height * 0.5f;
+
+	// 언리얼엔진 기본 위치로 설정
+	// Perspective - 우측 상단
+	Viewports[0].SetRect(HalfWidth, 0.0f, HalfWidth, HalfHeight);
+	// top - 좌측 상단
+	Viewports[1].SetRect(0.0f, 0.0f, HalfWidth, HalfHeight);
+	// front - 좌측 하단
+	Viewports[2].SetRect(0.0f, HalfHeight, HalfWidth, HalfHeight);
+	// right - 우측 하단
+	Viewports[3].SetRect(HalfWidth, HalfHeight, HalfWidth, HalfHeight);
+}
+
+const TArray<FViewportClient>& FEditor::GetViewports()
+{
+	return Viewports;
 }
 
 void FEditor::RegisterGrid(FClassType* Type)

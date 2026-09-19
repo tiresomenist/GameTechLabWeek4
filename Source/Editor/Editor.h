@@ -20,6 +20,8 @@
 #include "Engine/Renderer/Grid.h"
 #include "Core/Name/Name.h"
 
+#include "Engine/Renderer/ViewportClient.h"
+
 
 class USceneComponent;
 class UCameraComponent;
@@ -50,9 +52,17 @@ private:
 	TArray<UGrid*> Grids;
 	UGizmo* ObjectAxisGizmo = nullptr;
 
+	// Viewport 배열
+	TArray<FViewportClient> Viewports;
+	uint32 CurrEditedViewportIndex = 0;
+
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
 	bool bCanSaveEditorSettings = false;
+
+	// 이전 프레임 마우스 눌림상태 저장 - 드래그 중 뷰포트 변경 방지
+	bool bPrevLDown = false;
+	bool bPrevRDown = false;
 
 	void InitializeGizmos();
 	void InitializeWindows();
@@ -150,6 +160,12 @@ public:
 	UGizmo* GetObjectAxisGizmo()const;
 
 	UObject* SpawnObject(FClassType* Type);
+
+	// 뷰포트 사이즈 설정용 함수
+	void OnResize(uint32 Width, uint32 Height);
+
+	const TArray<FViewportClient>& GetViewports();
+	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
 
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);

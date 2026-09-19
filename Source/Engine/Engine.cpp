@@ -153,6 +153,10 @@ void GEngine::Destroy()
 void GEngine::OnResize(uint32 Width, uint32 Height)
 {
     Renderer.OnResize(Width, Height);
+    if (Editor)
+    {
+        Editor->OnResize(Width, Height);
+    }
 }
 
 const D3D11_VIEWPORT& GEngine::GetViewport() const
