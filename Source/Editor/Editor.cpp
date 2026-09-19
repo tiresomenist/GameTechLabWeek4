@@ -577,7 +577,7 @@ void FEditor::RegisterGizmo(FClassType* Type)
 void FEditor::RegisterWindow(FClassType* Type, const FString& Name)
 {
 	UObject* Object = FObjectFactory::ConstructEditorObject(Type);
-	UEditorWindow* Window = dynamic_cast<UEditorWindow*>(Object);
+	UEditorWindow* Window = static_cast<UEditorWindow*>(Object);
 
 	Window->InitializeWindow(this, Name);
 	Windows.Add(Window);

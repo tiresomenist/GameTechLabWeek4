@@ -7,6 +7,7 @@
 
 class FEditor;
 
+// UObject::Initialize()가 필요한 경우 구현하여 사용
 class UEditorWindow : public UObject
 {
     UCLASS(UEditorWindow, "EditorWindow", UObject)
