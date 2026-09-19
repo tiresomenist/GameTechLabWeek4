@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <limits>
 #include <stdexcept>
-
+#include <cstddef>
 
 class FArchive
 {
@@ -61,6 +61,12 @@ public:
     // float 3개를 처리하며, 읽기에서 잘못된 값은 기존 씬의 기본값 규칙을 적용한다.
     virtual void Float3OrDefault(const char* Name, TArray<float>& Values, float Default) = 0;
 
+    // 읽을 배열을 할당하기 전에 원소 개수와 최소 데이터 크기를 검사한다.
+    virtual void CheckArraySize(uint32 Count, size_t MinimumElementBytes) const
+    {
+        // 바이트 기반 검사가 필요한 Archive에서 재정의한다.
+    }
+
 protected:
     virtual bool SerializeValue(const char* Name, int32& Value) = 0;
     virtual bool SerializeValue(const char* Name, uint32& Value) = 0;
@@ -84,8 +90,14 @@ protected:
         if (Count > static_cast<uint32>((std::numeric_limits<int32>::max)()))
             throw std::length_error("Archive array exceeds TArray capacity.");
 
-        if (IsLoading()) { Values.SetNum(Count); }
-
+        if (IsLoading())
+        {
+            // 기본 숫자는 자체 크기, 문자열과 중첩 배열은 길이 필드가 최소 크기다.
+            constexpr size_t MinimumElementBytes =
+                std::is_arithmetic_v<T> ? sizeof(T) : sizeof(uint32);
+            CheckArraySize(Count, MinimumElementBytes);
+            Values.SetNum(Count);
+        }
         // 원소에 진입한 뒤 이름 없이 현재 원소 자체를 직렬화한다.
         for (uint32 Index = 0; Index < Count; ++Index)
         {

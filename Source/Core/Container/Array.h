@@ -97,6 +97,12 @@ public:
 		if (Array.empty()) throw std::runtime_error("Array empty");
 		return Array.back();
 	}
+	const T& Last() const
+	{
+		if (Array.empty())
+			throw std::runtime_error("Array empty");
+		return Array.back();
+	}
 
 	void Sort(std::function<bool(const T&, const T&)> Compare = std::less<T>())
 	{
@@ -129,4 +135,5 @@ public:
 	{
 		return Array.data();
 	}
+
 };
