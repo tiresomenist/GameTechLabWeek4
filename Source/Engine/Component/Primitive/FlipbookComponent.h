@@ -16,7 +16,6 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual FPrimitiveRenderData CreateRenderData(bool bSelected = false) const override;
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
 
     // 프레임은 좌측 상단부터 행 순서로 재생하며 0이면 전체 칸을 사용함
     void SetAtlasGrid(int32 InColumns, int32 InRows, int32 InFrameCount = 0);

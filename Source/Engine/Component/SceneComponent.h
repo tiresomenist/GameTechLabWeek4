@@ -47,7 +47,6 @@ public:
     }
 
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
 
 protected:
     // 로컬 트랜스폼

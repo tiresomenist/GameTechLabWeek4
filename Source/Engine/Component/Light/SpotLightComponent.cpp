@@ -2,7 +2,7 @@
 #include "Engine/Component/Light/SpotLightComponent.h"
 
 #include "Core/Container/Array.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Component/CameraComponent.h"
@@ -65,37 +65,23 @@ void USpotLightComponent::Serialize(FArchive& Archive)
 {
     Super::Serialize(Archive);
 
-    const TArray<float> Color{LightColor.X, LightColor.Y, LightColor.Z};
+    TArray<float> Color{ LightColor.X, LightColor.Y, LightColor.Z };
+    float RadiusValue = ConeRadius;
+    float LengthValue = ConeLength;
 
-    Archive.SetArray<float>("LightColor", Color);
-    Archive.SetFloat("ConeRadius", ConeRadius);
-    Archive.SetFloat("ConeLength", ConeLength);
-}
+    const bool bHasColor = Archive.OptionalField("LightColor", Color);
+    const bool bHasRadius = Archive.OptionalField("ConeRadius", RadiusValue);
+    const bool bHasLength = Archive.OptionalField("ConeLength", LengthValue);
 
-void USpotLightComponent::Deserialize(FArchive& Archive)
-{
-    Super::Deserialize(Archive);
-
-    if (Archive.Contains("LightColor"))
+    if (Archive.IsLoading())
     {
-        const TArray<float> Color = Archive.GetArray<float>("LightColor");
-
-        if (Color.Num() == 3)
-        {
+        if (bHasColor && Color.Num() == 3)
             SetLightColor(FVector(Color[0], Color[1], Color[2]));
-        }
-    }
-
-    if (Archive.Contains("ConeRadius"))
-    {
-        SetConeRadius(Archive.GetFloat("ConeRadius"));
-    }
-
-    if (Archive.Contains("ConeLength"))
-    {
-        SetConeLength(Archive.GetFloat("ConeLength"));
+        if (bHasRadius) SetConeRadius(RadiusValue);
+        if (bHasLength) SetConeLength(LengthValue);
     }
 }
+
 
 const FMatrix& USpotLightComponent::GetIconWorldMatrix(const UCameraComponent* Camera) const
 {

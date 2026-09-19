@@ -2,7 +2,7 @@
 #include "SceneComponent.h"
 #include "Engine/Object/Object.h"
 #include "Engine/Object/ObjectFactory.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Actor/Actor.h"
 #include "Core/Math/Quaternion.h"
 namespace
@@ -175,7 +175,7 @@ void USceneComponent::Serialize(FArchive& Archive)
         RelativeLocation.Y,
         RelativeLocation.Z,
     };
-    Archive.SetArray<float>("Location", Location);
+    Archive.Float3OrDefault("Location", Location, 0.0f);
 
     // Rotation
     TArray<float> Rotation
@@ -185,7 +185,7 @@ void USceneComponent::Serialize(FArchive& Archive)
         RelativeRotator.Yaw
     };
 
-    Archive.SetArray<float>("Rotation", Rotation);
+    Archive.Float3OrDefault("Rotation", Rotation, 0.0f);
 
     // Scale
     TArray<float> Scale
@@ -194,20 +194,17 @@ void USceneComponent::Serialize(FArchive& Archive)
         RelativeScale3D.Y,
         RelativeScale3D.Z,
     };
-    Archive.SetArray<float>("Scale", Scale);
-}
+    Archive.Float3OrDefault("Scale", Scale, 1.0f);
 
-void USceneComponent::Deserialize(FArchive& Archive)
-{
-    Super::Deserialize(Archive);
-    const auto Location = Archive.GetVector3OrDefault("Location", 0.0f);
-    const auto Rotation = Archive.GetVector3OrDefault("Rotation", 0.0f);
-    const auto Scale = Archive.GetVector3OrDefault("Scale", 1.0f);
-    RelativeLocation = FVector(Location[0], Location[1], Location[2]);
-    RelativeRotator = FRotator(Rotation[1], Rotation[2], Rotation[0]);
-    RelativeRotation = RelativeRotator.ToQuaternion();
-    RelativeScale3D = FVector(Scale[0], Scale[1], Scale[2]);
-    UpdateWorldTransform();
+    // 만약 로딩모드면 복원한값으로 쿼터니언, 월드행렬 재계산
+    if (Archive.IsLoading())
+    {
+        RelativeLocation = FVector(Location[0], Location[1], Location[2]);
+        RelativeRotator = FRotator(Rotation[1], Rotation[2], Rotation[0]);
+        RelativeRotation = RelativeRotator.ToQuaternion();
+        RelativeScale3D = FVector(Scale[0], Scale[1], Scale[2]);
+        UpdateWorldTransform();
+    }
 }
 
 void USceneComponent::SetRelativeRotation(const FRotator& Rotation)

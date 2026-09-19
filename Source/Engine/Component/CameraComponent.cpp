@@ -2,7 +2,7 @@
 #include "CameraComponent.h"
 #include "Engine/Object/Object.h"
 #include <stdexcept>
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 
 
 namespace
@@ -152,28 +152,36 @@ void UCameraComponent::Serialize(FArchive& Archive)
 {
 	Super::Serialize(Archive);
 
-	Archive.SetFloat("FOV", FOV);
-	Archive.SetFloat("AspectRatio", AspectRatio);
-	Archive.SetFloat("Near", NearZ);
-	Archive.SetFloat("Far", FarZ);
-	Archive.SetFloat("MoveSpeed", MoveSpeed);
-	Archive.SetFloat("OrthogonalHeight", OrthoHeight);
-	Archive.SetBool("Perspective", bIsPerspective);
-}
+	float FOVValue = FOV;
+	float AspectValue = AspectRatio;
+	float NearValue = NearZ;
+	float FarValue = FarZ;
+	float SpeedValue = MoveSpeed;
+	float HeightValue = OrthoHeight;
+	bool bPerspectiveValue = bIsPerspective;
 
-void UCameraComponent::Deserialize(FArchive& Archive)
-{
-    const float F = Archive.GetFloat("FOV");
-    const float A = Archive.GetFloat("AspectRatio");
-    const float N = Archive.GetFloat("Near");
-    const float Z = Archive.GetFloat("Far");
-    const float S = Archive.GetFloat("MoveSpeed");
-    const float H = Archive.GetFloat("OrthogonalHeight");
-    const bool P = Archive.GetBool("Perspective");
-    if (!ValidCamera(F, A, N, Z, S, H)) throw std::runtime_error("Invalid camera parameters");
-    Super::Deserialize(Archive);
-    FOV = F; AspectRatio = A; NearZ = N; FarZ = Z;
-    MoveSpeed = S; OrthoHeight = H; bIsPerspective = P;
+	Archive.Field("FOV", FOVValue);
+	Archive.Field("AspectRatio", AspectValue);
+	Archive.Field("Near", NearValue);
+	Archive.Field("Far", FarValue);
+	Archive.Field("MoveSpeed", SpeedValue);
+	Archive.Field("OrthogonalHeight", HeightValue);
+	Archive.Field("Perspective", bPerspectiveValue);
+
+	// 카메라 값 사이의 관계까지 검사한 뒤 한 번에 반영한다.
+	if (Archive.IsLoading())
+	{
+		if (!ValidCamera(FOVValue, AspectValue, NearValue, FarValue, SpeedValue, HeightValue))
+			throw std::runtime_error("Invalid camera parameters.");
+
+		FOV = FOVValue;
+		AspectRatio = AspectValue;
+		NearZ = NearValue;
+		FarZ = FarValue;
+		MoveSpeed = SpeedValue;
+		OrthoHeight = HeightValue;
+		bIsPerspective = bPerspectiveValue;
+	}
 }
 
 float UCameraComponent::GetOrthoHeight() const
