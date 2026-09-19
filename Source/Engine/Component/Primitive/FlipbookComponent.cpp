@@ -2,7 +2,7 @@
 #include "FlipbookComponent.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Component/CameraComponent.h"
 #include "Engine/Resource/Meshnames.h"
 
@@ -128,7 +128,7 @@ FTextureUVTransform UFlipbookComponent::GetUVTransform() const
     };
 }
 
-void UFlipbookComponent::CreateRenderData(bool bSelected, TArray<FPrimitiveRenderData>& ComponentRenderData)
+void UFlipbookComponent::CreateRenderData (TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected)
 {
 
     if (!Texture || !Texture->GetSRV())
@@ -157,25 +157,29 @@ void UFlipbookComponent::CreateRenderData(bool bSelected, TArray<FPrimitiveRende
 void UFlipbookComponent::Serialize(FArchive& Archive)
 {
     Super::Serialize(Archive);
-    Archive.SetInt32("SubUVColumns", Columns);
-    Archive.SetInt32("SubUVRows", Rows);
-    Archive.SetInt32("SubUVFrameCount", FrameCount);
-    Archive.SetFloat("SubUVFPS", FramesPerSecond);
-    Archive.SetFloat("SubUVPlayRate", PlayRate);
-    Archive.SetBool("SubUVLoop", bLoop);
-}
+    const bool bLoading = Archive.IsLoading();
 
-void UFlipbookComponent::Deserialize(FArchive& Archive)
-{
-    Super::Deserialize(Archive);
-    // 기존 씬은 기본 설정을 사용하고 저장된 재생 설정이 있으면 복원함
-    SetAtlasGrid(
-        Archive.Contains("SubUVColumns") ? Archive.GetInt32("SubUVColumns") : 6,
-        Archive.Contains("SubUVRows") ? Archive.GetInt32("SubUVRows") : 6,
-        Archive.Contains("SubUVFrameCount") ? Archive.GetInt32("SubUVFrameCount") : 0);
-    SetFramesPerSecond(Archive.Contains("SubUVFPS") ? Archive.GetFloat("SubUVFPS") : 24.0f);
-    SetPlayRate(Archive.Contains("SubUVPlayRate") ? Archive.GetFloat("SubUVPlayRate") : 1.0f);
-    bLoop = Archive.Contains("SubUVLoop") ? Archive.GetBool("SubUVLoop") : true;
-    // 재생 진행도는 저장하지 않으며 씬 로드 시 처음부터 재생함
-    Restart();
+    // 읽기에서는 구형 씬의 기본값을, 쓰기에서는 현재 설정을 사용한다.
+    int32 ColumnsValue = bLoading ? 6 : Columns;
+    int32 RowsValue = bLoading ? 6 : Rows;
+    int32 FrameCountValue = bLoading ? 0 : FrameCount;
+    float FPSValue = bLoading ? 24.0f : FramesPerSecond;
+    float PlayRateValue = bLoading ? 1.0f : PlayRate;
+    bool bLoopValue = bLoading ? true : bLoop;
+
+    Archive.OptionalField("SubUVColumns", ColumnsValue);
+    Archive.OptionalField("SubUVRows", RowsValue);
+    Archive.OptionalField("SubUVFrameCount", FrameCountValue);
+    Archive.OptionalField("SubUVFPS", FPSValue);
+    Archive.OptionalField("SubUVPlayRate", PlayRateValue);
+    Archive.OptionalField("SubUVLoop", bLoopValue);
+
+    if (bLoading)
+    {
+        SetAtlasGrid(ColumnsValue, RowsValue, FrameCountValue);
+        SetFramesPerSecond(FPSValue);
+        SetPlayRate(PlayRateValue);
+        bLoop = bLoopValue;
+        Restart();
+    }
 }

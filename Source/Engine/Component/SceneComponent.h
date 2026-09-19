@@ -37,7 +37,7 @@ public:
     bool AttachTo(USceneComponent* Parent);
     void DetachFromParent();
     USceneComponent* GetAttachParent() const { return AttachParent; }
-    const std::vector<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
+    const TArray<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
 
     const FMatrix& GetWorldMatrix() const;
     FVector GetWorldLocation() const
@@ -47,7 +47,10 @@ public:
     }
 
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
+
+    bool GetVisibility() const { return bVisible; }
+    void SetVisibility(bool bIsVisible) { bVisible = bIsVisible; }
+    bool IsVisible() const;
 
 protected:
     // 로컬 트랜스폼
@@ -58,7 +61,7 @@ protected:
 
     // 계층 구조
     USceneComponent* AttachParent = nullptr;
-    std::vector<USceneComponent*> AttachChildren;
+    TArray<USceneComponent*> AttachChildren;
 
     // 최종 월드 행렬 캐싱
     mutable FMatrix CachedWorldMatrix;
@@ -70,5 +73,7 @@ private:
 
     //편집, 저장용 각도
     FRotator RelativeRotator;
+
+    bool bVisible = true;
 };
 

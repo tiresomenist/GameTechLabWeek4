@@ -3,7 +3,7 @@
 #include "Core/Core.h"
 #include "Core/Container/String.h"
 #include "Core/Name/Name.h"
-
+#include "Core/Serialization/Archive.h"
 #include "Engine/Object/ClassType.h"
 #include "Engine/Object/ClassRegistry.h"
 #include "Engine/Component/ActorComponent.h"
@@ -123,4 +123,42 @@ inline uint32 ParseSceneUUID(FStringView Text, bool AllowExhaustedCounter = fals
         std::to_string(Value) != Text)
         throw std::runtime_error("Invalid UUID");
     return Value;
+}
+
+// 씬의 기본 형식을 검사하고 저장된 다음 UUID를 반환한다.
+inline uint32 ValidateSceneArchive(FArchive& Archive)
+{
+    // 검증은 이미 저장된 데이터를 읽는 Archive로 수행한다.
+    if (!Archive.IsLoading())
+        throw std::runtime_error("Scene validation requires a loading archive.");
+
+    int32 Version = 0;
+    uint32 NextUUID = 0;
+    Archive.Field("Version", Version);
+    Archive.Field("NextUUID", NextUUID);
+    if (Version != 1)
+        throw std::runtime_error("Unsupported scene version.");
+
+    // 모든 컴포넌트 키가 유효하며 다음 발급 UUID보다 작은지 검사한다.
+    uint32 Count = 0;
+    if (!Archive.BeginMap("Primitives", Count))
+        throw std::runtime_error("Missing scene primitives.");
+
+    for (uint32 Index = 0; Index < Count; ++Index)
+    {
+        FString Key;
+        Archive.BeginMapEntry(Index, Key);
+        if (ParseSceneUUID(Key) >= NextUUID)
+            throw std::runtime_error("Component UUID must be less than NextUUID.");
+
+        // 실제 복원과 같은 타입 해석 규칙으로 지원 여부를 확인한다.
+        FString TypeText;
+        Archive.Field("Type", TypeText);
+        if (!ResolveSceneType(FName(TypeText)).IsValid())
+            throw std::runtime_error("Unsupported scene type: " + TypeText);
+
+        Archive.EndMapEntry();
+    }
+    Archive.EndMap();
+    return NextUUID;
 }

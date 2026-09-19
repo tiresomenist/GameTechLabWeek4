@@ -7,6 +7,7 @@
 
 class FEditor;
 
+// UObject::Initialize()가 필요한 경우 구현하여 사용
 class UEditorWindow : public UObject
 {
     UCLASS(UEditorWindow, "EditorWindow", UObject)
@@ -14,15 +15,16 @@ class UEditorWindow : public UObject
 protected:
 
 	FEditor* Editor = nullptr;
+	FString Name;
+	
+	bool bOpen = true;
 
 public:
-
-	virtual void Initialize(FEditor* InEditor);
-
+	virtual void InitializeWindow(FEditor* InEditor, const FString& InName);
 	virtual void Render(float DeltaTime) {}
-
 	void DrawItemBottomLine(uint32 Color, float Thickness);
-
-	virtual ~UEditorWindow() override = default;
+	const FString& GetWindowName() const { return Name; }
+	void OpenWindow() { bOpen = true; }
+	bool* GetOpenPtr() { return &bOpen; }
 };
 

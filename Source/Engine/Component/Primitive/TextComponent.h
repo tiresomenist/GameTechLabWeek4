@@ -23,7 +23,6 @@ public:
 	bool BuildTextItem(const UCameraComponent* Camera, FWorldTextItem& OutItem) const;
 
 	virtual void Serialize(FArchive& Archive) override;
-	virtual void Deserialize(FArchive& Archive) override;
 
 private:
 	static constexpr float SelectionPadding = 0.05f;

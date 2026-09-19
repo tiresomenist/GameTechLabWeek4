@@ -34,18 +34,14 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 	Scene->ForEachPrimitive(
 		[&RenderList, Editor, Camera](UPrimitiveComponent* Primitive)
 		{
-			if (Primitive->IsA(UStaticMeshComponent::GetClass()))
+			if (!Primitive->IsVisible())
 			{
-				auto* StaticMesh = static_cast<UStaticMeshComponent*>(Primitive);
-				if (!StaticMesh->IsVisible())
-				{
-					return;
-				}
+				return;
 			}
 
 			const bool bSelected = IsComponentSelected(Editor, Primitive);
 			TArray<FPrimitiveRenderData> RenderDataList;
-			Primitive->CreateRenderData(bSelected, RenderDataList);
+			Primitive->CreateRenderData( RenderDataList, bSelected);
 
 			// 현재 카메라 기준의 렌더링용 행렬 연결함
 			for (FPrimitiveRenderData& Data : RenderDataList)
@@ -64,6 +60,11 @@ TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* 
 				if (!Component->IsA(USpotLightComponent::GetClass())){continue;}
 
 				const auto* SpotLight = static_cast<const USpotLightComponent*>(Component);
+
+				if (!SpotLight->IsVisible())
+				{
+					continue;
+				}
 
 				const bool bSelected = IsComponentSelected(Editor, SpotLight);
 
@@ -114,6 +115,11 @@ TArray<FWorldTextItem> RenderUtil::GetTextRenderList(UScene* Scene, const UCamer
 		Scene->ForEachWidget(
 			[&TextList, Camera](UWidgetComponent* Widget)
 			{
+				if (!Widget->IsVisible())
+				{
+					return;
+				}
+
 				FWorldTextItem Item;
 				if (Widget->BuildTextItem(Camera, Item))
 				{
@@ -130,6 +136,12 @@ TArray<FWorldTextItem> RenderUtil::GetTextRenderList(UScene* Scene, const UCamer
 			{
 				FWorldTextItem Item;
 				auto* Text = static_cast<UTextComponent*>(Primitive);
+
+				if (!Text->IsVisible())
+				{
+					return;
+				}
+
 				if (Text->BuildTextItem(Camera, Item))
 				{
 					TextList.Add(Item);
@@ -162,6 +174,11 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UC
 	// 각 프리미티브가 생성한 바운딩 박스 요청을 즉시 제출함
 	Scene->ForEachPrimitive([&](UPrimitiveComponent* Primitive)
 		{
+			if (!Primitive->IsVisible())
+			{
+				return;
+			}
+
 			Context.bSelected =	Editor->GetSelectedSceneComponent() == Primitive;
 			Primitive->SubmitLineDrawRequests(Context, Submit);
 		}
@@ -178,8 +195,10 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UC
 			const auto* SpotLight =
 				static_cast<const USpotLightComponent*>(Selected);
 
-			// 생성한 원뿔 요청을 배처의 통합 배열에 즉시 병합함
-			Submit(SpotLight->BuildConeLineDrawRequest());
+			if (SpotLight->IsVisible())
+			{
+				Submit(SpotLight->BuildConeLineDrawRequest());
+			}
 		}
 	}
 

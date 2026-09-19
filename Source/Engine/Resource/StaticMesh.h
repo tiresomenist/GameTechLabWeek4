@@ -1,3 +1,5 @@
+#pragma once
+
 #include <d3d11.h>
 #include "MeshResource.h"
 #include "StaticMeshData.h"
@@ -11,7 +13,7 @@ class UStaticMesh : public UObject
 {
 	UCLASS(UStaticMesh, "StaticMesh", UObject);
 public:
-	UStaticMesh(const FObjectCreateInfo& Info) : Super(Info) {}
+	//UStaticMesh(const FObjectCreateInfo& Info) : Super(Info) {}
 	void BuildFromMeshData(const FStaticMeshData& MeshData);
 	virtual ~UStaticMesh() ;
 
@@ -20,7 +22,6 @@ public:
 	// meshkey 저장 및 슬롯 별 커스텀 된 머테리얼도 저장하기
 	// FMaterial 구조체 고정 및 StaticMesh 정의 완료 후 마지막에 작업
 	virtual void Serialize(FArchive& Archive) override {};
-	virtual void Deserialize(FArchive& Archive) override {};
 
 
 	FMeshResource* GetMeshResource() const { return MeshResource; }

@@ -16,7 +16,6 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
 
     // 프레임은 좌측 상단부터 행 순서로 재생하며 0이면 전체 칸을 사용함
     void SetAtlasGrid(int32 InColumns, int32 InRows, int32 InFrameCount = 0);
@@ -27,6 +26,14 @@ public:
     void SetCurrentFrame(int32 Value);
     void Restart();
     virtual const FMatrix& GetRenderWorldMatrix(const UCameraComponent* Camera) const override;
+    virtual bool GetLocalBounds(FVector& OutMin, FVector& OutMax) const override
+    {
+        if (!QuadMesh || !QuadMesh->HasBounds()) return false;
+        OutMin = QuadMesh->GetBoundsMin();
+        OutMax = QuadMesh->GetBoundsMax();
+        return true;
+    }
+    virtual bool IsAABBOnlyPickable() const override { return true; }
 
     int32 GetColumns() const { return Columns; }
     int32 GetRows() const { return Rows; }

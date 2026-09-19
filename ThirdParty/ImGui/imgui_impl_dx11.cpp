@@ -525,8 +525,9 @@ bool    ImGui_ImplDX11_CreateDeviceObjects()
             \
             float4 main(PS_INPUT input) : SV_Target\
             {\
-            float4 out_col = input.col * texture0.Sample(sampler0, input.uv); \
-            return out_col; \
+            float4 textureColor = texture0.Sample(sampler0, input.uv);\
+            float3 linearVertexColor = pow(input.col.rgb, 2.2f);\
+			return float4(linearVertexColor * textureColor.rgb, input.col.a * textureColor.a);\
             }";
 
         ID3DBlob* pixelShaderBlob;

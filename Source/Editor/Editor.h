@@ -11,6 +11,7 @@
 #include "Editor/Controller/GizmoController.h"
 
 //TESTCODE//
+#include "EditorMenuLayout.h"
 #include "Engine/Component/CameraComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/Console.h"
@@ -39,11 +40,12 @@ private:
 	FGizmoPicker* GizmoPicker = nullptr;
 	FGizmoController* GizmoController = nullptr;
 
-	USceneComponent* SelectedSceneComponent = nullptr;
 	AActor* SelectedActor = nullptr;
+	UActorComponent* SelectedComponent = nullptr;
 	FViewSettings ViewSettings;
 	FGrid Grid;
 	TArray<UGizmo*> Gizmos;
+	FEditorMenuLayout MenuLayout;
 	TArray<UEditorWindow*> Windows;
 	TArray<UGrid*> Grids;
 	UGizmo* ObjectAxisGizmo = nullptr;
@@ -80,8 +82,13 @@ public:
 	UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }
 	const FViewSettings& GetViewSettings()const { return ViewSettings; }
-	USceneComponent* GetSelectedSceneComponent() const { return SelectedSceneComponent; }
+
+	void SetSelectedActor(AActor* Actor);
 	AActor* GetSelectedActor() const { return SelectedActor; }
+	void SetSelectedComponent(UActorComponent* Component);
+	UActorComponent* GetSelectedComponent() const { return SelectedComponent; }
+	USceneComponent* GetSelectedSceneComponent() const { return dynamic_cast<USceneComponent*>(SelectedComponent); }
+	USceneComponent* GetTransformTarget() const;
 	
 	//내부적으로 비트마스킹으로 처리해줌.
 	bool IsShowingUUIDLabels() const { return ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::UUID); }
@@ -105,14 +112,12 @@ public:
 		}
 	}
 	int32 GetActiveGizmoAxis() const { return GizmoController ? GizmoController->GetActiveAxis() : -1; }
-	void SetSelectedSceneComponent(USceneComponent* Component);
-	void SetSelectedActor(AActor* Actor);
 
 	void RemoveSelectedComponent();
 	void DeleteSelectedActor();
 
 	void RegisterGizmo(FClassType* Type);
-	void RegisterWindow(FClassType* Type);
+	void RegisterWindow(FClassType* Type, const FString& Name);
 	void RegisterGrid(FClassType* Type);
 
 	void LoadEditorSetting();
@@ -120,6 +125,7 @@ public:
 	void SaveEditorSetting();
 
 	const TArray<UGizmo*>& GetGizmos() const { return Gizmos; }
+	FEditorMenuLayout& GetMenuLayout() { return MenuLayout; }
 	const TArray<UEditorWindow*>& GetWindows() const { return Windows; }
 	const TArray<UGrid*>& GetGrids() const { return Grids; }
 

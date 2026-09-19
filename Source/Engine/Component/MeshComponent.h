@@ -9,7 +9,8 @@ class UMeshComponent : public UPrimitiveComponent
 public:
     //virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
+
+    virtual FMeshResource* GetMeshResource() const override { return nullptr; }
 
     // override material 설정 - 여기서 수정해도 실제 staticmesh는 바뀌지 않음
     void SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot);

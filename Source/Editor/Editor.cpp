@@ -7,7 +7,7 @@
 
 #include "Editor/Window/ConsoleWindow.h"
 #include "Editor/Window/PropertyWindow.h"
-#include "Editor/Window/SceneWindow.h"
+#include "Editor/Window/PlaceActorWindow.h"
 #include "Editor/Window/OutlinerWindow.h"
 
 #include "Editor/Gizmo/ObjectAxisGizmo.h"
@@ -31,7 +31,6 @@
 
 #include "Engine/Scene/Scene.h"
 
-#include "ImGui/imgui.h"
 #include "Core/Util/File.h"
 
 #include <charconv>
@@ -41,6 +40,9 @@
 #include <format>
 #include <stdexcept>
 #include <system_error>
+
+#include "Window/DebugWindow.h"
+#include "Window/ViewportToolbarWindow.h"
 
 namespace
 {
@@ -252,6 +254,8 @@ void FEditor::Initialize()
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
 
+	MenuLayout.Initialize(this);
+
 	InitializeGizmos();
 	GizmoController = new FGizmoController(this);
 	InitializeWindows();
@@ -270,10 +274,12 @@ void FEditor::InitializeGizmos()
 
 void FEditor::InitializeWindows()
 {
-	RegisterWindow(UConsoleWindow::GetClass());
-	RegisterWindow(UPropertyWindow::GetClass());
-	RegisterWindow(USceneWindow::GetClass());
-	RegisterWindow(UOutlinerWindow::GetClass());
+	RegisterWindow(UConsoleWindow::GetClass(), "Console");
+	RegisterWindow(UDebugWindow::GetClass(), "Debug");
+	RegisterWindow(UPropertyWindow::GetClass(), "Properties");
+	RegisterWindow(UPlaceActorWindow::GetClass(), "Place Actors");
+	RegisterWindow(UOutlinerWindow::GetClass(), "Outliner");
+	RegisterWindow(UViewportToolbarWindow::GetClass(), "Viewport Toolbar");
 }
 
 void FEditor::InitializeGrids()
@@ -307,7 +313,7 @@ void FEditor::Tick(float DeltaTime)
 		{
 			USceneComponent* Selected = ObjectPicker->Pick();
 
-			SetSelectedSceneComponent(Selected);
+			SetSelectedComponent(Selected);
 			if (Selected != nullptr) {
 				UE_LOG("[{}] : [{}번째 오브젝트 선택]", Time, Selected->GetUUID());
 			}
@@ -363,13 +369,12 @@ void FEditor::Release()
 	delete GizmoPicker;
 	GizmoPicker = nullptr;
 
-	SelectedSceneComponent = nullptr;
+	SelectedActor = nullptr;
+	SelectedComponent = nullptr;
 
 	ReleaseGizmos();
 	ReleaseWindows();
 	ReleaseGrids();
-
-	
 }
 
 void FEditor::ReleaseGizmos()
@@ -423,6 +428,8 @@ void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 		}
 
 		Actor->CreateComponent(UWidgetComponent::GetClass());
+
+		SetSelectedActor(Actor);
 	}
 }
 
@@ -444,6 +451,8 @@ void FEditor::SpawnComponent(FClassType* ComponentClass, int Count)
 		{
 			Actor->CreateComponent(UWidgetComponent::GetClass());
 		}
+
+		SetSelectedComponent(Component);
 	}
 }
 
@@ -470,7 +479,7 @@ void FEditor::LoadScene(FStringView SceneName)
 
 void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
 {
-	SetSelectedSceneComponent(nullptr);
+	SetSelectedComponent(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
 
@@ -489,29 +498,55 @@ UScene* FEditor::GetCurrentScene()
 	return SceneManager->GetScene();
 }
 
-void FEditor::SetSelectedSceneComponent(USceneComponent* Component)
-{
-	SelectedSceneComponent = Component;
-	SelectedActor = Component ? Component->GetOwner() : nullptr;
-	if (GizmoController != nullptr)GizmoController->SetSelectedObject(Component);
-}
-
 void FEditor::SetSelectedActor(AActor* Actor)
 {
 	SelectedActor = Actor;
-	SelectedSceneComponent = nullptr;
-	if (GizmoController != nullptr) GizmoController->SetSelectedObject(nullptr);
+	SelectedComponent = nullptr;
+	if (GizmoController != nullptr)
+	{
+		GizmoController->SetSelectedObject(GetTransformTarget());
+	}
+}
+
+void FEditor::SetSelectedComponent(UActorComponent* Component)
+{
+	SelectedComponent = Component;
+	SelectedActor = Component ? Component->GetOwner() : nullptr;
+	if (GizmoController != nullptr)
+	{
+		GizmoController->SetSelectedObject(GetTransformTarget());
+	}
+}
+
+USceneComponent* FEditor::GetTransformTarget() const
+{
+	if (SelectedComponent != nullptr)
+	{
+		if (SelectedComponent->IsA(USceneComponent::GetClass()))
+		{
+			return static_cast<USceneComponent*>(SelectedComponent);
+		}
+
+		return nullptr;
+	}
+
+	if (SelectedActor != nullptr)
+	{
+		return SelectedActor->GetRootComponent();
+	}
+
+	return nullptr;
 }
 
 void FEditor::RemoveSelectedComponent()
 {
-	if (SelectedActor == nullptr || SelectedSceneComponent == nullptr)
+	if (SelectedActor == nullptr || SelectedComponent == nullptr)
 	{
 		return;
 	}
 
 	AActor* Actor = SelectedActor;
-	if (Actor->RemoveComponent(SelectedSceneComponent))
+	if (Actor->RemoveComponent(SelectedComponent))
 	{
 		SetSelectedActor(Actor);
 	}
@@ -539,12 +574,12 @@ void FEditor::RegisterGizmo(FClassType* Type)
 	Gizmos.Add(Gizmo);
 }
 
-void FEditor::RegisterWindow(FClassType* Type)
+void FEditor::RegisterWindow(FClassType* Type, const FString& Name)
 {
 	UObject* Object = FObjectFactory::ConstructEditorObject(Type);
 	UEditorWindow* Window = static_cast<UEditorWindow*>(Object);
 
-	Window->Initialize(this);
+	Window->InitializeWindow(this, Name);
 	Windows.Add(Window);
 }
 

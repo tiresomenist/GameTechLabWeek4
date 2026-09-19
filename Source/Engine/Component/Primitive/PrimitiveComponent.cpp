@@ -10,13 +10,9 @@ void UPrimitiveComponent::Initialize()
 
 bool UPrimitiveComponent::GetLocalBounds(FVector& OutMin, FVector& OutMax) const
 {
-	// 기본: 클래스 이름으로 찾은 공유 메시의 Bounds
-	FMeshResource* MeshResource = GetMeshResource();
-	if (!MeshResource || !MeshResource->HasBounds()) return false;
-
-	OutMin = MeshResource->GetBoundsMin();
-	OutMax = MeshResource->GetBoundsMax();
-	return true;
+	// 기본: 기저 컴포넌트는 고유한 형상이 없으므로 false 반환.
+	// 형상이 있는 자식 컴포넌트(UStaticMeshComponent, UTextComponent 등)에서 오버라이드함.
+	return false;
 }
 
 const FMatrix& UPrimitiveComponent::GetRenderWorldMatrix(const UCameraComponent* Camera) const

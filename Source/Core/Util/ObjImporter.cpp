@@ -748,7 +748,7 @@ namespace
         }
     };
 
-    FNormalVertex MakeVertex(const FObjInfo& Info, const FObjVertexIndex& Corner)
+    FVertexPNCT MakeVertex(const FObjInfo& Info, const FObjVertexIndex& Corner)
     {
         const FVector& Position = Info.Positions[Corner.PositionIndex];
         // 법선 생성과 smoothing 처리는 Import에서 완료되어 있어야 한다.
@@ -756,19 +756,19 @@ namespace
         const FVector4& Color = Info.VertexColors[Corner.PositionIndex];
         const FVector UV = Corner.UVIndex >= 0 ? Info.TexCoords[Corner.UVIndex] : FVector{};
 
-        FNormalVertex Vertex;
-        Vertex.X = Position.X;
-        Vertex.Y = Position.Y;
-        Vertex.Z = Position.Z;
-        Vertex.NX = Normal.X;
-        Vertex.NY = Normal.Y;
-        Vertex.NZ = Normal.Z;
-        Vertex.R = Color.X;
-        Vertex.G = Color.Y;
-        Vertex.B = Color.Z;
-        Vertex.A = Color.W;
-        Vertex.U = UV.X;
-        Vertex.V = UV.Y;
+        FVertexPNCT Vertex;
+        Vertex.x = Position.X;
+        Vertex.y = Position.Y;
+        Vertex.z = Position.Z;
+        Vertex.nx = Normal.X;
+        Vertex.ny = Normal.Y;
+        Vertex.nz = Normal.Z;
+        Vertex.r = Color.X;
+        Vertex.g = Color.Y;
+        Vertex.b = Color.Z;
+        Vertex.a = Color.W;
+        Vertex.u = UV.X;
+        Vertex.v = UV.Y;
         return Vertex;
     }
 }
@@ -838,8 +838,8 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
             const auto [Iterator, bInserted] = VertexLookup.emplace(Key, static_cast<uint32>(Result.Vertices.Num()));
             if (bInserted)
             {
-                const FNormalVertex Vertex = MakeVertex(Info, Corner);
-                const FVector Position{ Vertex.X, Vertex.Y, Vertex.Z };
+                const FVertexPNCT Vertex = MakeVertex(Info, Corner);
+                const FVector Position{ Vertex.x, Vertex.y, Vertex.z };
                 if (Result.Vertices.IsEmpty())
                 {
                     Result.BoundsMin = Position;
