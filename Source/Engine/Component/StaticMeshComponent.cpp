@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "StaticMeshComponent.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Resource/ResourceManager.h"
 
@@ -17,22 +17,20 @@ FMeshResource* UStaticMeshComponent::GetMeshResource() const
 void UStaticMeshComponent::Serialize(FArchive& Archive)
 {
     Super::Serialize(Archive);
-    Archive.SetString("MeshKey", MeshKey.IsNone() ? FString{} : MeshKey.ToString());
-    Archive.SetString("MaterialPath", MaterialPath);
-    Archive.SetBool("bIsVisible", bIsVisible);
-}
 
-void UStaticMeshComponent::Deserialize(FArchive& Archive)
-{
-    Super::Deserialize(Archive);
-    const FName LoadedMeshKey = Archive.Contains("MeshKey")
-        ? FName(Archive.GetString("MeshKey"))
-        : FName{};
-    SetStaticMesh(LoadedMeshKey);
-    if (Archive.Contains("MaterialPath"))
-        SetMaterial(Archive.GetString("MaterialPath"));
-    if (Archive.Contains("bIsVisible"))
-        SetVisibility(Archive.GetBool("bIsVisible"));
+    // 로딩모드이거나 메시키가 없으면 None으로 처리
+    FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
+        ? FString{} : MeshKey.ToString();
+    FString MaterialPathValue = MaterialPath;
+
+    Archive.OptionalField("MeshKey", MeshKeyValue);
+    const bool bHasMaterial = Archive.OptionalField("MaterialPath", MaterialPathValue);
+
+    if (Archive.IsLoading())
+    {
+        SetStaticMesh(FName(MeshKeyValue));
+        if (bHasMaterial) SetMaterial(MaterialPathValue);
+    }
 }
 
 

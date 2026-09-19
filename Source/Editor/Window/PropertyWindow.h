@@ -7,6 +7,7 @@
 #include "Core/Container/String.h"
 #include "Core/Name/Name.h"
 
+class UActorComponent;
 class USceneComponent;
 class AActor;
 struct FClassType;
@@ -16,7 +17,8 @@ class UPropertyWindow : public UEditorWindow
     UCLASS(UPropertyWindow, "PropertyWindow", UEditorWindow)
 
 private:
-	USceneComponent* SelectedComponent = nullptr;
+	UActorComponent* InspectedComponent = nullptr;
+	USceneComponent* TransformTarget = nullptr;
 	FVector Translation;
 	FRotator RotationDegree;
 	FVector OScale;
@@ -30,8 +32,9 @@ private:
 	FName SelectedMeshKey;
 	AActor* NameEditingActor = nullptr;
 	std::array<char, 128> ActorNameBuffer {};
+
 public:
-	virtual void Initialize(FEditor* InEditor) override;
+	virtual void InitializeWindow(FEditor* InEditor, const FString& Name) override;
 
 	void GetSelectedValue();
 	void SetSelectedValue(bool bSetRotation);
@@ -39,7 +42,30 @@ public:
 	void DeleteSelectedActor();
 
 	bool DrawRotationField(const char* ID, float& Degree, bool& bRotationActive);
+	void RenderComponentTreeSection(AActor* Actor);
+	void DrawComponentTree(USceneComponent* Component);
+	void RenderAddComponentSection(AActor* Actor);
+	bool RenderTransformSection(bool& bRotationActive);
+	void RenderSelectedComponentDetails();
 
 	void Render(float DeltaTime) override;
+
+	void DrawComponentContextMenu(UActorComponent* Component);
+	void DrawRenameInput(UActorComponent* Component, const ImVec2& Position, float Width);
+
+	void RequestRename(UActorComponent* Component);
+	void FinishRename(bool bApply);
+
+	bool CanReparent(USceneComponent* Source, USceneComponent* Target) const;
+
+	UActorComponent* RenameTarget = nullptr;
+	FString RenameBuffer;
+	bool bFocusRenameInput = false;
+	bool bRenameInputDrawn = false;
+
+	UActorComponent* PendingDeleteTarget = nullptr;
+
+	USceneComponent* PendingReparentSource = nullptr;
+	USceneComponent* PendingReparentTarget = nullptr;
 };
 

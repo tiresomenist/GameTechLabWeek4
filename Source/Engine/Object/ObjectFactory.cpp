@@ -53,7 +53,7 @@ UObject* FObjectFactory::_ConstructObject(FClassType* Type, EObjectDomain Domain
     catch (...)
     {
         if (Object) delete Object;
-        else GObjectStatics::CancelSlot(Index);
+        GObjectStatics::CancelSlot(Index);
         throw;
     }
 }

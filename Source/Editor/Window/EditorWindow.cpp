@@ -1,9 +1,10 @@
 #include "pch.h"
 #include "EditorWindow.h"
 
-void UEditorWindow::Initialize(FEditor* InEditor)
+void UEditorWindow::InitializeWindow(FEditor* InEditor, const FString& InName)
 {
 	Editor = InEditor;
+	Name = InName;
 }
 
 void UEditorWindow::DrawItemBottomLine(uint32 Color, float Thickness)

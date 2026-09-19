@@ -33,9 +33,7 @@ public:
 
 	void CreateMainCamera();
 
-	void Serialize(TArray<FArchive>& ObjectInfoList);
-
-	void Deserialize(TArray<FArchive>& ObjectInfoList);
+	void Serialize(FArchive& Archive);
 
 	template <typename T>
 	T SpawnActor(FClassType* Type, uint32 UUID = -1)

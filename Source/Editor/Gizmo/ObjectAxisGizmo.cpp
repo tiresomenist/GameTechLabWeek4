@@ -37,7 +37,7 @@ bool UObjectAxisGizmo::UpdateTransform(const UCameraComponent* Camera, const D3D
 		return false;
 	}
 
-	auto* SelectedObject = Editor->GetSelectedSceneComponent();
+	auto* SelectedObject = Editor->GetTransformTarget();
 
 	if (!SelectedObject)
 	{

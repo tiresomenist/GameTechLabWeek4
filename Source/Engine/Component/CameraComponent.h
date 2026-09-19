@@ -46,7 +46,6 @@ public:
 
 
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
 
 private:
     FMatrix GetCameraRotationMatrix() const;

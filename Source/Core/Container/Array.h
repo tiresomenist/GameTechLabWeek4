@@ -57,6 +57,11 @@ public:
 		return Top;
 	}
 
+	void Remove(const T& Element)
+	{
+		Array.erase(std::remove(Array.begin(), Array.end(), Element), Array.end());
+	}
+
 	int Num() const
 	{
 		return Array.size();
@@ -85,6 +90,12 @@ public:
 	const T& operator[](size_t Index) const
 	{
 		return Array[Index];
+	}
+
+	T& Last()
+	{
+		if (Array.empty()) throw std::runtime_error("Array empty");
+		return Array.back();
 	}
 
 	void Sort(std::function<bool(const T&, const T&)> Compare = std::less<T>())

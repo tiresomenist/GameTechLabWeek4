@@ -29,6 +29,9 @@ public:
     virtual void Tick(float DeltaTime);
     virtual void EndPlay();
 
+    bool IsVisible() const { return bVisible; }
+    void SetVisibility(bool bIsVisible) { bVisible = bIsVisible; }
+
     ~AActor() override;
 
 private:
@@ -40,4 +43,5 @@ private:
     AActor* ParentActor = nullptr;
     TArray<AActor*> ChildActors;
     bool bHasBegunPlay = false;
+    bool bVisible = true;
 };
