@@ -58,6 +58,10 @@ private:
 	bool bInitialized = false;
 	bool bCanSaveEditorSettings = false;
 
+	// 이전 프레임 마우스 눌림상태 저장 - 드래그 중 뷰포트 변경 방지
+	bool bPrevLDown = false;
+	bool bPrevRDown = false;
+
 	void InitializeGizmos();
 	void InitializeWindows();
 	void InitializeGrids();

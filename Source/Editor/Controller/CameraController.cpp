@@ -9,6 +9,7 @@
 
 void FCameraController::SetCamera(UCameraComponent* InCamera)
 {
+    if (Camera == InCamera) return;
     Camera = InCamera;
     if (Camera) Camera->ConstrainEditorRotation();
     //이전 카메라의 물리량을 반영하면 안됨

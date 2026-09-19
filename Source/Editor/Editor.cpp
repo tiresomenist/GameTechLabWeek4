@@ -331,20 +331,21 @@ void FEditor::Tick(float DeltaTime)
 	const bool bLDown = Input.GetKey(GInputManager::EI_LMOUSE);
 	const bool bRDown = Input.GetKey(GInputManager::EI_RMOUSE);
 
-	float x = bLDown ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
-	float y = bLDown ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+	// 드래그중이 아니고 처음 눌린 순간인지 판단
+	const bool bLFirstPressed = bLDown && !bPrevLDown;
+	const bool bRFirstPressed = bRDown && !bPrevRDown;
 
-
-	//// 뷰포트 선택
-	//// TODO : 드래그 중에는 다른 뷰포트 선택하지 못하도록 로직 수정해야 함.
-	if (!bWasDragging && !bWantToCaptureMouse && (bLDown || bRDown))
+	// 뷰포트 선택
+	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
+		float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
+		float y = bRFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
-			if (Viewports[i].IsMouseInside(x, y))
+			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
 			{
-				
 				EditorCamera = Viewports[i].GetCamera();
+				CameraController.SetCamera(EditorCamera);
 				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
 				break;
 			}
@@ -396,7 +397,10 @@ void FEditor::Tick(float DeltaTime)
 		GizmoController->ChangeMod();
 	}
 
-	CameraController.SetCamera(EditorCamera);
+	
+
+	bPrevLDown = bLDown;
+	bPrevRDown = bRDown;
 }
 
 void FEditor::Release()
