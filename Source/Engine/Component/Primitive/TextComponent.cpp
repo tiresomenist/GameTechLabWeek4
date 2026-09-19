@@ -2,7 +2,7 @@
 #include "TextComponent.h"
 
 #include "Engine/Component/CameraComponent.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Renderer/Text/TextMeshBuilder.h"
 #include "Engine/Resource/ResourceManager.h"
 

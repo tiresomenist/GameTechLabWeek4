@@ -70,7 +70,10 @@ project "GameTechlabWeek4"
 
 	filter { "configurations:Release", "toolset:msc*" }
 		linkoptions { "/OPT:NOREF", "/OPT:NOICF" }
-	
+
+	-- 필터를 해제하여 아래 설정을 모든 구성에 적용한다.
+	filter {}	
+
 	-- 동적 링킹
 	links {
 		"d3d11",			-- DirectX11 
@@ -80,4 +83,4 @@ project "GameTechlabWeek4"
 	}
 
 	-- Standalone test entry points are not part of the editor application.
-	removefiles { "tests/**" }
+	removefiles { "tests/**","obj/**", "bin/**" }

@@ -2,7 +2,7 @@
 #include "CameraComponent.h"
 #include "Engine/Object/Object.h"
 #include <stdexcept>
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 
 
 namespace

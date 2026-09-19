@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "StaticMeshComponent.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Resource/ResourceManager.h"
 

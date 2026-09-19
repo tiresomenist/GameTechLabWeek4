@@ -2,7 +2,7 @@
 #include "SceneComponent.h"
 #include "Engine/Object/Object.h"
 #include "Engine/Object/ObjectFactory.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Actor/Actor.h"
 #include "Core/Math/Quaternion.h"
 namespace

@@ -2,7 +2,7 @@
 #include "Engine/Component/Light/SpotLightComponent.h"
 
 #include "Core/Container/Array.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Component/CameraComponent.h"

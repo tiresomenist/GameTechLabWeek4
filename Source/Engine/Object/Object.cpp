@@ -2,7 +2,7 @@
 #include "Object.h"
 #include "Engine/Object/ObjectStatics.h"
 #include "Engine/Memory/Allocator.h"
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Log.h"
 
 FClassType* UObject::GetClass()

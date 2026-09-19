@@ -11,6 +11,8 @@
 #include "nlohmann/json.hpp"
 
 // TODO: 언젠가는 이 코드가 JSON에 강하게 커플링 되어있는 문제를 해결해야할지도
+// ㄴCOMMENT:지금입니다
+
 
 class FArchive
 {

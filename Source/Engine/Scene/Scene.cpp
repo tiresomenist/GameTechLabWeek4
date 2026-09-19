@@ -15,7 +15,7 @@
 #include "Engine/Component/WidgetComponent.h"
 #include "Engine/Component/Primitive/PrimitiveComponent.h"
 
-#include "Engine/Object/Archive.h"
+#include "Core/Serialization/Archive.h"
 #include "Engine/Object/ClassRegistry.h"
 #include "Engine/Log.h"
 

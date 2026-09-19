@@ -3,7 +3,7 @@
 #include <filesystem>
 
 #include "Engine/Resource/ObjInfo.h"
-#include "Engine/Resource/StaticMesh.h"
+#include "Engine/Resource/StaticMeshData.h"
 
 struct FObjImporter
 {
