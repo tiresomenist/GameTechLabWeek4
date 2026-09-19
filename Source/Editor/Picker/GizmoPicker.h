@@ -15,8 +15,8 @@ public:
 	FGizmoPicker(FEditor* InEditor);
 	~FGizmoPicker();
 	bool RayTriangleIntersect(const FRay& Ray, FVector A, FVector B, FVector C, float& OutDistance);
-	bool MakeWorldRay(FRay& OutRay);
-	int Pick(UGizmo* InGizmos);
+	bool MakeWorldRay(FRay& OutRay, D3D11_VIEWPORT InViewport);
+	int Pick(UGizmo* InGizmos, D3D11_VIEWPORT InViewport);
 private:
 	FEditor* Editor;
 };

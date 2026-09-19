@@ -20,7 +20,7 @@ void FViewportClient::Initialize(EViewportType InType, UCameraComponent* InCamer
 	case EViewportType::Top:				// 2사분면
 	{
 		Camera->SetIsPerspective(false);
-		Camera->SetRelativeRotation(FQuaternion::FromAxisAngle(FVector(0.0f, 1.0f, 0.0f), -PI * 0.5f));
+		Camera->SetRelativeRotation(FQuaternion::FromAxisAngle(FVector(0.0f, 1.0f, 0.0f), PI * 0.5f));
 		Camera->SetRelativeLocation(FVector(0.0f, 0.0f, 30.0f));
 		ViewSetting.ViewMode = EViewModeIndex::VMI_Unlit;
 		break;

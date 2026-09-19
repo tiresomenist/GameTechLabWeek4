@@ -18,12 +18,16 @@ FObjectPicker::FObjectPicker(FEditor* InEditor)
 {
 }
 
-bool FObjectPicker::MakeWorldRay(FRay& OutRay) {
+bool FObjectPicker::MakeWorldRay(FRay& OutRay, D3D11_VIEWPORT InViewport) {
 	UCameraComponent* Camera = Editor->GetEditorCamera();
 
 	auto& Input = *GInputManager::GetInstance();
-	float NDCX = Input.GetLeftCursorX();
-	float NDCY = Input.GetLeftCursorY();
+
+	float PixelX = Input.GetLeftCursorPixelX();
+	float PixelY = Input.GetLeftCursorPixelY();
+
+	float NDCX = 2.0f * (PixelX - InViewport.TopLeftX) / InViewport.Width - 1.0f;
+	float NDCY = 1.0f - 2.0f * (PixelY - InViewport.TopLeftY) / InViewport.Height;
 
 	FVector4 Near(NDCX, NDCY, 0.0f, 1.0f);
 	FVector4 Far(NDCX, NDCY, 1.0f, 1.0f);
@@ -120,6 +124,8 @@ USceneComponent* FObjectPicker::Pick()
 	UScene* Scene = Editor->GetCurrentScene();
 	const UCameraComponent* Camera = Editor->GetEditorCamera();
 
+	D3D11_VIEWPORT CurrViewport = Editor->GetViewports()[Editor->GetCurrentEditViewportIndex()].GetRenderView().Viewport;
+
 	if (!Scene || !Camera) { return nullptr; }
 
 	// 숨겨진 프리미티브와 아이콘을 선택하지 않도록 처리함
@@ -127,7 +133,7 @@ USceneComponent* FObjectPicker::Pick()
 
 	FRay Ray;
 
-	if (!MakeWorldRay(Ray)) { return nullptr; }
+	if (!MakeWorldRay(Ray, CurrViewport)) { return nullptr; }
 
 	// 프리미티브와 광원을 같은 선택 결과로 취급함
 	USceneComponent* SelectedObject = nullptr;

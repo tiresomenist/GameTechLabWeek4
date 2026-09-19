@@ -335,15 +335,15 @@ void FEditor::Tick(float DeltaTime)
 	float y = bLDown ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
 
 
-	// 뷰포트 선택
-	// TODO : 드래그 중에는 다른 뷰포트 선택하지 못하도록 로직 수정해야 함.
+	//// 뷰포트 선택
+	//// TODO : 드래그 중에는 다른 뷰포트 선택하지 못하도록 로직 수정해야 함.
 	if (!bWasDragging && !bWantToCaptureMouse && (bLDown || bRDown))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
 			if (Viewports[i].IsMouseInside(x, y))
 			{
-				CameraController.SetCamera(Viewports[i].GetCamera());
+				
 				EditorCamera = Viewports[i].GetCamera();
 				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
 				break;
@@ -353,7 +353,8 @@ void FEditor::Tick(float DeltaTime)
 
 	if (Input.ConsumeLeftClick() &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
 	{
-		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo);
+		D3D11_VIEWPORT currViewport = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
+		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo, currViewport);
 		//기즈모가 선택되면 드래그 시작
 		if (SelectedGizmo != -1) {
 			if (Input.GetKey(GInputManager::EI_LMOUSE))
@@ -394,6 +395,8 @@ void FEditor::Tick(float DeltaTime)
 	{
 		GizmoController->ChangeMod();
 	}
+
+	CameraController.SetCamera(EditorCamera);
 }
 
 void FEditor::Release()
