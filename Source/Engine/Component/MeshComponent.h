@@ -7,16 +7,19 @@ class UMeshComponent : public UPrimitiveComponent
     UCLASS(UMeshComponent, "MeshComponent", UPrimitiveComponent)
 
 public:
-    virtual FMeshResource* GetMeshResource() const override;
+    //virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
     virtual void Deserialize(FArchive& Archive) override;
 
-    void SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
+    // override material 설정 - 여기서 수정해도 실제 staticmesh는 바뀌지 않음
+    void SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
+    virtual const FMaterial* GetMaterial(uint32 MaterialSlot) { return OverrideMaterialList[MaterialSlot]; }
+    
     virtual void CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData) override;
 
     bool IsVisible() { return bIsVisible; }
     void SetVisibility(bool InVisibility) { bIsVisible = InVisibility; }
 private:
     bool bIsVisible = true;
-    TArray<FMaterial*> MaterialList;
+    TArray<FMaterial*> OverrideMaterialList;
 };

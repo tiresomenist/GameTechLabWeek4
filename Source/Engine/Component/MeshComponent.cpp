@@ -15,15 +15,17 @@ void UMeshComponent::Deserialize(FArchive& Archive)
 	Super::Deserialize(Archive);
 }
 
-void UMeshComponent::SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
+void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
-	if (MaterialSlot >= MaterialList.Num())
+	if (MaterialSlot >= OverrideMaterialList.Num())
 	{
-		MaterialList.resize(MaterialSlot + 1);
+		OverrideMaterialList.resize(MaterialSlot + 1);
 	}
-	MaterialList[MaterialSlot] = InMaterial;
+	OverrideMaterialList[MaterialSlot] = InMaterial;
 }
 
+// TODO:: renderdata 받을 때 meshresource가 아니라 StaticMesh 받도록 해야 함
+// staticmeshComponent로 옮기기
 void UMeshComponent::CreateRenderData(bool bSelected = false, TArray<FPrimitiveRenderData>& ComponentRenderData)
 {
 	FClassType* ClassType = GetInstanceClass();
