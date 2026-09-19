@@ -362,9 +362,14 @@ FTextureResource* GResourceManager::GetOrLoadTexture(const FString& FilePath)
     return NewTexture.release();
 }
 
-// MeshKey - 메시파일 경로
+// MeshKey - 메시파일 경로 또는 메시 이름
 UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
 {
+    if (MeshKey.IsNone())
+    {
+        return nullptr;
+    }
+
     if (UStaticMesh** StaticMesh = StaticMeshCache.Find(MeshKey))
     {
         return *StaticMesh;
@@ -372,7 +377,15 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
     FString FilePath = MeshKey.ToString();
     if (!std::filesystem::exists(FilePath))
     {
-        return nullptr;
+        FString ModelPath = "Assets/Models/" + FilePath + ".obj";
+        if (std::filesystem::exists(ModelPath))
+        {
+            FilePath = ModelPath;
+        }
+        else
+        {
+            return nullptr;
+        }
     }
     FObjInfo RawData = FObjImporter::Import(FilePath);
     FStaticMeshData StaticMeshData = FObjImporter::Cook(RawData);

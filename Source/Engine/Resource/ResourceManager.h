@@ -42,7 +42,14 @@ public:
 	FFontAtlas* GetDefaultFont() { return DefaultFont.GetSRV() ? &DefaultFont : nullptr; }
 	FTextureResource* GetOrLoadTexture(const FString& FilePath);
 	UStaticMesh* GetOrLoadStaticMesh(const FName& MeshKey);
-	UStaticMesh* GetStaticMesh(const FName& Key) { return StaticMeshCache[Key]; }
+	UStaticMesh* GetStaticMesh(const FName& Key)
+	{
+		if (UStaticMesh** Found = StaticMeshCache.Find(Key))
+		{
+			return *Found;
+		}
+		return GetOrLoadStaticMesh(Key);
+	}
 	UStaticMesh* GetStaticMesh(const FString& FilePath) { return GetStaticMesh(FName(FilePath)); }
 
 	void RegisterShader(const FName& Name,const WCHAR* FilePath,const char* VSEntry,

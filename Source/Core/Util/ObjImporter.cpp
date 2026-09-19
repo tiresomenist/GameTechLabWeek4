@@ -532,14 +532,28 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
                 //현재는 볼록다각형까지만 처리가능, 오목다각형은 처리불가능
                 while (true)
                 {
-                    FObjTriangle Triangle;
-                    Triangle.Corners[0] = First;
-                    Triangle.Corners[1] = Previous;
-                    Triangle.Corners[2] = Current;
-                    Triangle.ObjectIndex = CurrentObject;
-                    Triangle.MaterialIndex = CurrentMaterial;
-                    Triangle.SmoothingGroup = CurrentSmoothingGroup;
-                    Info.Triangles.Add(Triangle);
+                    const FVector& P0 = Info.Positions[First.PositionIndex];
+                    const FVector& P1 = Info.Positions[Previous.PositionIndex];
+                    const FVector& P2 = Info.Positions[Current.PositionIndex];
+
+                    // 두 개 이상의 정점 인덱스가 같거나, 세 정점이 일직선/중복되어 면적이 0인 퇴화 삼각형 필터링
+                    const bool bDegenerate = (First.PositionIndex == Previous.PositionIndex) ||
+                                             (Previous.PositionIndex == Current.PositionIndex) ||
+                                             (Current.PositionIndex == First.PositionIndex) ||
+                                             ((P1 - P0).Cross(P2 - P0).LengthSquared() <= EPSILON * EPSILON);
+
+                    if (!bDegenerate)
+                    {
+                        FObjTriangle Triangle;
+                        Triangle.Corners[0] = First;
+                        Triangle.Corners[1] = Previous;
+                        Triangle.Corners[2] = Current;
+                        Triangle.ObjectIndex = CurrentObject;
+                        Triangle.MaterialIndex = CurrentMaterial;
+                        Triangle.SmoothingGroup = CurrentSmoothingGroup;
+                        Info.Triangles.Add(Triangle);
+                    }
+
                     const FStringView Next = TakeToken(Line);
                     if (Next.empty()) { break; }
                     Previous = Current;
@@ -654,10 +668,12 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
             // 현재 FVector::Normalize()는 0 벡터를 해결해 주지 않는다.
             if (Normal.LengthSquared() <= EPSILON * EPSILON)
             {
-                ParseError(Path, 0, "Cannot generate normal from degenerate geometry");
+                Normal = FVector(0.0f, 0.0f, 1.0f);
             }
-
-            Normal.Normalize();
+            else
+            {
+                Normal.Normalize();
+            }
 
             const int32 NormalIndex = Info.Normals.Num();
             Info.Normals.Add(Normal);

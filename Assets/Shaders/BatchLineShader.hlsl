@@ -1,5 +1,6 @@
 cbuffer constants : register(b0)
 {
+    row_major float4x4 World;
 	row_major float4x4 VP;
 }
 
@@ -18,7 +19,8 @@ struct PS_INPUT
 PS_INPUT mainVS(VS_INPUT input)
 {
 	PS_INPUT output;
-	output.position = mul(float4(input.position.xyz, 1.0), VP);
+    float4 WorldPos = mul(float4(input.position.xyz, 1.0), World);
+	output.position = mul(WorldPos, VP);
 	output.color = input.color;
 	return output;
 }

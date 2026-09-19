@@ -1,7 +1,8 @@
 // MainShader.hlsl
 cbuffer constants : register(b0)
 {
-    row_major float4x4 MVP;
+    row_major float4x4 World;
+    row_major float4x4 VP;
 }
 
 
@@ -27,7 +28,8 @@ PS_INPUT mainVS(VS_INPUT input)
     PS_INPUT output;
     
     //MVP행렬 곱으로 위치 변환
-    output.position = mul(float4(input.position.xyz, 1.0f), MVP);
+    float4 WorldPos = mul(float4(input.position.xyz, 1.0f), World);
+    output.position = mul(WorldPos, VP);
     
     output.color = input.color;
     
@@ -45,7 +47,8 @@ VS_OUTPUT VS_Highlight(VS_INPUT input)
     
     float3 expandedPos = input.position.xyz * 1.05f;
     
-    output.Pos = mul(float4(expandedPos, 1.0f), MVP);
+    float4 WorldPos = mul(float4(expandedPos, 1.0f), World);
+    output.Pos = mul(WorldPos, VP);
     
     return output;
 }
