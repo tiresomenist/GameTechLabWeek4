@@ -18,6 +18,10 @@
 #include "Core/Name/Name.h"
 #include "Engine/Resource/ShaderResource.h"
 #include "Engine/Renderer/Material.h"
+#include "Engine/Resource/StaticMesh.h"
+#include "Engine/Resource/StaticMeshData.h"
+#include "Core/Util/Objimporter.h"
+#include "Engine/Object/ObjectFactory.h"
 #include <wrl/client.h>
 
 class FTextureResource;
@@ -32,9 +36,22 @@ public:
 	FMeshResource* CreateMesh(const FName& MeshName, std::span<const FVertexSimple> Vertices, std::span<const uint32> Indices);
 	// 위치와 UV 정점으로 삼각형 메시를 생성하며 실패 시 nullptr을 반환함
 	FMeshResource* CreateTexturedMesh(const FName& MeshName, std::span<const FVertexTexture> Vertices, std::span<const uint32> Indices);
+	FMeshResource* CreateStaticMeshResource(const FName& MeshName, std::span<const FVertexPNCT> Vertices, std::span<const uint32> Indices);
+	
 	FMeshResource* GetPrimitive(const FName& MeshName);
 	FFontAtlas* GetDefaultFont() { return DefaultFont.GetSRV() ? &DefaultFont : nullptr; }
 	FTextureResource* GetOrLoadTexture(const FString& FilePath);
+	UStaticMesh* GetOrLoadStaticMesh(const FName& MeshKey);
+	UStaticMesh* GetStaticMesh(const FName& Key)
+	{
+		if (UStaticMesh** Found = StaticMeshCache.Find(Key))
+		{
+			return *Found;
+		}
+		return GetOrLoadStaticMesh(Key);
+	}
+	UStaticMesh* GetStaticMesh(const FString& FilePath) { return GetStaticMesh(FName(FilePath)); }
+
 	void RegisterShader(const FName& Name,const WCHAR* FilePath,const char* VSEntry,
 		const char* PSEntry,const TArray<D3D11_INPUT_ELEMENT_DESC>& Layout);
 	void RegisterBlendState(const FName& Name,const D3D11_BLEND_DESC& Desc);
@@ -48,6 +65,7 @@ public:
 	ID3D11SamplerState* GetSampler(const FName& Name) const;
 	FMaterial CreateColorMaterial() const;
 	FMaterial CreateTextureMaterial(ID3D11ShaderResourceView* SRV) const;
+	FMaterial CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV) const;
 	void RegisterDefaultPrimitives(GDevice* InDevice);
 	void RegisterTexturePrimitives(GDevice* InDevice);
 	void RegisterRasterizerState(const FName& Name, const D3D11_RASTERIZER_DESC& Desc);
@@ -76,6 +94,7 @@ private:
 
 	TMap<FName, FMeshResource*> PrimitiveCache;
 	TMap<FString, FTextureResource*> TextureCache;
+	TMap<FName, UStaticMesh*> StaticMeshCache;
 	FFontAtlas DefaultFont;
 };
 

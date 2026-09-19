@@ -8,36 +8,11 @@ void UPrimitiveComponent::Initialize()
 	Super::Initialize();
 }
 
-FPrimitiveRenderData UPrimitiveComponent::CreateRenderData(bool bSelected) const
-{
-	FClassType* ClassType = GetInstanceClass();
-	FMeshResource* MeshResource = GetMeshResource();
-
-	FPrimitiveRenderData OutData{};
-	if (MeshResource == nullptr) { return OutData; }
-
-	OutData.VertexBuffer = MeshResource->GetVertexBuffer();
-	OutData.IndexBuffer = MeshResource->GetIndexBuffer();
-	OutData.IndexCount = MeshResource->GetIndexCount();
-	OutData.Stride = MeshResource->GetStride();
-	OutData.WorldMatrix = &GetWorldMatrix();
-	OutData.isSelected = bSelected;
-	OutData.Material = GResourceManager::GetInstance()->CreateColorMaterial();
-	OutData.Min = MeshResource->GetBoundsMin();
-	OutData.Max = MeshResource->GetBoundsMax();
-
-	return OutData;
-}
-
 bool UPrimitiveComponent::GetLocalBounds(FVector& OutMin, FVector& OutMax) const
 {
-	// 기본: 클래스 이름으로 찾은 공유 메시의 Bounds
-	FMeshResource* MeshResource = GetMeshResource();
-	if (!MeshResource || !MeshResource->HasBounds()) return false;
-
-	OutMin = MeshResource->GetBoundsMin();
-	OutMax = MeshResource->GetBoundsMax();
-	return true;
+	// 기본: 기저 컴포넌트는 고유한 형상이 없으므로 false 반환.
+	// 형상이 있는 자식 컴포넌트(UStaticMeshComponent, UTextComponent 등)에서 오버라이드함.
+	return false;
 }
 
 const FMatrix& UPrimitiveComponent::GetRenderWorldMatrix(const UCameraComponent* Camera) const
@@ -45,10 +20,6 @@ const FMatrix& UPrimitiveComponent::GetRenderWorldMatrix(const UCameraComponent*
 	return GetWorldMatrix();
 }
 
-FMeshResource* UPrimitiveComponent::GetMeshResource() const
-{
-    return GResourceManager::GetInstance()->GetPrimitive(GetInstanceClass()->Name);
-}
 
 void UPrimitiveComponent::SubmitLineDrawRequests(const FLineDrawContext& Context, const FLineRequestConsumer& Submit) const
 {

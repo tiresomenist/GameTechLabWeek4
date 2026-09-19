@@ -532,14 +532,28 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
                 //현재는 볼록다각형까지만 처리가능, 오목다각형은 처리불가능
                 while (true)
                 {
-                    FObjTriangle Triangle;
-                    Triangle.Corners[0] = First;
-                    Triangle.Corners[1] = Previous;
-                    Triangle.Corners[2] = Current;
-                    Triangle.ObjectIndex = CurrentObject;
-                    Triangle.MaterialIndex = CurrentMaterial;
-                    Triangle.SmoothingGroup = CurrentSmoothingGroup;
-                    Info.Triangles.Add(Triangle);
+                    const FVector& P0 = Info.Positions[First.PositionIndex];
+                    const FVector& P1 = Info.Positions[Previous.PositionIndex];
+                    const FVector& P2 = Info.Positions[Current.PositionIndex];
+
+                    // 두 개 이상의 정점 인덱스가 같거나, 세 정점이 일직선/중복되어 면적이 0인 퇴화 삼각형 필터링
+                    const bool bDegenerate = (First.PositionIndex == Previous.PositionIndex) ||
+                                             (Previous.PositionIndex == Current.PositionIndex) ||
+                                             (Current.PositionIndex == First.PositionIndex) ||
+                                             ((P1 - P0).Cross(P2 - P0).LengthSquared() <= EPSILON * EPSILON);
+
+                    if (!bDegenerate)
+                    {
+                        FObjTriangle Triangle;
+                        Triangle.Corners[0] = First;
+                        Triangle.Corners[1] = Previous;
+                        Triangle.Corners[2] = Current;
+                        Triangle.ObjectIndex = CurrentObject;
+                        Triangle.MaterialIndex = CurrentMaterial;
+                        Triangle.SmoothingGroup = CurrentSmoothingGroup;
+                        Info.Triangles.Add(Triangle);
+                    }
+
                     const FStringView Next = TakeToken(Line);
                     if (Next.empty()) { break; }
                     Previous = Current;
@@ -654,10 +668,12 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
             // 현재 FVector::Normalize()는 0 벡터를 해결해 주지 않는다.
             if (Normal.LengthSquared() <= EPSILON * EPSILON)
             {
-                ParseError(Path, 0, "Cannot generate normal from degenerate geometry");
+                Normal = FVector(0.0f, 0.0f, 1.0f);
             }
-
-            Normal.Normalize();
+            else
+            {
+                Normal.Normalize();
+            }
 
             const int32 NormalIndex = Info.Normals.Num();
             Info.Normals.Add(Normal);
@@ -748,7 +764,7 @@ namespace
         }
     };
 
-    FNormalVertex MakeVertex(const FObjInfo& Info, const FObjVertexIndex& Corner)
+    FVertexPNCT MakeVertex(const FObjInfo& Info, const FObjVertexIndex& Corner)
     {
         const FVector& Position = Info.Positions[Corner.PositionIndex];
         // 법선 생성과 smoothing 처리는 Import에서 완료되어 있어야 한다.
@@ -756,19 +772,19 @@ namespace
         const FVector4& Color = Info.VertexColors[Corner.PositionIndex];
         const FVector UV = Corner.UVIndex >= 0 ? Info.TexCoords[Corner.UVIndex] : FVector{};
 
-        FNormalVertex Vertex;
-        Vertex.X = Position.X;
-        Vertex.Y = Position.Y;
-        Vertex.Z = Position.Z;
-        Vertex.NX = Normal.X;
-        Vertex.NY = Normal.Y;
-        Vertex.NZ = Normal.Z;
-        Vertex.R = Color.X;
-        Vertex.G = Color.Y;
-        Vertex.B = Color.Z;
-        Vertex.A = Color.W;
-        Vertex.U = UV.X;
-        Vertex.V = UV.Y;
+        FVertexPNCT Vertex;
+        Vertex.x = Position.X;
+        Vertex.y = Position.Y;
+        Vertex.z = Position.Z;
+        Vertex.nx = Normal.X;
+        Vertex.ny = Normal.Y;
+        Vertex.nz = Normal.Z;
+        Vertex.r = Color.X;
+        Vertex.g = Color.Y;
+        Vertex.b = Color.Z;
+        Vertex.a = Color.W;
+        Vertex.u = UV.X;
+        Vertex.v = UV.Y;
         return Vertex;
     }
 }
@@ -838,8 +854,8 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
             const auto [Iterator, bInserted] = VertexLookup.emplace(Key, static_cast<uint32>(Result.Vertices.Num()));
             if (bInserted)
             {
-                const FNormalVertex Vertex = MakeVertex(Info, Corner);
-                const FVector Position{ Vertex.X, Vertex.Y, Vertex.Z };
+                const FVertexPNCT Vertex = MakeVertex(Info, Corner);
+                const FVector Position{ Vertex.x, Vertex.y, Vertex.z };
                 if (Result.Vertices.IsEmpty())
                 {
                     Result.BoundsMin = Position;

@@ -2,26 +2,24 @@ cbuffer TransformConstants : register(b0)
 {
     row_major float4x4 World;
     row_major float4x4 VP;
-    
 };
-
-Texture2D ObjectTexture : register(t0);
-SamplerState TextureSampler : register(s0);
-
 cbuffer TextureDrawConstants : register(b1)
 {
     float2 UVScale;
     float2 UVOffset;
 
-    float4 Tint;
-
+    float4 DiffuseColor;
+    
     float AlphaCutoff;
     float3 Padding;
 };
+Texture2D ObjectTexture : register(t0);
+SamplerState TextureSampler : register(s0);
 
 struct VS_INPUT
 {
     float3 Position : POSITION;
+    float3 Normal : NORMAL;
     float4 Color : COLOR;
     float2 UV : TEXCOORD0;
 };
@@ -29,6 +27,7 @@ struct VS_INPUT
 struct PS_INPUT
 {
     float4 Position : SV_POSITION;
+    float3 Normal : NORMAL;
     float4 Color : COLOR;
     float2 UV : TEXCOORD0;
 };
@@ -37,11 +36,11 @@ PS_INPUT mainVS(VS_INPUT Input)
 {
     PS_INPUT Output;
 
-    // 로컬 좌표를 월드·뷰·투영 변환함
-    float4 WorldPos = mul(float4(Input.Position, 1.0f), World);
-    Output.Position = mul(WorldPos, World);
-    Output.Color = Input.Color;
-    // 현재 프레임에 해당하는 아틀라스 영역으로 UV를 변환함
+    float4 WorldPosition = mul(float4(Input.Position, 1.0f), World);
+    // 추후 빛과 그림자 계산하려면 World 와 ViewProjection이 따로 전달 되야 함
+    Output.Position = mul(WorldPosition, VP);
+    Output.Normal = Input.Normal;
+    Output.Color = Input.Color * DiffuseColor;
     Output.UV = Input.UV * UVScale + UVOffset;
 
     return Output;
@@ -49,10 +48,8 @@ PS_INPUT mainVS(VS_INPUT Input)
 
 float4 mainPS(PS_INPUT Input) : SV_TARGET
 {
-    // 텍스처에 정점 색상과 오브젝트별 색상을 곱함
-    float4 Color = ObjectTexture.Sample(TextureSampler, Input.UV) * Input.Color * Tint;
+    float4 Color = ObjectTexture.Sample(TextureSampler, Input.UV) * Input.Color;
 
-    // 투명한 배경의 색상과 깊이 기록을 차단함
     if (AlphaCutoff > 0.0f)
     {
         clip(Color.a - AlphaCutoff);

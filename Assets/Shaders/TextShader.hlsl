@@ -1,6 +1,7 @@
 cbuffer constants : register(b0)
 {
-    row_major float4x4 MVP;
+    row_major float4x4 World;
+    row_major float4x4 VP;
 }
 
 Texture2D FontAtlas : register(t0);
@@ -23,7 +24,8 @@ struct PS_INPUT
 PS_INPUT mainVS_Text(VS_INPUT input)
 {
     PS_INPUT output;
-    output.position = mul(float4(input.position, 1.0f), MVP);
+    float4 WorldPos = mul(float4(input.position, 1.0f), World);
+    output.position = mul(float4(input.position, 1.0f), VP);
     output.uv = input.uv;
     output.color = input.color;
     return output;
