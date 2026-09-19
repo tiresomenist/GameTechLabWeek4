@@ -316,6 +316,28 @@ void FEditor::Tick(float DeltaTime)
 	float Time = Engine.GetTime();
 	const bool bWasDragging = GizmoController->IsDragging();
 
+	const bool bLDown = Input.GetKey(GInputManager::EI_LMOUSE);
+	const bool bRDown = Input.GetKey(GInputManager::EI_RMOUSE);
+
+	float x = bLDown ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
+	float y = bLDown ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+
+
+	// 뷰포트 선택
+	// TODO : 드래그 중에는 다른 뷰포트 선택하지 못하도록 로직 수정해야 함.
+	if (!bWasDragging && !bWantToCaptureMouse && (bLDown || bRDown))
+	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
+		for (const auto& view : Viewports)
+		{
+			if (view.IsMouseInside(x, y))
+			{
+				CameraController.SetCamera(view.GetCamera());
+				EditorCamera = view.GetCamera();
+				break;
+			}
+		}
+	}
+
 	if (Input.ConsumeLeftClick() &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
 	{
 		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo);
@@ -345,24 +367,13 @@ void FEditor::Tick(float DeltaTime)
 		int32 DX, DY;
 		Input.ConsumeRightDragDelta(DX, DY);
 	}
+
 	bool bRightClickDragging = Input.GetKey(GInputManager::EI_RMOUSE);
 	bool bAllowCameraMouse = !bWantToCaptureMouse;
 	bool bAllowCameraKeyboard = !bWantToCaptureKeyboard || (bAllowCameraMouse && bRightClickDragging);
 
 	if (!bGizmoOwnsInput && bAllowCameraKeyboard && bAllowCameraMouse)
 	{
-		// 뷰포트 선택
-		float x = Input.GetRightCursorX();
-		float y = Input.GetRightCursorY();
-		for (const auto& view : Viewports)
-		{
-			if (view.IsMouseInside(x, y))
-			{
-				CameraController.SetCamera(view.GetCamera());
-				EditorCamera = view.GetCamera();
-			}
-		}
-
 		CameraController.Tick(DeltaTime);
 	}
 	const bool bSpacePressed = Input.ConsumeSpacePress();

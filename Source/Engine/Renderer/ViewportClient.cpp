@@ -75,5 +75,5 @@ bool FViewportClient::IsMouseInside(float ScreenX, float ScreenY) const
 	float TopY = ViewportInfo.TopLeftY;
 	float BottomY = ViewportInfo.TopLeftY + ViewportInfo.Height;
 
-	return (ScreenX > LeftX) && (ScreenX < RightX) && (ScreenY > TopY) && (ScreenY < BottomY);
+	return (ScreenX >= LeftX) && (ScreenX < RightX) && (ScreenY >= TopY) && (ScreenY < BottomY);
 }
