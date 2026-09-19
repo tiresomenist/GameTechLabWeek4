@@ -150,6 +150,11 @@ public:
 
 	UObject* SpawnObject(FClassType* Type);
 
+	// 뷰포트 사이즈 설정용 함수
+	void OnResize(uint32 Width, uint32 Height);
+
+	const TArray<FViewportClient>& GetViewports();
+
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetGizmoList(FEditor* Editor, UScene* Scene,const UCameraComponent* Camera,

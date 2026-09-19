@@ -26,5 +26,5 @@ private:
 	EViewportType ViewportType = EViewportType::Perspective;
 	FViewSettings ViewSetting;
 	D3D11_VIEWPORT ViewportInfo;
-	bool bDrawEditorGizmos = false;
+	bool bDrawEditorGizmos = true;
 };

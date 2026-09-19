@@ -247,25 +247,34 @@ void FEditor::Initialize()
 	//EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
 	//EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
 	
+	// TODO: 뷰포트 순서 하드코딩 되어있는 거 열거형으로 리팩토링
 	FViewportClient PerspectiveView;
 	UCameraComponent* PerspectiveCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	PerspectiveCamera->SetIsPerspective(true);
 	PerspectiveView.Initialize(EViewportType::Perspective, PerspectiveCamera);
 	Viewports.Add(PerspectiveView);
 
 	FViewportClient TopView;
 	UCameraComponent* TopCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	TopCamera->SetIsPerspective(false);
 	TopView.Initialize(EViewportType::Top, TopCamera);
 	Viewports.Add(TopView);
 
 	FViewportClient FrontView;
 	UCameraComponent* FrontCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	FrontCamera->SetIsPerspective(false);
 	FrontView.Initialize(EViewportType::Front, FrontCamera);
 	Viewports.Add(FrontView);
 
 	FViewportClient RightView;
 	UCameraComponent* RightCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
+	RightCamera->SetIsPerspective(false);
 	RightView.Initialize(EViewportType::Right, RightCamera);
 	Viewports.Add(RightView);
+
+	// 초기 뷰포트 크기 설정
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
 
 	// 기본으로 PerspectiveCamera 설정
 	EditorCamera = PerspectiveCamera;
@@ -606,6 +615,30 @@ UGizmo* FEditor::GetObjectAxisGizmo() const
 UObject* FEditor::SpawnObject(FClassType* Type)
 {
 	return FObjectFactory::ConstructEditorObject(Type);
+}
+
+void FEditor::OnResize(uint32 Width, uint32 Height)
+{	// 4개의 뷰포트들의 사이즈를 설정
+	// TODO: 고정크기가 아닌 가변 크기로 로직 바꾸어야 함.
+	if (Width == 0 || Height == 0) return;
+
+	const float HalfWidth = Width * 0.5f;
+	const float HalfHeight = Height * 0.5f;
+
+	// 언리얼엔진 기본 위치로 설정
+	// Perspective - 우측 상단
+	Viewports[0].SetRect(HalfWidth, 0.0f, HalfWidth, HalfHeight);
+	// top - 좌측 상단
+	Viewports[1].SetRect(0.0f, 0.0f, HalfWidth, HalfHeight);
+	// front - 좌측 하단
+	Viewports[2].SetRect(0.0f, HalfHeight, HalfWidth, HalfHeight);
+	// right - 우측 하단
+	Viewports[3].SetRect(HalfWidth, HalfHeight, HalfWidth, HalfHeight);
+}
+
+const TArray<FViewportClient>& FEditor::GetViewports()
+{
+	return Viewports;
 }
 
 void FEditor::RegisterGrid(FClassType* Type)
