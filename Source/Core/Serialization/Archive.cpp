@@ -1,77 +1,13 @@
 #include "pch.h"
 #include "Core/Serialization/Archive.h"
 
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-
-FArchive::FArchive()
-	: Object()
+// 읽기 모드의 반대 값을 사용해 쓰기 모드를 반환한다.
+bool FArchive::IsSaving() const
 {
+    // Reader와 Writer가 각각 읽기 여부만 정의하도록 공통 처리한다.
+    return !IsLoading();
 }
 
-FArchive::FArchive(const nlohmann::json& InObject)
-	: Object(InObject)
-{
-}
-
-int32 FArchive::GetInt32(const FString& Key)
-{
-	return Object.at(Key).get<int32>();
-}
-
-void FArchive::SetInt32(const FString& Key, int32 Value)
-{
-	Object[Key] = Value;
-}
-
-float FArchive::GetFloat(const FString& Key)
-{
-	return Object.at(Key).get<float>();
-}
-
-void FArchive::SetFloat(const FString& Key, float Value)
-{
-	Object[Key] = Value;
-}
-
-uint32 FArchive::GetUInt32(const FString& Key)
-{
-	return Object.at(Key).get<uint32>();
-}
-
-void FArchive::SetUInt32(const FString& Key, uint32 Value)
-{
-	Object[Key] = Value;
-}
-
-double FArchive::GetDouble(const FString& Key)
-{
-	return Object.at(Key).get<double>();
-}
-
-void FArchive::SetDouble(const FString& Key, double Value)
-{
-	Object[Key] = Value;
-}
-
-bool FArchive::GetBool(const FString& Key)
-{
-	return Object.at(Key).get<bool>();
-}
-
-void FArchive::SetBool(const FString& Key, bool Value)
-{
-	Object[Key] = Value;
-}	
-
-FString FArchive::GetString(const FString& Key)
-{
-	return Object.at(Key).get<FString>();
-}
-
-void FArchive::SetString(const FString& Key, const FString& Value)
-{
-	Object[Key] = Value;
-}
+// Archive가 추상 기반 클래스이며 안전한 가상 소멸자를 제공하는지 확인한다.
+static_assert(std::is_abstract_v<FArchive>);
+static_assert(std::has_virtual_destructor_v<FArchive>);

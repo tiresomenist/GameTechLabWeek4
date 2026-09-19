@@ -7,8 +7,8 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
-#include "nlohmann/json.hpp"
 
 // TODO: 언젠가는 이 코드가 JSON에 강하게 커플링 되어있는 문제를 해결해야할지도
 // ㄴCOMMENT:지금입니다
@@ -17,74 +17,92 @@
 class FArchive
 {
 private:
-	nlohmann::json Object;
+	//nlohmann::json Object;
 
 public:
-	FArchive();
-	explicit FArchive(const nlohmann::json& InObject);
+	virtual ~FArchive() = default;
+	virtual bool IsLoading()const = 0;
+	bool IsSaving() const;
 
-	nlohmann::json GetJSON() const { return Object; }
-	bool Contains(const FString& Key) const { return Object.contains(Key); }
+	template<typename T>
+	// 필수 Field 입력용
+	void Field(const char* Name, T& Value) {
+		if (!SerializeValue(Name, Value)) {
+			throw std::runtime_error(FString("Missing Archive Field :") + (Name ? Name : "<element>"));
+		}
+	}
+	// 선택 Field 입력용
+	template<typename T>
+    bool OptionalField(const char* Name, T& Value) {
+		return SerializeValue(Name, Value);
+	}
 
-    std::array<float, 3> GetVector3OrDefault(const FString& Key, float Default) const
+    // Name에 해당하는 객체 처리 시작
+    virtual bool BeginObject(const char* Name) = 0;
+
+    // 객체 처리 끝
+    virtual void EndObject() = 0;
+
+    // 배열 진입. 개수 처리
+    virtual bool BeginArray(const char* Name, uint32& Count) = 0;
+
+    // 배열 원소 진입
+    virtual void BeginArrayElement(uint32 Index) = 0;
+
+    // 배열 원소 처리 끝
+    virtual void EndArrayElement() = 0;
+
+    // 배열 처리 끝
+    virtual void EndArray() = 0;
+
+    // 문자열 키 맵 진입. 원소 개수 처리
+    virtual bool BeginMap(const char* Name, uint32& Count) = 0;
+
+    // 맵 원소 진입.
+    virtual void BeginMapEntry(uint32 Index, FString& Key) = 0;
+
+    // 맵 원소 처리 끝
+    virtual void EndMapEntry() = 0;
+
+    // 맵 처리 끝
+    virtual void EndMap() = 0;
+
+    // float 3개를 처리하며, 읽기에서 잘못된 값은 기존 씬의 기본값 규칙을 적용한다.
+    virtual void Float3OrDefault(const char* Name, std::array<float, 3>& Values, float Default) = 0;
+
+protected:
+    virtual bool SerializeValue(const char* Name, int32& Value) = 0;
+    virtual bool SerializeValue(const char* Name, uint32& Value) = 0;
+    virtual bool SerializeValue(const char* Name, float& Value) = 0;
+    virtual bool SerializeValue(const char* Name, double& Value) = 0;
+    virtual bool SerializeValue(const char* Name, bool& Value) = 0;
+    virtual bool SerializeValue(const char* Name, FString& Value) = 0;
+
+    // 기본 타입 배열의 개수와 각 원소를 공통 순서로 처리한다.
+    template<typename T>
+    bool SerializeValue(const char* Name, TArray<T>& Values)
     {
-        std::array<float, 3> Result{Default, Default, Default};
-        const auto It = Object.find(Key);
-        if (It == Object.end() || !It->is_array() || It->size() != 3) return Result;
-        const double Limit = (std::numeric_limits<float>::max)();
-        for (size_t I = 0; I < 3; ++I)
+        // 현재 TArray<bool>은 std::vector<bool>의 참조 형식과 호환되지 않는다.
+        static_assert(!std::is_same_v<T, bool>, "TArray<bool> serialization is not supported.");
+
+        // 쓰기에서는 현재 배열 크기를 전달하고 읽기에서는 저장된 크기를 받는다.
+        uint32 Count = IsSaving() ? static_cast<uint32>(Values.Num()) : 0;
+        if (!BeginArray(Name, Count)) { return false; }
+
+        // TArray의 Num()과 인덱스가 표현할 수 있는 범위를 확인한 뒤 크기를 조정한다.
+        if (Count > static_cast<uint32>((std::numeric_limits<int32>::max)()))
+            throw std::length_error("Archive array exceeds TArray capacity.");
+
+        if (IsLoading()) { Values.SetNum(Count); }
+
+        // 원소에 진입한 뒤 이름 없이 현재 원소 자체를 직렬화한다.
+        for (uint32 Index = 0; Index < Count; ++Index)
         {
-            const auto& Value = (*It)[I];
-            if (!Value.is_number()) continue;
-            const double Number = Value.get<double>();
-            if (std::isfinite(Number) && Number >= -Limit && Number <= Limit)
-                Result[I] = static_cast<float>(Number);
+            BeginArrayElement(Index);
+            Field(nullptr, Values[static_cast<int32>(Index)]);
+            EndArrayElement();
         }
-        return Result;
+        EndArray();
+        return true;
     }
-
-	int32 GetInt32(const FString& Key);
-	void SetInt32(const FString& Key, int32 Value);
-
-	float GetFloat(const FString& Key);
-	void SetFloat(const FString& Key, float Value);
-
-	uint32 GetUInt32(const FString& Key);
-	void SetUInt32(const FString& Key, uint32 Value);
-
-	double GetDouble(const FString& Key);
-	void SetDouble(const FString& Key, double Value);
-
-	bool GetBool(const FString& Key);
-	void SetBool(const FString& Key, bool Value);
-	
-	FString GetString(const FString& Key);
-	void SetString(const FString& Key, const FString& Value);
-	
-	// GetArray는 필요하면 더 추가
-	//1.[P1]씬 좌표 배열 길이 미검사
-	template <typename T>
-	TArray<T> GetArray(const FString& Key)
-	{
-		TArray<T> Array;
-
-		for (const auto& Item : Object.at(Key))
-		{
-			T Value = Item.get<T>();
-			Array.Add(Value);
-		}
-
-		return Array;
-	}
-
-	template <typename T>
-	void SetArray(const FString& Key, const TArray<T>& Value)
-	{
-		Object[Key] = nlohmann::json::array();
-
-		for (int i = 0; i < Value.Num(); ++i)
-		{
-			Object[Key].push_back(Value[i]);
-		}
-	}
 };
