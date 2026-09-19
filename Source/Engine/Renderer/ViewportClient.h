@@ -21,6 +21,7 @@ public:
 
 	UCameraComponent* GetCamera() const;
 	bool IsMouseInside(float ScreenX, float ScreenY) const;
+	EViewportType GetViewportType() const { return ViewportType; }
 private:
 	UCameraComponent* Camera = nullptr;
 	EViewportType ViewportType = EViewportType::Perspective;

@@ -260,9 +260,16 @@ void USceneWindow::Render(float DeltaTime)
 			ImGui::EndCombo();
 		}
 		ImGui::PopItemWidth();
-		ImGui::Checkbox("Orthogonal", &bOrthogonal);
+		// if (지금 카메라가 perspective 카메라면) 아래로직 실행. 직교투영(탑, 프론트, 오른쪽)일때는 아예 버튼 없애기
+		uint32 currViewIdx = Editor->GetCurrentEditViewportIndex();
+		const TArray<FViewportClient>& Viewports = Editor->GetViewports();
+		if (Viewports[currViewIdx].GetViewportType() == EViewportType::Perspective)
+		{
+			bOrthogonal = !EditorCamera->GetIsPerspective();
+			ImGui::Checkbox("Orthogonal", &bOrthogonal);
 
-		EditorCamera->SetIsPerspective(!bOrthogonal);
+			EditorCamera->SetIsPerspective(!bOrthogonal);
+		}
 
 		ImGui::PushItemWidth(WideItemWidth); // Item 너비 설정
 		// 카메라의 현재 이동 속도를 조회하고 UI 변경 시 즉시 적용함

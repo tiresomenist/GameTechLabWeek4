@@ -52,6 +52,7 @@ private:
 
 	// Viewport 배열
 	TArray<FViewportClient> Viewports;
+	uint32 CurrEditedViewportIndex = 0;
 
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
@@ -154,6 +155,7 @@ public:
 	void OnResize(uint32 Width, uint32 Height);
 
 	const TArray<FViewportClient>& GetViewports();
+	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
 
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);

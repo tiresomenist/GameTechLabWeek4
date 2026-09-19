@@ -253,6 +253,7 @@ void FEditor::Initialize()
 	PerspectiveCamera->SetIsPerspective(true);
 	PerspectiveView.Initialize(EViewportType::Perspective, PerspectiveCamera);
 	Viewports.Add(PerspectiveView);
+	CurrEditedViewportIndex = 0;
 
 	FViewportClient TopView;
 	UCameraComponent* TopCamera = static_cast<UCameraComponent*>(SpawnObject(UCameraComponent::GetClass()));
@@ -279,6 +280,8 @@ void FEditor::Initialize()
 	// 기본으로 PerspectiveCamera 설정
 	EditorCamera = PerspectiveCamera;
 	CameraController.SetCamera(PerspectiveCamera);
+	
+	
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
@@ -336,12 +339,13 @@ void FEditor::Tick(float DeltaTime)
 	// TODO : 드래그 중에는 다른 뷰포트 선택하지 못하도록 로직 수정해야 함.
 	if (!bWasDragging && !bWantToCaptureMouse && (bLDown || bRDown))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
-		for (const auto& view : Viewports)
+		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
-			if (view.IsMouseInside(x, y))
+			if (Viewports[i].IsMouseInside(x, y))
 			{
-				CameraController.SetCamera(view.GetCamera());
-				EditorCamera = view.GetCamera();
+				CameraController.SetCamera(Viewports[i].GetCamera());
+				EditorCamera = Viewports[i].GetCamera();
+				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
 				break;
 			}
 		}
