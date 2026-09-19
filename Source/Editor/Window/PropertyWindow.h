@@ -56,11 +56,16 @@ public:
 	void RequestRename(UActorComponent* Component);
 	void FinishRename(bool bApply);
 
+	bool CanReparent(USceneComponent* Source, USceneComponent* Target) const;
+
 	UActorComponent* RenameTarget = nullptr;
 	FString RenameBuffer;
 	bool bFocusRenameInput = false;
 	bool bRenameInputDrawn = false;
 
 	UActorComponent* PendingDeleteTarget = nullptr;
+
+	USceneComponent* PendingReparentSource = nullptr;
+	USceneComponent* PendingReparentTarget = nullptr;
 };
 

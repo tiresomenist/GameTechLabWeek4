@@ -20,10 +20,15 @@ private:
 	void RequestRename(AActor* Actor);
 	void FinishRename(bool bApply);
 
+	bool CanReparent(AActor* Source, AActor* Target) const;
+
 	AActor* RenameTarget = nullptr;
 	FString RenameBuffer;
 	bool bFocusRenameInput = false;
 	bool bRenameInputDrawn = false;
 
 	AActor* PendingDeleteTarget = nullptr;
+
+	AActor* PendingReparentSource = nullptr;
+	AActor* PendingReparentTarget = nullptr;
 };

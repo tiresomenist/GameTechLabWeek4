@@ -262,6 +262,27 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 	const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - LabelSpacing);
 
 	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
+
+	if (!bIsRoot && ImGui::BeginDragDropSource())
+	{
+		ImGui::SetDragDropPayload("EDITOR_SCENE_COMPONENT", &Component, sizeof(Component));
+		ImGui::TextUnformatted(Component->GetName().ToString().c_str());
+		ImGui::EndDragDropSource();
+	}
+
+	if (ImGui::BeginDragDropTarget())
+	{
+		if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("EDITOR_SCENE_COMPONENT"))
+		{
+			USceneComponent* DraggedComponent = *static_cast<USceneComponent**>(Payload->Data);
+			if (CanReparent(DraggedComponent, Component))
+			{
+				PendingReparentSource = DraggedComponent;
+				PendingReparentTarget = Component;
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
 	
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
@@ -283,8 +304,10 @@ void UPropertyWindow::DrawComponentTree(USceneComponent* Component)
 		{
 			DrawComponentTree(Child);
 		}
+
 		ImGui::TreePop();
 	}
+
 }
 
 void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
@@ -566,6 +589,13 @@ void UPropertyWindow::Render(float DeltaTime)
 		FinishRename(true);
 	}
 
+	if (PendingReparentSource && PendingReparentTarget)
+	{
+		PendingReparentSource->AttachTo(PendingReparentTarget);
+		PendingReparentSource = nullptr;
+		PendingReparentTarget = nullptr;
+	}
+
 	ImGui::End();
 }
 
@@ -647,4 +677,26 @@ void UPropertyWindow::FinishRename(bool bApply)
 	RenameTarget = nullptr;
 	bFocusRenameInput = false;
 	RenameBuffer.clear();
+}
+
+bool UPropertyWindow::CanReparent(USceneComponent* Source, USceneComponent* Target) const
+{
+	if (!Source || !Target)
+	{
+		return false;
+	}
+	if (Source->GetOwner() != Target->GetOwner())
+	{
+		return false;
+	}
+
+	for (USceneComponent* Parent = Target; Parent != nullptr; Parent = Parent->GetAttachParent())
+	{
+		if (Parent == Source)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }

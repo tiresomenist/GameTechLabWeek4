@@ -48,6 +48,23 @@ void UOutlinerWindow::Render(float DeltaTime)
 		}
 	}
 
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::InvisibleButton("##DropTop", ImVec2(-1.0f, 4.0f));
+	if (ImGui::BeginDragDropTarget())
+	{
+		if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("EDITOR_ACTOR"))
+		{
+			AActor* SourceActor = *static_cast<AActor**>(Payload->Data);
+			if (SourceActor != nullptr)
+			{
+				PendingReparentSource = SourceActor;
+				PendingReparentTarget = nullptr;
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
+	ImGui::PopStyleVar();
+
 	if (ImGui::BeginTable("ActorTable", 2, ImGuiTableFlags_SizingStretchProp))
 	{
 		ImGui::TableSetupColumn("##Name", ImGuiTableColumnFlags_WidthStretch);
@@ -75,6 +92,13 @@ void UOutlinerWindow::Render(float DeltaTime)
 	else if (RenameTarget && !bFocusRenameInput && !bRenameInputDrawn)
 	{
 		FinishRename(true);
+	}
+
+	if (PendingReparentSource)
+	{
+		PendingReparentSource->SetParentActor(PendingReparentTarget);
+		PendingReparentSource = nullptr;
+		PendingReparentTarget = nullptr;
 	}
 	
 	ImGui::End();
@@ -122,6 +146,27 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 	const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - LabelSpacing);
 
 	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
+
+	if (ImGui::BeginDragDropSource())
+	{
+		ImGui::SetDragDropPayload("EDITOR_ACTOR", &Actor, sizeof(Actor));
+		ImGui::TextUnformatted(Actor->GetName().ToString().c_str());
+		ImGui::EndDragDropSource();
+	}
+
+	if (ImGui::BeginDragDropTarget())
+	{
+		if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("EDITOR_ACTOR"))
+		{
+			AActor* SourceActor = *static_cast<AActor**>(Payload->Data);
+			if (CanReparent(SourceActor, Actor))
+			{
+				PendingReparentSource = SourceActor;
+				PendingReparentTarget = Actor;
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
 
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
@@ -254,4 +299,22 @@ void UOutlinerWindow::FinishRename(bool bApply)
 	RenameTarget = nullptr;
 	bFocusRenameInput = false;
 	RenameBuffer.clear();
+}
+
+bool UOutlinerWindow::CanReparent(AActor* Source, AActor* Target) const
+{
+	if (!Source || !Target)
+	{
+		return false;
+	}
+	
+	for (AActor* Current = Target; Current != nullptr; Current = Current->GetParentActor())
+	{
+		if (Current == Source)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
