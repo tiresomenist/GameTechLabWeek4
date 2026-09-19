@@ -622,6 +622,8 @@ void FEditor::OnResize(uint32 Width, uint32 Height)
 	// TODO: 고정크기가 아닌 가변 크기로 로직 바꾸어야 함.
 	if (Width == 0 || Height == 0) return;
 
+	if (Viewports.IsEmpty()) return;
+
 	const float HalfWidth = Width * 0.5f;
 	const float HalfHeight = Height * 0.5f;
 
