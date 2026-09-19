@@ -42,7 +42,6 @@ public:
 	void DeleteSelectedActor();
 
 	bool DrawRotationField(const char* ID, float& Degree, bool& bRotationActive);
-	void RenderActorSection(AActor* SelectedActor);
 	void RenderComponentListSection(AActor* Actor);
 	void DrawComponentTree(USceneComponent* Component);
 	void RenderAddComponentSection(AActor* Actor);

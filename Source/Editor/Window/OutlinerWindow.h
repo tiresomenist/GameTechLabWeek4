@@ -10,13 +10,20 @@ class UOutlinerWindow : public UEditorWindow
 	UCLASS(UOutlinerWindow, "OutlinerWindow", UEditorWindow)
 
 public:
-	void InitializeWindow(FEditor* InEditor, const FString& InName) override;
-
 	virtual void Render(float DeltaTime) override;
 
 private:
 	void DrawActorTree(AActor* Actor);
 	void SetVisibilitySubtree(AActor* Actor, bool bVisible);
+	void DrawRenameInput(AActor* Actor, const ImVec2& Position, float Width);
 
-	const char* ActorNameBuffer;
+	void RequestRename(AActor* Actor);
+	void FinishRename(bool bApply);
+
+	AActor* RenameTarget = nullptr;
+	FString RenameBuffer;
+	bool bFocusRenameInput = false;
+	bool bRenameInputDrawn = false;
+
+	AActor* PendingDeleteTarget = nullptr;
 };

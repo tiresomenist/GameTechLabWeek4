@@ -129,26 +129,6 @@ void UPropertyWindow::DeleteSelectedActor()
 	bEditingRotation = false;
 }
 
-void UPropertyWindow::RenderActorSection(AActor* SelectedActor)
-{
-	const FString ActorName = SelectedActor->GetName().ToString();
-	ImGui::Text("Actor Name");
-	if (NameEditingActor != SelectedActor)
-	{
-		NameEditingActor = SelectedActor;
-		ActorNameBuffer.fill('\0');
-		const size_t CopyLength = std::min(ActorName.size(), ActorNameBuffer.size() - 1);
-		std::copy_n(ActorName.begin(), CopyLength, ActorNameBuffer.begin());
-	}
-
-	ImGui::SetNextItemWidth(-1.0f);
-	if (ImGui::InputText("###ActorNameInput", ActorNameBuffer.data(), ActorNameBuffer.size(),
-		ImGuiInputTextFlags_EnterReturnsTrue) && ActorNameBuffer[0] != '\0')
-	{
-		SelectedActor->SetName(FName(ActorNameBuffer.data()));
-	}
-}
-
 void UPropertyWindow::RenderComponentListSection(AActor* Actor)
 {
 	if (!Actor)
@@ -481,8 +461,7 @@ void UPropertyWindow::Render(float DeltaTime)
 		return;
 	}
 
-	RenderActorSection(SelectedActor);
-	ImGui::Separator();
+	ImGui::SeparatorText(SelectedActor->GetName().ToString().c_str());
 	RenderAddComponentSection(SelectedActor);
 	RenderComponentListSection(SelectedActor);
 

@@ -1,27 +1,24 @@
 #include "pch.h"
 #include "OutlinerWindow.h"
+
 #include "Editor/Editor.h"
 #include "Engine/Scene/Scene.h"
 #include "Engine/Actor/Actor.h"
 #include "Engine/Component/ActorComponent.h"
 #include "Engine/Component/SceneComponent.h"
 #include "Engine/Component/StaticMeshComponent.h"
-
-void UOutlinerWindow::InitializeWindow(FEditor* InEditor, const FString& InName)
-{
-	UEditorWindow::InitializeWindow(InEditor, InName);
-}
+#include "ImGui/imgui_stdlib.h"
 
 void UOutlinerWindow::Render(float DeltaTime)
 {
+	bRenameInputDrawn = false;
+
 	if (!bOpen)
 	{
 		return;
 	}
 
 	ImGui::SetNextWindowSize(ImVec2(380.0f, 640.0f), ImGuiCond_FirstUseEver);
-
-	AActor* SelectedActor = Editor->GetSelectedActor();
 
 	ImGui::Begin(Name.c_str(), &bOpen);
 
@@ -31,6 +28,26 @@ void UOutlinerWindow::Render(float DeltaTime)
 		ImGui::End();
 		return;
 	}
+
+	const bool bCanUseShortcuts =
+		RenameTarget == nullptr &&
+		ImGui::IsWindowFocused() &&
+		!ImGui::IsAnyItemActive() &&
+		!ImGui::GetIO().WantTextInput &&
+		!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopup | ImGuiPopupFlags_AnyPopupLevel);
+
+	if (bCanUseShortcuts)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_F2, false))
+		{
+			RequestRename(Editor->GetSelectedActor());
+		}
+		if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+		{
+			PendingDeleteTarget = Editor->GetSelectedActor();
+		}
+	}
+	
 
 	if (ImGui::BeginTable("ActorTable", 2, ImGuiTableFlags_SizingStretchProp))
 	{
@@ -47,6 +64,19 @@ void UOutlinerWindow::Render(float DeltaTime)
 		
 		ImGui::EndTable();
 	}
+
+	if (PendingDeleteTarget)
+	{
+		Editor->SetSelectedActor(PendingDeleteTarget);
+		Editor->DeleteSelectedActor();
+
+		PendingDeleteTarget = nullptr;
+		FinishRename(false);
+	}
+	else if (RenameTarget && !bFocusRenameInput && !bRenameInputDrawn)
+	{
+		FinishRename(true);
+	}
 	
 	ImGui::End();
 }
@@ -61,6 +91,7 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 	ImGui::TableNextRow();
 	ImGui::TableSetColumnIndex(0);
 
+	const bool bRenaming = RenameTarget == Actor;
 	const bool bHasChildren = !Actor->GetChildActors().IsEmpty();
 
 	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
@@ -72,19 +103,55 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 	{
 		Flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 	}
+	if (bRenaming)
+	{
+		Flags &= ~ImGuiTreeNodeFlags_SpanAvailWidth;
+		Flags |= ImGuiTreeNodeFlags_AllowOverlap;
+	}
 
 	if (Editor->GetSelectedActor() == Actor)
 	{
 		Flags |= ImGuiTreeNodeFlags_Selected;
 	}
 
-	const FString Label = std::format("{}###Actor{}", Actor->GetName().ToString(), Actor->GetUUID());
+	const FString Label = std::format("{}###Actor{}", bRenaming ? "" : Actor->GetName().ToString(), Actor->GetUUID());
 
-	bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
+	const ImVec2 RowStart = ImGui::GetCursorScreenPos();
+	const float LabelSpacing = ImGui::GetTreeNodeToLabelSpacing();
+
+	const ImVec2 InputPosition(RowStart.x + LabelSpacing, RowStart.y);
+	const float InputWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - LabelSpacing);
+
+	const bool bNodeOpen = ImGui::TreeNodeEx(Label.c_str(), Flags);
 
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
 		Editor->SetSelectedActor(Actor);
+	}
+
+	if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight))
+	{
+		if (ImGui::IsWindowAppearing())
+		{
+			Editor->SetSelectedActor(Actor);
+		}
+
+		if (ImGui::MenuItem("Rename", "F2"))
+		{
+			RequestRename(Actor);
+		}
+
+		if (ImGui::MenuItem("Delete", "Delete"))
+		{
+			PendingDeleteTarget = Actor;
+		}
+
+		ImGui::EndPopup();
+	}
+
+	if (bRenaming)
+	{
+		DrawRenameInput(Actor, InputPosition, InputWidth);
 	}
 
 	ImGui::TableSetColumnIndex(1);
@@ -117,7 +184,7 @@ void UOutlinerWindow::DrawActorTree(AActor* Actor)
 
 void UOutlinerWindow::SetVisibilitySubtree(AActor* Actor, bool bVisible)
 {
-		if (!Actor)
+	if (!Actor)
 	{
 		return;
 	}
@@ -131,4 +198,61 @@ void UOutlinerWindow::SetVisibilitySubtree(AActor* Actor, bool bVisible)
 			SetVisibilitySubtree(Child, bVisible);
 		}
 	}
+}
+
+void UOutlinerWindow::DrawRenameInput(AActor* Actor, const ImVec2& Position, float Width)
+{
+	ImGui::SameLine();
+	ImGui::SetCursorScreenPos(Position);
+	ImGui::SetNextItemWidth(Width);
+
+	ImGui::PushID(Actor);
+
+	if (bFocusRenameInput)
+	{
+		ImGui::SetKeyboardFocusHere();
+		bFocusRenameInput = false;
+	}
+
+	const bool bEscapePressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+	const bool bEnter = ImGui::InputText("##Rename", &RenameBuffer, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+	
+	if (bEscapePressed && (ImGui::IsItemActive() || ImGui::IsItemDeactivated()))
+	{
+		FinishRename(false);
+	}
+	else if (bEnter || ImGui::IsItemDeactivated())
+	{
+		FinishRename(true);
+	}
+
+	ImGui::PopID();
+
+	bRenameInputDrawn = true;
+}
+
+void UOutlinerWindow::RequestRename(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	RenameTarget = Actor;
+
+	const FString CurrentName = Actor->GetName().ToString();
+	RenameBuffer = CurrentName;
+	bFocusRenameInput = true;
+}
+
+void UOutlinerWindow::FinishRename(bool bApply)
+{
+	if (bApply && RenameTarget && !RenameBuffer.empty())
+	{
+		RenameTarget->SetName(FName(RenameBuffer));
+	}
+
+	RenameTarget = nullptr;
+	bFocusRenameInput = false;
+	RenameBuffer.clear();
 }
