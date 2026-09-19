@@ -127,17 +127,11 @@ public:
 	virtual void Initialize();
 	
 	/// <summary>
-	/// 객체에 담긴 정보를 직렬화하여 Archive에 저장합니다.
+	/// 객체에 담긴 정보를 직렬화하여 Archive에 저장/복원합니다
 	/// </summary>
 	/// <param name="Archive"></param>
 	virtual void Serialize(FArchive& Archive);
 	
-	/// <summary>
-	/// Archive에 담긴 정보를 역직렬화하여 UObject에 저장합니다.
-	/// </summary>
-	/// <param name="Archive"></param>
-	virtual void Deserialize(FArchive& Archive);
-
 	void* operator new(size_t Size);
 	void* operator new(size_t Size, std::align_val_t Alignment);
 	void operator delete(void* Ptr);

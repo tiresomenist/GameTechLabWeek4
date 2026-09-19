@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Util/File.h"
+#include <cmath>
 
 // JSON 문자열을 파싱하고 최초 읽기 위치를 설정한다.
 FJsonReader::FJsonReader(FStringView Text)
@@ -11,10 +12,11 @@ FJsonReader::FJsonReader(FStringView Text)
 }
 
 // 파일 내용을 읽어 Reader를 직접 생성한다.
-FJsonReader FJsonReader::FromFile(const std::filesystem::path& Path)
+std::unique_ptr<FJsonReader> FJsonReader::FromFile(const std::filesystem::path& Path)
 {
     // path 기반 읽기를 사용하고 반환 객체는 복사 없이 직접 생성한다.
-    return FJsonReader(File::ReadTextFromPath(Path));
+    const FString Text = File::ReadTextFromPath(Path);
+    return std::make_unique<FJsonReader>(Text);
 }
 
 // 같은 JSON 문서를 루트부터 다시 읽도록 설정한다.
@@ -179,10 +181,12 @@ void FJsonReader::BeginMapEntry(uint32 Index, FString& Key)
 }
 
 // 기존 씬의 기본값 규칙으로 float 세 값을 복원한다.
-void FJsonReader::Float3OrDefault(const char* Name, std::array<float, 3>& Values, float Default)
+void FJsonReader::Float3OrDefault(const char* Name, TArray<float>& Values, float Default)
 {
     // 누락이나 배열 형태 오류는 전체 기본값을 유지한다.
-    Values.fill(Default);
+    Values.SetNum(3);
+    for (int32 Index = 0; Index < 3; ++Index)
+        Values[Index] = Default;
     const FJson* Node = Find(Name);
     if (Node == nullptr || !Node->is_array() || Node->size() != 3) return;
 

@@ -44,14 +44,5 @@ bool UTextComponent::BuildTextItem(const UCameraComponent* Camera, FWorldTextIte
 void UTextComponent::Serialize(FArchive& Archive)
 {
 	Super::Serialize(Archive);
-	Archive.SetString("Text", Text);
-}
-
-void UTextComponent::Deserialize(FArchive& Archive)
-{
-	Super::Deserialize(Archive);
-	if (Archive.Contains("Text"))
-	{
-		Text = Archive.GetString("Text");
-	}
+	Archive.OptionalField("Text", Text);
 }

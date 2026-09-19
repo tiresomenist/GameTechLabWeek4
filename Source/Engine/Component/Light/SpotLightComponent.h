@@ -39,7 +39,6 @@ public:
     void SetConeLength(float Value);
 
     void Serialize(FArchive& Archive) override;
-    void Deserialize(FArchive& Archive) override;
     FLineDrawRequest BuildConeLineDrawRequest() const;
 
 private:

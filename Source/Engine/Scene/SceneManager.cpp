@@ -2,23 +2,15 @@
 #include "SceneManager.h"
 #include "Core/Container/String.h"
 #include "Core/Serialization/Archive.h"
-#include "Engine/Object/ClassRegistry.h"
+#include "Core/Serialization/JsonReader.h"
+#include "Core/Serialization/JsonWriter.h"
 #include "Engine/Object/ObjectStatics.h"
 #include "Engine/Scene/Scene.h"
-#include "Core/Util/File.h"
 #include "Engine/Log.h"
-#include "nlohmann/json.hpp"
-
 #include "Engine/Scene/SceneValidation.h"
-#include <array>
-#include <memory>
-#include <unordered_set>
-#include <vector>
-#include <charconv>
 #include <filesystem>
-#include <limits>
-#include <optional>
 #include <stdexcept>
+#include <memory>
 
 namespace
 {
@@ -109,135 +101,98 @@ void GSceneManager::ClearNextScene()
 	NextScenePath.clear();
 }
 
-bool ValidateSceneJSON(const nlohmann::json& Root)
-{
-    try
-    {
-        if (!Root.is_object() || !Root.at("Version").is_number_integer() || Root.at("Version") != 1)
-            return false;
-        const auto& Next = Root.at("NextUUID");
-        if (!Next.is_number_integer()) return false;
-        const uint32 NextUUID = ParseSceneUUID(Next.dump(), true);
-        const auto& Primitives = Root.at("Primitives");
-        if (!Primitives.is_object()) return false;
-        for (const auto& Item : Primitives.items())
-        {
-            if (ParseSceneUUID(Item.key()) >= NextUUID) return false;
-            const auto& Object = Item.value();
-            if (!Object.is_object() || !Object.at("Type").is_string()) return false;
-			const FName TypeName(Object.at("Type").get<FString>());
-
-			const FResolvedSceneType Resolved = ResolveSceneType(TypeName);
-			if (!Resolved.IsValid()){return false;}
-        }
-        return true;
-    }
-    catch (const nlohmann::json::exception&) { return false; }
-    catch (const std::runtime_error&) { return false; }
-}
-
+// 씬 파일을 검사한 뒤 기존 씬을 교체하고 저장된 객체를 복원한다.
 void GSceneManager::InternalLoadScene()
 {
-	if (NextScene == nullptr || NextScene->SceneConstructor == nullptr)
-	{
-		ClearNextScene();
-		return;
-	}
+    if (NextScene == nullptr || NextScene->SceneConstructor == nullptr)
+    {
+        ClearNextScene();
+        return;
+    }
 
-	TArray<FArchive> ObjectInfoList;
-	uint32 NextUUID = 0;
+    std::unique_ptr<FJsonReader> Reader;
+    uint32 NextUUID = 0;
 
-	// 현재 Scene을 제거하기 전에 파일 전체를 파싱하고 검증합니다.
-	try
-	{
-		// 경로 지정 로드가 우선, 없으면 이름 기반 로드, 둘 다 없으면 빈 씬
-		std::optional<FString> FileText;
-		if (!NextScenePath.empty())
-		{
-			FileText = File::ReadTextFromPath(NextScenePath);
-		}
-		else if (!NextSceneFile.empty())
-		{
-			FileText = File::ReadText(GetScenePath(NextSceneFile));
-		}
+    // 기존 씬을 제거하기 전에 파일 읽기와 기본 형식 검사를 완료한다.
+    try
+    {
+        // 파일 경로가 있으면 파일에서 생성하고, 없으면 빈 씬 Reader를 생성한다.
+        if (!NextScenePath.empty())
+        {
+            Reader = FJsonReader::FromFile(NextScenePath);
+        }
+        else if (!NextSceneFile.empty())
+        {
+            const std::filesystem::path Path(GetScenePath(NextSceneFile));
+            Reader = FJsonReader::FromFile(Path);
+        }
+        else
+        {
+            Reader = std::make_unique<FJsonReader>(R"({"Version":1,"NextUUID":0,"Primitives":{}})");
+        }
+        NextUUID = ValidateSceneArchive(*Reader);
+        Reader->ResetToRoot();
+    }
+    catch (const std::exception& Error)
+    {
+        UE_LOG("[SceneManager] Scene file validation failed: {}", Error.what());
+        ClearNextScene();
+        return;
+    }
 
-		if (FileText)
-		{
-			const nlohmann::json FileJSON = nlohmann::json::parse(*FileText);
+    // 기본 검사를 통과한 뒤 기존 씬을 정리한다.
+    if (CurrentScene)
+    {
+        CurrentScene->EndPlay();
+        delete CurrentScene;
+        CurrentScene = nullptr;
+    }
 
-			if (!ValidateSceneJSON(FileJSON))
-			{
-				throw std::runtime_error("JSON 형식이 올바르지 않습니다.");
-			}
+    // 새 씬의 객체를 복원하고 완료된 씬의 플레이를 시작한다.
+    try
+    {
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
+        CurrentScene = NextScene->SceneConstructor();
+        if (CurrentScene == nullptr)
+            throw std::runtime_error("Failed to create scene.");
 
-			NextUUID = FileJSON.at("NextUUID").get<uint32>();
+        CurrentScene->Serialize(*Reader);
+        CurrentScene->BeginPlay();
+    }
+    catch (const std::exception& Error)
+    {
+        // 복원 중 실패한 씬을 남기지 않고 정리한다.
+        delete CurrentScene;
+        CurrentScene = nullptr;
+        UE_LOG("[SceneManager] Scene restoration failed: {}", Error.what());
+    }
 
-			const nlohmann::json& List = FileJSON.at("Primitives");
-			for (const auto& Item : List.items())
-			{
-				const uint32 UUID = std::stoi(Item.key());
-				FArchive Archive{ Item.value() };
-				Archive.SetUInt32("UUID", UUID);
-				ObjectInfoList.Add(Archive);
-			}
-		}
-	}
-	catch (const std::exception& Error)
-	{
-		const FString SceneLabel = NextScenePath.empty() ? NextSceneFile : NextScenePath.filename().string();
-		UE_LOG("[SceneManger] 저장된 {} 씬 로드 실패: {}", SceneLabel, Error.what());
-		ClearNextScene();
-		return;
-	}
-
-	// 검증을 통과한 뒤 기존 Scene을 교체합니다.
-
-	//2.[P1]씬 로드의 예외 경계가 너무 좁음
-	if (CurrentScene)
-	{
-		CurrentScene->EndPlay();
-		delete CurrentScene;
-		CurrentScene = nullptr;
-	}
-
-	GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
-	CurrentScene = NextScene->SceneConstructor();
-	if (CurrentScene == nullptr)
-	{
-		UE_LOG("[SceneManger] {} Scene 생성 실패", NextScene->Name);
-		ClearNextScene();
-		return;
-	}
-
-	CurrentScene->Deserialize(ObjectInfoList);
-	CurrentScene->BeginPlay();
-
-	ClearNextScene();
+    ClearNextScene();
 }
 
-
+// 현재 씬을 JSON Archive에 기록하고 검증 후 파일로 저장한다.
 void GSceneManager::SaveScene(FStringView SerializedName)
 {
     if (!CurrentScene || SerializedName.empty()) return;
+
     try
     {
         const FString FileName = GetScenePath(SerializedName);
-        TArray<FArchive> ObjectInfoList;
-        CurrentScene->Serialize(ObjectInfoList);
-        auto Objects = nlohmann::json::object();
-        for (auto& Item : ObjectInfoList)
-        {
-            const FString UUID = std::to_string(Item.GetUInt32("UUID"));
-            if (Objects.contains(UUID)) throw std::runtime_error("Duplicate UUID while saving");
-            Objects[UUID] = Item.GetJSON();
-        }
-        nlohmann::json Root;
-        Root["Version"] = 1;
-        Root["NextUUID"] = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
-        Root["Primitives"] = std::move(Objects);
-        if (!ValidateSceneJSON(Root)) throw std::runtime_error("Invalid scene data while saving");
+        FJsonWriter Writer;
+
+        // 파일 전체에 대한 버전과 다음 UUID를 루트에 기록한다.
+        int32 Version = 1;
+        uint32 NextUUID = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
+        Writer.Field("Version", Version);
+        Writer.Field("NextUUID", NextUUID);
+        CurrentScene->Serialize(Writer);
+
+        // 완성된 메모리상의 문서를 검사한 뒤 실제 파일에 저장한다.
+        FJsonReader ValidationReader(Writer.ToString());
+        ValidateSceneArchive(ValidationReader);
+
         std::filesystem::create_directories(SceneDirectory);
-        File::WriteText(FileName, Root.dump());
+        Writer.SaveToFile(FileName);
     }
     catch (const std::exception& Error)
     {

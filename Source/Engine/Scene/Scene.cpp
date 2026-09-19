@@ -62,100 +62,121 @@ void UScene::CreateMainCamera()
     MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
 }
 
-void UScene::Serialize(TArray<FArchive>& ObjectInfoList)
-{
-    for (AActor* Actor : Actors)
+void UScene::Serialize(FArchive& Archive) {
+    const bool bLoading = Archive.IsLoading();
+    TArray<UActorComponent*> SavedComponents;
+
+    // 저장할 컴포넌트를 모아 맵의 원소 개수를 먼저 확정한다.
+    if (!bLoading)
     {
-        for (UActorComponent* Component : Actor->GetComponents())
+        for (AActor* Actor : Actors)
         {
-            // UUID 표시는 런타임에 자동 추가하는 보조 컴포넌트이므로 씬 파일에는 저장하지 않는다.
-            if (Component->IsA(UWidgetComponent::GetClass())) continue;
-
-            FArchive Archive;
-            Archive.SetUInt32("UUID", Component->GetUUID());
-            Archive.SetUInt32("ActorUUID", Actor->GetUUID());
-
-            Archive.SetString("ActorName", Actor->GetName().ToString());
-
-            Component->Serialize(Archive);
-            ObjectInfoList.Add(Archive);
+            for (UActorComponent* Component : Actor->GetComponents())
+            {
+                // 지금기준 UUID용 UUID는 저장하지 않음.
+                if (!Component->IsA(UWidgetComponent::GetClass()))
+                    SavedComponents.Add(Component);
+            }
         }
     }
-}
+    uint32 Count = static_cast<uint32>(SavedComponents.Num());
+    if (!Archive.BeginMap("Primitives", Count))
+        throw std::runtime_error("Missing scene primitives.");
 
-void UScene::Deserialize(TArray<FArchive>& ObjectInfoList)
-{
-    for (auto& Item : ObjectInfoList)
+    // 키값:UUID
+    for (uint32 Index = 0; Index < Count; ++Index)
     {
-        // 원본 문자열은 오류 메시지 출력에 사용함
-        const FString TypeText = Item.GetString("Type");
+        UActorComponent* Component = bLoading ? nullptr : SavedComponents[Index];
+        FString Key = bLoading ? FString{} : std::to_string(Component->GetUUID());
+        Archive.BeginMapEntry(Index, Key);
 
-        // 복원 진입점에서 타입 이름을 한 번 변환함
-        const FName TypeName(TypeText);
+        FString TypeText = bLoading ? FString{} : Component->GetInstanceClass()->Name.ToString();
+        Archive.Field("Type", TypeText);
 
-        const FResolvedSceneType Resolved = ResolveSceneType(TypeName);
-
-        if (!Resolved.IsValid())
+        if (!bLoading)
         {
-            throw std::runtime_error("지원되지 않거나 등록되지 않은 타입: " + TypeText);
-        }
+            // 객체 생성에 필요한 식별 정보와 소유 Actor 정보를 기록한다.
+            AActor* Actor = Component->GetOwner();
+            uint32 UUID = Component->GetUUID();
+            uint32 ActorUUID = Actor->GetUUID();
+            FString ActorName = Actor->GetName().ToString();
 
-        // 이전 씬에 저장된 UUID 위젯의 직접 복원을 생략함
-        if (Resolved.Kind == ESceneTypeKind::SkipRuntimeWidget){ continue; }
-
-        FClassType* Type = Resolved.ClassType;
-
-        uint32 UUID = Item.GetUInt32("UUID");
-        AActor* Actor = nullptr;
-        if (Item.GetJSON().contains("ActorUUID"))
-        {
-            const uint32 ActorUUID = Item.GetUInt32("ActorUUID");
-            for (AActor* ExistingActor : Actors)
-            {
-                if (ExistingActor->GetUUID() == ActorUUID)
-                {
-                    Actor = ExistingActor;
-                    break;
-                }
-            }
-
-            if (Actor == nullptr)
-            {
-                Actor = SpawnActor<AActor*>(AActor::GetClass(), ActorUUID);
-            }
+            Archive.Field("UUID", UUID);
+            Archive.OptionalField("ActorUUID", ActorUUID);
+            Archive.OptionalField("ActorName", ActorName);
+            Component->Serialize(Archive);
         }
         else
         {
-            // 기존 Component-직접-소유 JSON과의 호환: Component 하나당 Actor 하나를 만듭니다.
-            Actor = SpawnActor<AActor*>(AActor::GetClass());
-        }
-        if (Item.Contains("ActorName"))
-        {
-            Actor->SetName(FName(Item.GetString("ActorName")));
-        }
-        UActorComponent* Component = Actor->CreateComponent(Type, UUID);
-        if (Component == nullptr)
-        {
-            UE_LOG("[UScene] {} 타입은 ActorComponent가 아니므로 로드하지 않습니다.", TypeText);
-            continue;
+            // 저장된 타입을 실제 생성할 컴포넌트 클래스로 해석한다.
+            const FName TypeName(TypeText);
+            const FResolvedSceneType Resolved = ResolveSceneType(TypeName);
+            if (!Resolved.IsValid())
+                throw std::runtime_error("Unsupported scene type: " + TypeText);
+
+            // 구형 파일의 UUID 위젯은 직접 복원하지 않고 마지막에 다시 생성한다.
+            if (Resolved.Kind == ESceneTypeKind::SkipRuntimeWidget)
+            {
+                Archive.EndMapEntry();
+                continue;
+            }
+
+            // 기존 로더와 동일하게 맵의 키를 실제 컴포넌트 UUID로 사용한다.
+            const uint32 UUID = ParseSceneUUID(Key);
+            uint32 ActorUUID = 0;
+            FString ActorName;
+            const bool bHasActorUUID = Archive.OptionalField("ActorUUID", ActorUUID);
+            const bool bHasActorName = Archive.OptionalField("ActorName", ActorName);
+            AActor* Actor = nullptr;
+
+            // 같은 ActorUUID를 가진 컴포넌트는 하나의 Actor에 모아서 복원한다.
+            if (bHasActorUUID)
+            {
+                for (AActor* ExistingActor : Actors)
+                {
+                    if (ExistingActor->GetUUID() == ActorUUID)
+                    {
+                        Actor = ExistingActor;
+                        break;
+                    }
+                }
+                if (Actor == nullptr)
+                    Actor = SpawnActor<AActor*>(AActor::GetClass(), ActorUUID);
+            }
+            else
+            {
+                // Actor 정보가 없는 구형 씬은 컴포넌트마다 Actor를 생성한다.
+                Actor = SpawnActor<AActor*>(AActor::GetClass());
+            }
+
+            if (bHasActorName)
+                Actor->SetName(FName(ActorName));
+
+            // 객체 생성 후 동일한 Archive 위치에서 컴포넌트 속성을 복원한다.
+            Component = Actor->CreateComponent(Resolved.ClassType, UUID);
+            if (Component == nullptr)
+                throw std::runtime_error("Failed to create scene component: " + TypeText);
+            Component->Serialize(Archive);
+
+            // Cube 등 구형 타입 이름은 StaticMeshComponent의 MeshKey로 복원한다.
+            if (Resolved.Kind == ESceneTypeKind::LegacyStaticMesh)
+                static_cast<UStaticMeshComponent*>(Component)->SetStaticMesh(TypeName);
+
+            if (MainCamera == nullptr && Component->IsA(UCameraComponent::GetClass()))
+                MainCamera = static_cast<UCameraComponent*>(Component);
+
+            UE_LOG("[Object Restored] UUID:{} Name:{} ActorName:{}",
+                Component->GetUUID(), Component->GetName().ToString(), Actor->GetName().ToString());
         }
 
-        Component->Deserialize(Item);
-        if (Resolved.Kind == ESceneTypeKind::LegacyStaticMesh)
-        {
-            static_cast<UStaticMeshComponent*>(Component)->SetStaticMesh(TypeName);
-        }
-        // 역직렬화 확인 임시코드
-        UE_LOG("[Object Restored] UUID:{} Name:{} ActorName:{}",Component->GetUUID(),Component->GetName().ToString(),Actor->GetName().ToString()
-        );
-        if (MainCamera == nullptr && Component->IsA(UCameraComponent::GetClass()))
-		{
-			MainCamera = static_cast<UCameraComponent*>(Component);
-		}
-	}
+        Archive.EndMapEntry();
+    }
+    Archive.EndMap();
 
-	EnsureUUIDWidgets();
+    // 모든 컴포넌트가 복원된 뒤 런타임 UUID 표시를 구성한다.
+    if (bLoading) EnsureUUIDWidgets();
 }
+
 
 void UScene::EnsureUUIDWidgets()
 {

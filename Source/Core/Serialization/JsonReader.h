@@ -4,7 +4,7 @@
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <vector>
-
+#include <memory>
 class FJsonReader final : public FArchive
 {
 public:
@@ -20,7 +20,8 @@ public:
     bool IsLoading() const override { return true; }
 
     // 파일을 읽어 JSON Reader를 생성한다.
-    static FJsonReader FromFile(const std::filesystem::path& Path);
+    static std::unique_ptr<FJsonReader> FromFile(const std::filesystem::path& Path);
+
     // 같은 문서를 처음부터 다시 읽도록 위치를 초기화한다.
     void ResetToRoot();
 
@@ -48,7 +49,7 @@ public:
     void EndMap() override { Pop(); }
 
     // float 세 값을 읽으며 잘못된 값에는 기존 기본값 규칙을 적용한다.
-    void Float3OrDefault(const char* Name, std::array<float, 3>& Values, float Default) override;
+    void Float3OrDefault(const char* Name, TArray<float>& Values, float Default) override;
 
 protected:
     // int32 값을 읽고 범위를 검사한다.

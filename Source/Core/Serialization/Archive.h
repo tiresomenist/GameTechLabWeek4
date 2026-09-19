@@ -4,21 +4,12 @@
 #include "Core/Container/Array.h"
 #include "Core/Core.h"
 #include <type_traits>
-#include <array>
-#include <cmath>
 #include <limits>
 #include <stdexcept>
 
 
-// TODO: 언젠가는 이 코드가 JSON에 강하게 커플링 되어있는 문제를 해결해야할지도
-// ㄴCOMMENT:지금입니다
-
-
 class FArchive
 {
-private:
-	//nlohmann::json Object;
-
 public:
 	virtual ~FArchive() = default;
 	virtual bool IsLoading()const = 0;
@@ -68,7 +59,7 @@ public:
     virtual void EndMap() = 0;
 
     // float 3개를 처리하며, 읽기에서 잘못된 값은 기존 씬의 기본값 규칙을 적용한다.
-    virtual void Float3OrDefault(const char* Name, std::array<float, 3>& Values, float Default) = 0;
+    virtual void Float3OrDefault(const char* Name, TArray<float>& Values, float Default) = 0;
 
 protected:
     virtual bool SerializeValue(const char* Name, int32& Value) = 0;

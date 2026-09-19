@@ -22,7 +22,7 @@ public:
     // 객체 종료
     void EndObject() override { Pop(); }
 
-    // 배열 Reserve후 진입
+    // 배열 Resize후 진입
     bool BeginArray(const char* Name, uint32& Count) override;
     // 지정한 배열 원소 진입
     void BeginArrayElement(uint32 Index) override;
@@ -41,7 +41,7 @@ public:
     void EndMap() override;
 
     // 벡터 -> JSON 배열
-    void Float3OrDefault(const char* Name, std::array<float, 3>& Values, float Default) override;
+    void Float3OrDefault(const char* Name, TArray<float>& Values, float Default) override;
 
     // 완성된 JSON 문서를 문자열로 반환한다.
     FString ToString() const;

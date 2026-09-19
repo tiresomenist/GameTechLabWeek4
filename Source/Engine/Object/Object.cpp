@@ -86,15 +86,9 @@ UObject::~UObject()
 
 void UObject::Serialize(FArchive& Archive)
 {
-	// FClassType의 Serialize 이름 지정
-	Archive.SetString("Type", ClassType->Name.ToString());
-	Archive.SetString("Name", Name.ToString());
-}
-
-void UObject::Deserialize(FArchive& Archive)
-{
-	if (Archive.Contains("Name"))
-	{
-		Name = FName(Archive.GetString("Name"));
+	FString NameValue = Name.ToString();
+	const bool bHasName = Archive.OptionalField("Name", NameValue);
+	if (Archive.IsLoading() && bHasName) {
+		Name = FName(NameValue);
 	}
 }

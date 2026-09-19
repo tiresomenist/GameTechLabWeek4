@@ -10,7 +10,6 @@ public:
     void SetStaticMesh(const FName& InMeshKey);
     virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
-    virtual void Deserialize(FArchive& Archive) override;
 
     void SetMaterial(const FString& TexturePath);
     void SetMaterial(FTextureResource* InTexture);

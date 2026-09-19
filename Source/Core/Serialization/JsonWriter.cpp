@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Core/Serialization/JsonWriter.h"
 #include "Core/Util/File.h"
+#include <cmath>
 
 // 빈 JSON 객체를 만들고 루트를 현재 위치로 설정한다.
 FJsonWriter::FJsonWriter() : Root(FJson::object())
@@ -150,11 +151,11 @@ void FJsonWriter::EndMap()
 }
 
 // float 세 값을 일반 배열 직렬화로 기록한다.
-void FJsonWriter::Float3OrDefault(const char* Name, std::array<float, 3>& Values, float /*Default*/)
+void FJsonWriter::Float3OrDefault(const char* Name, TArray<float>& Values, float /*Default*/)
 {
-    // 기본값은 읽기에서만 사용하며 쓰기에서는 전달된 값을 그대로 기록한다.
-    TArray<float> Components{ Values[0], Values[1], Values[2] };
-    Field(Name, Components);
+    if (Values.Num() != 3) throw std::runtime_error("Expected exactly three float values.");
+
+    Field(Name, Values);
 }
 
 // 완성된 문서를 JSON 문자열로 변환한다.
