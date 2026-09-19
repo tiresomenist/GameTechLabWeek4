@@ -93,8 +93,7 @@ protected:
         if (IsLoading())
         {
             // 기본 숫자는 자체 크기, 문자열과 중첩 배열은 길이 필드가 최소 크기다.
-            constexpr size_t MinimumElementBytes =
-                std::is_arithmetic_v<T> ? sizeof(T) : sizeof(uint32);
+            constexpr size_t MinimumElementBytes = std::is_arithmetic_v<T> ? sizeof(T) : sizeof(uint32);
             CheckArraySize(Count, MinimumElementBytes);
             Values.SetNum(Count);
         }
