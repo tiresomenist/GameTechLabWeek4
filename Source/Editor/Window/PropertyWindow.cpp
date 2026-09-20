@@ -477,7 +477,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
 		std::string CurrentTexPath = MeshComp->GetMaterialPath().c_str();
 		ImGui::SetNextItemWidth(150.0f);
-		if (ImGui::InputText("Texture Path", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue)) MeshComp->SetMaterial(FString(CurrentTexPath.c_str()));
+		if (ImGui::InputText("Texture Path", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue)) MeshComp->SetOverrideMaterial(FString(CurrentTexPath.c_str()));
 		ImGui::SameLine();
 		if (ImGui::Button("Browse..."))
 		{
@@ -486,7 +486,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 			if (TexturePath)
 			{
 				const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-				MeshComp->SetMaterial(FString(RelativePath.generic_string().c_str()));
+				MeshComp->SetOverrideMaterial(FString(RelativePath.generic_string().c_str()));
 			}
 		}
 		ImGui::TextDisabled("Type texture path and press Enter.");

@@ -36,7 +36,7 @@ public:
 			return nullptr;
 		}
 		return Materials[SlotIndex];
-		// TODO:: 자식 StaticMesh에서 Super::GetMaterial로 자신이 가지고 있는 StaticMesh에서 다시한번 실행
+		// TODO:: 자식 StaticMeshComponent에서 Super::GetMaterial로 자신이 가지고 있는 StaticMesh에서 다시한번 실행
 	}
 	// TODO:: 로드된 FMaterial 객체들을 관리하는 ResourceManger에서 FMaterial을 스마트 포인터로 관리하는지 확인
 	// material에 자신의 경로를 저장

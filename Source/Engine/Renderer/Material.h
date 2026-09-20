@@ -24,4 +24,6 @@ struct FMaterial
 	EPrimitiveBlendMode BlendMode = EPrimitiveBlendMode::Opaque;	//Blend mode
 
 	ID3D11Buffer* ConstantBuffer = nullptr;	//UV·Tint·AlphaCutoff등을 담을 constantBuffer
+
+	FString TexturePath;
 };

@@ -76,12 +76,14 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 		OutData.Max = MeshResource->GetBoundsMax();
 
 		const FMaterial* SectionMaterial = nullptr;
-		if ((Section.MaterialIndex < static_cast<uint32>(MaterialList.Num()) && MaterialList[Section.MaterialIndex]))
+		if ((Section.MaterialIndex < static_cast<uint32>(OverrideMaterialList.Num()) && OverrideMaterialList[Section.MaterialIndex]))
 		{
-			SectionMaterial = MaterialList[Section.MaterialIndex];
+			// override 머테리얼 가져오기
+			SectionMaterial = OverrideMaterialList[Section.MaterialIndex];
 		}
 		else
 		{
+			// 기본 머테리얼 가져오기
 			SectionMaterial = Mesh->GetMaterial(Section.MaterialIndex);
 		}
 		if (SectionMaterial)
@@ -98,7 +100,7 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 FMeshResource* UStaticMeshComponent::GetMeshResource() const 
 {
 	UStaticMesh* Mesh = GetStaticMesh();
-	if (Mesh == nullptr)
+	if (!Mesh)
 		return nullptr;
 	return Mesh->GetMeshResource();
 }
@@ -116,38 +118,24 @@ bool UStaticMeshComponent::GetLocalBounds(FVector& OutMin, FVector& OutMax) cons
 	return true;
 }
 
-void UStaticMeshComponent::SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
+const FMaterial* UStaticMeshComponent::GetMaterial(uint32 MaterialSlot) const
 {
-	if (MaterialSlot >= static_cast<uint32>(MaterialList.Num()))
+	const FMaterial* Mat = Super::GetMaterial(MaterialSlot);
+	if (!Mat)
 	{
-		MaterialList.resize(MaterialSlot + 1);
-	}
-	if (MaterialList[MaterialSlot] != InMaterial)
-	{
-		delete MaterialList[MaterialSlot];
-	}
-	MaterialList[MaterialSlot] = InMaterial;
-}
-
-void UStaticMeshComponent::SetMaterial(const FString& InMaterialPath, uint32 MaterialSlot)
-{
-	MaterialPath = InMaterialPath;
-
-	if (InMaterialPath.empty())
-	{
-		SetMaterial(nullptr, MaterialSlot);
-		return;
-	}
-
-	GResourceManager* RM = GResourceManager::GetInstance();
-	if (FTextureResource* Tex = RM->GetOrLoadTexture(InMaterialPath))
-	{
-		if (Tex->GetSRV())
-		{
-			FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(Tex->GetSRV());
-			SetMaterial(new FMaterial(GPUMaterial), MaterialSlot);
+		if (UStaticMesh* Mesh = GetStaticMesh()) 
+		{ 
+			Mat = Mesh->GetMaterial(MaterialSlot);
 		}
 	}
+	return Mat;
+}
+
+const FString& UStaticMeshComponent::GetMaterialPath(uint32 MaterialSlot) const
+{
+	static const FString EmptyString = "";
+	const FMaterial* Mat = GetMaterial(MaterialSlot);
+	return Mat ? Mat->TexturePath : EmptyString;
 }
 
 UStaticMesh* UStaticMeshComponent::GetStaticMesh() const

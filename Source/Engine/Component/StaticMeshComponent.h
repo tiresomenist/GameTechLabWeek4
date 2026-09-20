@@ -14,12 +14,14 @@ public:
     //virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
 
-    void SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
-    void SetMaterial(const FString& InMaterialPath, uint32 MaterialSlot = 0);
+    //void SetMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
+    //void SetMaterial(const FString& InMaterialPath, uint32 MaterialSlot = 0);
 
     const FName& GetStaticMeshKey() const { return MeshKey; }
-    const FString& GetMaterialPath() const { return MaterialPath; }
-    const FMaterial* GetMaterial(uint32 MaterialSlot) { return MaterialList[MaterialSlot]; }
+    //const FString& GetMaterialPath() const { return MaterialPath; }
+    //const FMaterial* GetMaterial(uint32 MaterialSlot) { return MaterialList[MaterialSlot]; }
+    virtual const FString& GetMaterialPath(uint32 MaterialSlot) const override;
+    virtual const FMaterial* GetMaterial(uint32 MaterialSlot) const override;
 
     UStaticMesh* GetStaticMesh() const;
 
@@ -31,6 +33,5 @@ public:
 
 private:
     FName MeshKey;
-    FString MaterialPath;
     TArray<FMaterial*> MaterialList;
 };
