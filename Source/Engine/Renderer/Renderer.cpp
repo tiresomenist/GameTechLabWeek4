@@ -381,7 +381,7 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 }
 
 // 다중 View
-void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArray<FRenderView>& Views)
+void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TArray<FRenderView>& Views)
 {
 	if (!IsRenderReady() || !Editor || !Scene)
 	{
@@ -400,6 +400,11 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	// Editor->DrawLayout() 이후에 GetRenderView()를 해야 현재 프레임 기준으로 계산이 됩니다. 지금은 한 프레임 밀리는 상태
 
 	SetViewportAndScissor(ViewportInfo);
+
+	if (Editor->GetSplitter())
+	{
+		Editor->GetSplitter()->Render();
+	}
 
 	// UI 렌더링
 	for (auto Item : Editor->GetWindows())

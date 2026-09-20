@@ -361,6 +361,31 @@ void FEditor::Tick(float DeltaTime)
 	const bool bLFirstPressed = bLDown && !bPrevLDown;
 	const bool bRFirstPressed = bRDown && !bPrevRDown;
 
+	ImVec2 MousePos = IO.MousePos;
+	FPoint MouseCoord{ MousePos.x, MousePos.y };
+	
+
+	if (RootSplitter)
+	{
+		RootSplitter->OnMouseMove(MouseCoord);
+	}
+
+	// 스플리터 클릭시 클릭소모
+	if (Input.ConsumeLeftClick() && !IO.WantCaptureMouse)
+	{
+		if (RootSplitter && RootSplitter->OnMouseDown(MouseCoord))
+		{
+			return;
+		}
+	}
+
+	// 마우스 떼면 스플리터 드래그 종료
+	if (!bLDown && RootSplitter)
+	{
+		RootSplitter->OnMouseUp(MouseCoord);
+	}
+
+
 	// 뷰포트 선택
 	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X

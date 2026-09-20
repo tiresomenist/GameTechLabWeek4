@@ -1,10 +1,10 @@
 #include "pch.h"
 #include "Window.h"
 
-bool SWindow::IsHover(const FPoint& coord) const
+bool SWindow::IsHover(const FPoint& Coord) const
 {
 
-    return Rect.Contains(coord);
+    return Rect.Contains(Coord);
 }
 
 void SWindow::UpdateLayout(const FRect& InRect)

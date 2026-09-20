@@ -11,7 +11,12 @@ public:
 	virtual void UpdateLayout(const FRect& InRect);
 
 	void SetViewportClient(FViewportClient* InViewportClient);
-		
+
+	virtual bool OnMouseDown(const FPoint& InPoint) { return false; }
+	virtual bool OnMouseUp(const FPoint& InPoint) { return false; }
+	virtual bool OnMouseMove(const FPoint& InPoint) { return false; }
+	
+	virtual void Render() {};
 protected:
 	FRect Rect;
 	FViewportClient* ViewportClient = nullptr;
