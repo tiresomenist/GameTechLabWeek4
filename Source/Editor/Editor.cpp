@@ -275,10 +275,6 @@ void FEditor::Initialize()
 	RightView.Initialize(EViewportType::Right, RightCamera);
 	Viewports.Add(RightView);
 
-	// 초기 뷰포트 크기 설정
-	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
-	OnResize(EngineViewport.Width, EngineViewport.Height);
-
 	// 기본으로 PerspectiveCamera 설정
 	EditorCamera = PerspectiveCamera;
 	CameraController.SetCamera(PerspectiveCamera);
@@ -305,6 +301,9 @@ void FEditor::Initialize()
 	RootSplitter->SideLT = LeftSplitter;
 	RootSplitter->SideRB = RightSplitter;
 
+	// 초기 뷰포트 크기 설정
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
@@ -691,18 +690,11 @@ void FEditor::OnResize(uint32 Width, uint32 Height, uint32 Left, uint32 Top)
 
 	if (Viewports.IsEmpty()) return;
 
-	const float HalfWidth = Width * 0.5f;
-	const float HalfHeight = Height * 0.5f;
-
-	// 언리얼엔진 기본 위치로 설정
-	// Perspective - 우측 상단
-	Viewports[0].SetRect(Left + HalfWidth, Top, HalfWidth, HalfHeight);
-	// top - 좌측 상단
-	Viewports[1].SetRect(Left, Top, HalfWidth, HalfHeight);
-	// front - 좌측 하단
-	Viewports[2].SetRect(Left, Top + HalfHeight, HalfWidth, HalfHeight);
-	// right - 우측 하단
-	Viewports[3].SetRect(Left + HalfWidth, Top + HalfHeight, HalfWidth, HalfHeight);
+	if (RootSplitter)
+	{
+		FRect rect{ static_cast<float>(Left), static_cast<float>(Top), static_cast<float>(Width), static_cast<float>(Height) };
+		RootSplitter->UpdateLayout(rect);
+	}
 }
 
 const TArray<FViewportClient>& FEditor::GetViewports()

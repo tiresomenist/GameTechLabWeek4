@@ -12,7 +12,7 @@ public:
 
 	void SetViewportClient(FViewportClient* InViewportClient);
 		
-private:
+protected:
 	FRect Rect;
 	FViewportClient* ViewportClient = nullptr;
 };
