@@ -30,6 +30,9 @@ public:
     // 단일 카메라로 전체 출력 영역을 사용하는 뷰를 구성합니다.
     TArray<FRenderView> BuildRenderViews(const D3D11_VIEWPORT& FullViewport) const override;
 
+    D3D11_VIEWPORT GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const override;
+
 private:
+    float MenuBarHeight = 0.0f;
     UScene* PreviewScene = nullptr;
 };

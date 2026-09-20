@@ -82,10 +82,37 @@ UScene* FObjViewer::GetCurrentScene()
     return PreviewScene;
 }
 
-// Viewer 메뉴를 구성하며 이번 단계에서는 빈 화면 구성을 유지합니다.
+// Viewer의 표시 설정 메뉴를 구성하고 메뉴 높이를 기록합니다.
 void FObjViewer::DrawMenu()
 {
-    // 파일 열기 메뉴는 이후 단계에서 추가합니다.
+    // 메뉴를 표시할 수 없는 프레임에는 별도의 상단 영역을 예약하지 않습니다.
+    MenuBarHeight = 0.0f;
+    if (!ImGui::BeginMainMenuBar()) return;
+    MenuBarHeight = ImGui::GetWindowHeight();
+
+    // 기존 FEditor의 표시 설정을 변경하여 공통 렌더링 경로에 반영합니다.
+    if (ImGui::BeginMenu("View"))
+    {
+        bool bShowGrid = IsShowingGrid();
+        if (ImGui::MenuItem("Grid", nullptr, &bShowGrid))
+            SetShowGrid(bShowGrid);
+
+        bool bShowWorldAxis = IsShowingWorldAxis();
+        if (ImGui::MenuItem("World Axis", nullptr, &bShowWorldAxis))
+            SetShowWorldAxis(bShowWorldAxis);
+
+        ImGui::Separator();
+
+        // 프로젝트에 정의된 렌더링 모드 목록을 그대로 사용합니다.
+        for (const FViewModeEntry& Entry : ViewModeEntries)
+        {
+            if (ImGui::MenuItem(Entry.Name, nullptr, GetViewMode() == Entry.Mode))
+                SetViewMode(Entry.Mode);
+        }
+        ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
 }
 
 // Viewer 도구 창을 구성하며 이번 단계에서는 별도 창을 만들지 않습니다.
@@ -116,4 +143,17 @@ TArray<FRenderView> FObjViewer::BuildRenderViews(const D3D11_VIEWPORT& FullViewp
 
     Views.Add(View);
     return Views;
+}
+
+// 전체 출력 영역에서 상단 메뉴가 차지하는 높이를 제외합니다.
+D3D11_VIEWPORT FObjViewer::GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const
+{
+    D3D11_VIEWPORT Viewport = FullViewport;
+
+    // 작은 창에서도 뷰포트 높이가 음수가 되지 않도록 제한합니다.
+    const float FullHeight = (std::max)(0.0f, FullViewport.Height);
+    const float ReservedHeight = std::clamp(MenuBarHeight, 0.0f, FullHeight);
+    Viewport.TopLeftY += ReservedHeight;
+    Viewport.Height = FullHeight - ReservedHeight;
+    return Viewport;
 }
