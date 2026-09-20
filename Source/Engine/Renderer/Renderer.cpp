@@ -362,14 +362,20 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 		return;
 	}
 
-	FRenderView View{};
-	View.Camera = Editor->GetEditorCamera();
-	View.Viewport = ViewportInfo;
-	View.ViewSettings = Editor->GetViewSettings();
-	View.bDrawEditorGizmos = true;
+	//FRenderView View{};
+	//View.Camera = Editor->GetEditorCamera();
+	//View.Viewport = ViewportInfo;
+	//View.ViewSettings = Editor->GetViewSettings();
+	//View.bDrawEditorGizmos = true;
 
 	TArray<FRenderView> Views;
-	Views.Add(View);
+	//Views.Add(View);
+
+	for (const auto& view : Editor->GetViewports())
+	{
+		FRenderView View = view.GetRenderView();
+		Views.Add(View);
+	}
 
 	Render(DeltaTime, Editor, Scene, Views);
 }

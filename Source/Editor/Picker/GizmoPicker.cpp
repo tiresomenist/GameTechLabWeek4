@@ -66,11 +66,14 @@ bool FGizmoPicker::RayTriangleIntersect(const FRay& Ray, FVector A, FVector B, F
     return OutDistance > 1.0e-6f;
 }
 
-bool FGizmoPicker::MakeWorldRay(FRay& OutRay) {
+bool FGizmoPicker::MakeWorldRay(FRay& OutRay, D3D11_VIEWPORT InViewport) {
 
     auto& Input = *GInputManager::GetInstance();
-    float NDCX = Input.GetLeftCursorX();
-    float NDCY = Input.GetLeftCursorY();
+    float PixelX = Input.GetLeftCursorPixelX();
+    float PixelY = Input.GetLeftCursorPixelY();
+
+    float NDCX = 2.0f * (PixelX - InViewport.TopLeftX) / InViewport.Width - 1.0f;//Input.GetLeftCursorX();
+    float NDCY = 1.0f - 2.0f * (PixelY - InViewport.TopLeftY) / InViewport.Height;//Input.GetLeftCursorY();
 
     FVector4 Near(NDCX, NDCY, 0.0f, 1.0f);
     FVector4 Far(NDCX, NDCY, 1.0f, 1.0f);
@@ -97,12 +100,13 @@ bool FGizmoPicker::MakeWorldRay(FRay& OutRay) {
     return true;
 }
 
-int FGizmoPicker::Pick(UGizmo* InGizmos)
+int FGizmoPicker::Pick(UGizmo* InGizmos, D3D11_VIEWPORT InViewport)
 {
     auto* Gizmo = dynamic_cast<UObjectAxisGizmo*>(InGizmos);
     if (!Editor || !Editor->GetEditorCamera() || !Gizmo || !Gizmo->UpdateTransform()) return -1;    //뭔가 잘못되었으면
 
-    const auto& Viewport = GEngine::GetInstance()->GetViewport();
+    const auto& Viewport = InViewport;
+    
     if (Viewport.Width <= 0 || Viewport.Height <= 0) return -1; //창 크기가 0보다 작으면
 
     //현재 종횡비를 갱신하고, VP행렬을 가져온다
@@ -113,8 +117,8 @@ int FGizmoPicker::Pick(UGizmo* InGizmos)
     auto& Input = *GInputManager::GetInstance();
     //NDC좌표에서 PIXEL좌표로
     const FVector Click(
-        Viewport.TopLeftX + (Input.GetLeftCursorX() + 1) * 0.5f * Viewport.Width,
-        Viewport.TopLeftY + (1 - Input.GetLeftCursorY()) * 0.5f * Viewport.Height, 0);
+        Input.GetLeftCursorPixelX(), Input.GetLeftCursorPixelY()
+    );
     
     // 클릭 허용 픽셀
     constexpr float PickRadiusPixels = 8.0f;
@@ -123,7 +127,7 @@ int FGizmoPicker::Pick(UGizmo* InGizmos)
     int32 SelectedAxis = -1;
 
     FRay Ray;
-    if (!MakeWorldRay(Ray)) return -1;	//Ray 계산 실패
+    if (!MakeWorldRay(Ray, InViewport)) return -1;	//Ray 계산 실패
 
     float ClosestDistance = 100000.f;
 
