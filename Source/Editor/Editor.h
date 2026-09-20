@@ -135,7 +135,7 @@ public:
 	void SaveEditorSetting();
 
 	const TArray<UGizmo*>& GetGizmos() const { return Gizmos; }
-	FEditorMenuLayout& GetMenuLayout() { return MenuLayout; }
+	void DrawLayout() { return MenuLayout.Draw(); }
 	const TArray<UEditorWindow*>& GetWindows() const { return Windows; }
 	const TArray<UGrid*>& GetGrids() const { return Grids; }
 
@@ -162,7 +162,7 @@ public:
 	UObject* SpawnObject(FClassType* Type);
 
 	// 뷰포트 사이즈 설정용 함수
-	void OnResize(uint32 Width, uint32 Height);
+	void OnResize(uint32 Width, uint32 Height, uint32 Left = 0, uint32 Top = 0);
 
 	const TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }

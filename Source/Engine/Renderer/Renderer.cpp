@@ -390,12 +390,14 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 
 	BeginFrame();
 
-	Editor->GetMenuLayout().Draw();
+	Editor->DrawLayout();
 
 	for (const FRenderView& View : Views)
 	{
 		ViewRenderer.RenderView(Editor, Scene, View);
 	}
+
+	// Editor->DrawLayout() 이후에 GetRenderView()를 해야 현재 프레임 기준으로 계산이 됩니다. 지금은 한 프레임 밀리는 상태
 
 	SetViewportAndScissor(ViewportInfo);
 
