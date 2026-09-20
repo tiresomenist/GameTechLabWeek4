@@ -39,7 +39,7 @@ PS_INPUT mainVS(VS_INPUT Input)
 
     // 로컬 좌표를 월드·뷰·투영 변환함
     float4 WorldPos = mul(float4(Input.Position, 1.0f), World);
-    Output.Position = mul(WorldPos, World);
+    Output.Position = mul(WorldPos, VP);
     Output.Color = Input.Color;
     // 현재 프레임에 해당하는 아틀라스 영역으로 UV를 변환함
     Output.UV = Input.UV * UVScale + UVOffset;
