@@ -97,7 +97,9 @@ std::optional<std::filesystem::path> File::OpenFileDialog(HWND Owner, EFileDialo
 		{
 			{ L"JSON Scene Files (*.json)", L"*.json" },
 			{ L"Image Files (*.png;*.jpg;*.dds;*.tga)", L"*.png;*.jpg;*.jpeg;*.dds;*.tga" },
-			{ L"All Files (*.*)",           L"*.*" }
+			{ L"All Files (*.*)",           L"*.*" },
+			{ L"Wavefront OBJ Files (*.obj)", L"*.obj" }
+
 		};
 		FileOpen->SetFileTypes(ARRAYSIZE(Filters), Filters);
 
@@ -107,6 +109,7 @@ std::optional<std::filesystem::path> File::OpenFileDialog(HWND Owner, EFileDialo
 		case EFileDialogType::Json: DefaultIndex = 1; break;
 		case EFileDialogType::Image:DefaultIndex = 2; break;
 		case EFileDialogType::All:	DefaultIndex = 3; break;
+		case EFileDialogType::Obj:   DefaultIndex = 4; break;
 		default: DefaultIndex = 3; break;
 		}
 		FileOpen->SetFileTypeIndex(DefaultIndex);

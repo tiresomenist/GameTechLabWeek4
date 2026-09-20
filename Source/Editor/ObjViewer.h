@@ -1,7 +1,8 @@
 #pragma once
 #include "Editor/Editor.h"
-
+#include <filesystem>
 class UScene;
+class AActor;
 
 class FObjViewer : public FEditor
 {
@@ -35,4 +36,18 @@ public:
 private:
     float MenuBarHeight = 0.0f;
     UScene* PreviewScene = nullptr;
+
+    //Obj 파일 관련
+    void OpenObjDialog();
+
+    bool bOpenObjDialogRequested = false;
+    std::filesystem::path SelectedObjPath;
+    FString SelectedObjName;
+    FString FileSelectionError;
+
+    // 기존 메시 로더로 OBJ를 읽고 미리보기 모델을 교체합니다.
+    void LoadPreviewMesh(const std::filesystem::path& FilePath);
+
+    // PreviewScene이 소유한 현재 모델 Actor를 참조합니다.
+    AActor* PreviewActor = nullptr;
 };
