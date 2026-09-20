@@ -362,15 +362,8 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 		return;
 	}
 
-	TArray<FRenderView> Views;
-
-	for (const auto& view : Editor->GetViewports())
-	{
-		FRenderView View = view.GetRenderView();
-		Views.Add(View);
-	}
-
-	Render(DeltaTime, Editor, Scene, Views);
+    const TArray<FRenderView> Views = Editor->BuildRenderViews(ViewportInfo);
+    Render(DeltaTime, Editor, Scene, Views);
 }
 
 // 다중 View

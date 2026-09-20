@@ -35,6 +35,7 @@ public:
 	float GetTime();
 
 private:
+	EApplicationMode ApplicationMode = EApplicationMode::Editor;
 	float LastTickTime = 0;
 	float StartTime = 0;
 

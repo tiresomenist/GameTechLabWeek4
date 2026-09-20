@@ -19,7 +19,7 @@
 
 #include "Engine/Renderer/Grid.h"
 #include "Core/Name/Name.h"
-
+#include "Engine/Renderer/ViewRenderer.h"
 #include "Engine/Renderer/ViewportClient.h"
 #include <d3d11.h>
 
@@ -180,6 +180,10 @@ public:
 
 	// 오브젝트 조작용 기즈모의 표시 여부를 반환합니다.
 	virtual bool ShouldDrawEditorGizmos() const;
+
+	// 이번 프레임에 렌더링할 카메라와 뷰포트 목록을 구성합니다.
+	virtual TArray<FRenderView> BuildRenderViews(const D3D11_VIEWPORT& FullViewport) const;
+
 
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);

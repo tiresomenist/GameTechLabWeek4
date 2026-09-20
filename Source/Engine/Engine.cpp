@@ -41,6 +41,7 @@ GEngine* GEngine::GetInstance()
 // 엔진을 초기 상태로 초기화합니다.
 void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 {
+    ApplicationMode = Mode;
     try
     {
         // 콘솔 초기화
@@ -82,20 +83,17 @@ void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 
         // 렌더러 초기화
         Renderer.Create(InHwnd, &Device, ClientWidth, ClientHeight);
-
-        // 씬 매니저 초기화
-        GSceneManager* SceneManager = GSceneManager::GetInstance();
-        SceneManager->Initialize();
-
-        // 에디터 초기화
-        if (Mode == EApplicationMode::ObjViewer)
+        if (ApplicationMode == EApplicationMode::Editor)
+        {
+            //씬매니저 초기화
+            GSceneManager::GetInstance()->Initialize();
+            Editor = new FEditor();
+        }
+        else if(Mode == EApplicationMode::ObjViewer)
         {
             Editor = new FObjViewer();
         }
-        else
-        {
-            Editor = new FEditor();
-        }
+        
         // 가상함수로 객체별 이니셜라이즈
         Editor->Initialize();
 
@@ -120,15 +118,16 @@ void GEngine::Tick()
 		UE_LOG("[경고] 프레임 업데이트 시간이 100ms를 초과했습니다. 걸린 시간: {:.1f} ms", DeltaTime * 1000);
 	}
 
-	// 게임 로직을 수행합니다.
-	GSceneManager* SceneManager = GSceneManager::GetInstance();
-	SceneManager->Tick(DeltaTime);
+    if (ApplicationMode == EApplicationMode::Editor)
+    {
+        GSceneManager::GetInstance()->Tick(DeltaTime);
+    }
 
 	Editor->Tick(DeltaTime);
 
 	// 게임 화면을 렌더링합니다.
-	UScene* CurrentScene = SceneManager->GetScene();
-	Renderer.Render(DeltaTime, Editor, CurrentScene);
+    UScene* CurrentScene = Editor->GetCurrentScene();
+    Renderer.Render(DeltaTime, Editor, CurrentScene);
 }
 
 // 엔진의 자원을 정리합니다.
@@ -140,8 +139,11 @@ void GEngine::Destroy()
 	Editor = nullptr;
 
 	// 씬 매니저 정리
-	GSceneManager* SceneManager = GSceneManager::GetInstance();
-	SceneManager->Release();
+    if (ApplicationMode == EApplicationMode::Editor)
+    {
+        GSceneManager::GetInstance()->Release();
+    }
+
 
 	// GObjectStatics 정리
 	GObjectStatics::Release();

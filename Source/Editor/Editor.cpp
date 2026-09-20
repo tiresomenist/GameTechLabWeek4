@@ -344,8 +344,8 @@ void FEditor::Tick(float DeltaTime)
 	// 뷰포트 선택
 	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
-		float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
-		float y = bRFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+		const float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
+		const float y = bLFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
 			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
@@ -866,4 +866,16 @@ bool FEditor::ShouldDrawEditorGizmos() const
 {
 	// 기존 렌더러에서 사용하던 기본값을 유지합니다.
 	return true;
+}
+
+// 일반 에디터는 기존 4분할 뷰포트의 렌더링 정보를 반환합니다.
+TArray<FRenderView> FEditor::BuildRenderViews(const D3D11_VIEWPORT& FullViewport) const
+{
+	// 각 뷰포트가 보유한 카메라, 출력 영역, 표시 설정을 그대로 전달합니다.
+	TArray<FRenderView> Views;
+	for (const FViewportClient& Viewport : Viewports)
+	{
+		Views.Add(Viewport.GetRenderView());
+	}
+	return Views;
 }
