@@ -60,6 +60,17 @@ void FEditorMenuLayout::Draw()
 	BuildDefaultLayout(false);
 	ImGui::DockSpaceOverViewport(GetDockSpaceID(), ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
+	const ImGuiDockNode* ViewportNode = ImGui::DockBuilderGetCentralNode(GetDockSpaceID());
+	if (ViewportNode)
+	{
+		const ImVec2 Origin = ImGui::GetMainViewport()->Pos;
+		Editor->OnResize(
+			ViewportNode->Size.x,
+			ViewportNode->Size.y,
+			ViewportNode->Pos.x - Origin.x,
+			ViewportNode->Pos.y - Origin.y);
+	}
+
 	if (bRequestedLoad)
 	{
 		LoadScene();
