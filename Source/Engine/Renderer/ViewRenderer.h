@@ -44,7 +44,7 @@ private:
 	void ReleaseTextResources();
 
 	void SetViewportAndScissor(const D3D11_VIEWPORT& Viewport);
-	void UpdateTransformConstantBuffer(const FMatrix& MVP);
+	void UpdateTransformConstantBuffer(const FMatrix& World, const FMatrix& VP);
 	void UpdateMaterialConstants(const FPrimitiveRenderData& Data);
 	void BindShader(const FShaderResource& Shader);
 	void BindPrimitiveBuffers(const FPrimitiveRenderData& Data);

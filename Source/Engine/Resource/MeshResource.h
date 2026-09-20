@@ -22,9 +22,12 @@ public:
     UINT GetStride() const { return Stride; }
     const TArray<FVector>& GetPositions() const { return Positions; }
     const TArray<uint32>& GetIndices() const { return indexes; }
+
     const FVector& GetBoundsMin() const { return BoundsMin; }
     const FVector& GetBoundsMax() const { return BoundsMax; }
     bool HasBounds() const { return bHasBounds; }
+
+    //void AddSection(uint32 InMaterialSlot, uint32 InStartIndex, uint32 InIndexCount);
 private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer = nullptr;
     Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = nullptr;
@@ -35,7 +38,8 @@ private:
 	TArray<FVector> Positions;
 	TArray<uint32> indexes;
 
-	FVector BoundsMin;
-	FVector BoundsMax;
-	bool bHasBounds = false;
+    FVector BoundsMin{};
+    FVector BoundsMax{};
+    bool bHasBounds;
+
 };
