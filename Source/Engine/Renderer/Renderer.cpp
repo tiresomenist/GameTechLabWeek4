@@ -362,14 +362,7 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 		return;
 	}
 
-	//FRenderView View{};
-	//View.Camera = Editor->GetEditorCamera();
-	//View.Viewport = ViewportInfo;
-	//View.ViewSettings = Editor->GetViewSettings();
-	//View.bDrawEditorGizmos = true;
-
 	TArray<FRenderView> Views;
-	//Views.Add(View);
 
 	for (const auto& view : Editor->GetViewports())
 	{
@@ -389,8 +382,8 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	}
 
 	BeginFrame();
+	Editor->DrawMenu();
 
-	Editor->DrawLayout();
 
 	for (const FRenderView& View : Views)
 	{
@@ -402,10 +395,8 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	SetViewportAndScissor(ViewportInfo);
 
 	// UI 렌더링
-	for (auto Item : Editor->GetWindows())
-	{
-		Item->Render(DeltaTime);
-	}
+	Editor->DrawWindows(DeltaTime);
+
 
 	EndFrame();
 }

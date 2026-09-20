@@ -836,3 +836,34 @@ void FEditor::SaveEditorSetting() {
 
 	File::WriteText("editor.ini", FileText);
 }
+
+// 기존 에디터 메뉴와 도킹 레이아웃을 구성합니다.
+void FEditor::DrawMenu()
+{
+	// 현재 사용 중인 메뉴 레이아웃을 그대로 실행합니다.
+	MenuLayout.Draw();
+}
+
+// 기존 에디터에 등록된 창들을 구성합니다.
+void FEditor::DrawWindows(float DeltaTime)
+{
+	// 기존 렌더러와 동일한 순서로 창을 처리합니다.
+	for (UEditorWindow* Window : Windows)
+	{
+		Window->Render(DeltaTime);
+	}
+}
+
+// 일반 에디터는 전체 출력 영역을 씬 뷰포트로 사용합니다.
+D3D11_VIEWPORT FEditor::GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const
+{
+	// 기존 전체 화면 렌더링 영역을 유지합니다.
+	return FullViewport;
+}
+
+// 일반 에디터는 기존 조작용 기즈모를 표시합니다.
+bool FEditor::ShouldDrawEditorGizmos() const
+{
+	// 기존 렌더러에서 사용하던 기본값을 유지합니다.
+	return true;
+}

@@ -21,7 +21,7 @@
 #include "Core/Name/Name.h"
 
 #include "Engine/Renderer/ViewportClient.h"
-
+#include <d3d11.h>
 
 class USceneComponent;
 class UCameraComponent;
@@ -34,10 +34,11 @@ class FGizmoPicker;
 
 class FEditor
 {
-private:
-	// 현재 선택된 SceneComponent
+protected:
 	UCameraComponent* EditorCamera = nullptr;
 	FCameraController CameraController;
+private:
+	// 현재 선택된 SceneComponent
 	FObjectPicker* ObjectPicker = nullptr;
 	FGizmoPicker* GizmoPicker = nullptr;
 	FGizmoController* GizmoController = nullptr;
@@ -77,9 +78,9 @@ public:
 
 	virtual void Initialize();
 
-	void Tick(float DeltaTime);
+	virtual void Tick(float DeltaTime);
 
-	void Release();
+	virtual void Release();
 
 	void SpawnStaticMesh(const FName& MeshKey, int Count);
 	void SpawnComponent(FClassType* ComponentClass, int Count);
@@ -90,7 +91,7 @@ public:
 	void LoadSceneFromPath(const std::filesystem::path& ScenePath);
 	void SaveScene(FStringView SceneName);
 
-	UScene* GetCurrentScene();
+	virtual UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }
 	const FViewSettings& GetViewSettings()const { return ViewSettings; }
 
@@ -167,6 +168,18 @@ public:
 
 	const TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
+
+	// 씬 렌더링 전에 메뉴와 화면 배치를 구성합니다.
+	virtual void DrawMenu();
+
+	// 씬 렌더링 후 에디터 창의 UI를 구성합니다.
+	virtual void DrawWindows(float DeltaTime);
+
+	// 전체 출력 영역에서 실제 씬을 그릴 영역을 반환합니다.
+	virtual D3D11_VIEWPORT GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const;
+
+	// 오브젝트 조작용 기즈모의 표시 여부를 반환합니다.
+	virtual bool ShouldDrawEditorGizmos() const;
 
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);
