@@ -283,7 +283,28 @@ void FEditor::Initialize()
 	EditorCamera = PerspectiveCamera;
 	CameraController.SetCamera(PerspectiveCamera);
 	
+	// 스플리터 초기화
+	SWindow* WinPerspective = new SWindow;
+	WinPerspective->SetViewportClient(&Viewports[0]);
+	SWindow* WinTop = new SWindow;
+	WinTop->SetViewportClient(&Viewports[1]);
+	SWindow* WinFront = new SWindow;
+	WinFront->SetViewportClient(&Viewports[2]);
+	SWindow* WinRight = new SWindow;
+	WinRight->SetViewportClient(&Viewports[3]);
+
+	SSplitterV* LeftSplitter = new SSplitterV;
+	LeftSplitter->SideLT = WinTop;
+	LeftSplitter->SideRB = WinFront;
+
+	SSplitterV* RightSplitter = new SSplitterV;
+	RightSplitter->SideLT = WinPerspective;
+	RightSplitter->SideRB = WinRight;
 	
+	RootSplitter = new SSplitterH;
+	RootSplitter->SideLT = LeftSplitter;
+	RootSplitter->SideRB = RightSplitter;
+
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);

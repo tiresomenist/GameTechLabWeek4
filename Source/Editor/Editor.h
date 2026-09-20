@@ -21,6 +21,7 @@
 #include "Core/Name/Name.h"
 
 #include "Engine/Renderer/ViewportClient.h"
+#include "Editor/UI/Splitter.h"
 
 
 class USceneComponent;
@@ -55,6 +56,9 @@ private:
 	// Viewport 배열
 	TArray<FViewportClient> Viewports;
 	uint32 CurrEditedViewportIndex = 0;
+
+	// 스플리터
+	SSplitter* RootSplitter = nullptr;
 
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
