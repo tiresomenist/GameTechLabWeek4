@@ -14,7 +14,8 @@ namespace
 {
 	struct FConstants
 	{
-		FMatrix MVP;
+		FMatrix World;
+		FMatrix ViewProjection;
 	};
 
 	struct FGridConstants
@@ -332,7 +333,7 @@ void FViewRenderer::UpdateMaterialConstants(const FPrimitiveRenderData& Data)
 	// 현재 머티리얼 b1 버퍼는 모두 FTextureDrawConstants 레이아웃을 사용한다.
 	FTextureDrawConstants Constants{};
 	Constants.UV = Data.UVTransform;
-	Constants.Tint = Data.TextureTint;
+	Constants.DiffuseColor = Data.DiffuseColor;
 	Constants.AlphaCutoff = Data.AlphaCutoff;
 
 	DeviceContext->UpdateSubresource(
@@ -382,7 +383,7 @@ void FViewRenderer::RenderPrimitive(const FPrimitiveRenderData& Data, EViewModeI
 		DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
 	}
 
-	DeviceContext->DrawIndexed(Data.IndexCount,0,0);
+	DeviceContext->DrawIndexed(Data.IndexCount,Data.IndexStart,0);
 
 	// 사용한 텍스처 슬롯을 비움
 	ID3D11ShaderResourceView* NullSRV = nullptr;
@@ -439,8 +440,8 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 			}
 			else
 			{
-				FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
-				UpdateTransformConstantBuffer(MVP);
+				//FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
+				UpdateTransformConstantBuffer(*Item.WorldMatrix, ViewProjMatrix);
 
 				// 선택된 오브젝트는 그리면서 스텐실 마스크를 기록하고, 외곽선은 나중에 그림
 				const bool bOutline = Item.isSelected && Item.bAllowOutline && ViewMode != EViewModeIndex::VMI_Wireframe;
@@ -460,8 +461,8 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 
 	for (const FPrimitiveRenderData* Item : AdditiveRenderList)
 	{
-		const FMatrix MVP = (*Item->WorldMatrix) * ViewProjMatrix;
-		UpdateTransformConstantBuffer(MVP);
+		//const FMatrix MVP = (*Item->WorldMatrix) * ViewProjMatrix;
+		UpdateTransformConstantBuffer(*Item->WorldMatrix, ViewProjMatrix);
 
 		RenderPrimitive(*Item, ViewMode);
 	}
@@ -469,8 +470,7 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 	// 외곽선: 모든 씬 오브젝트 이후, 기즈모 이전에 그림 (깊이 무시라 뒤에 그려진 물체에 덮이지 않게)
 	for (const FPrimitiveRenderData* Item : OutlineRenderList)
 	{
-		const FMatrix MVP = (*Item->WorldMatrix) * ViewProjMatrix;
-		UpdateTransformConstantBuffer(MVP);
+		UpdateTransformConstantBuffer(*Item->WorldMatrix, ViewProjMatrix);
 
 		RenderOutline(*Item);
 	}
@@ -481,8 +481,7 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 		TArray<FPrimitiveRenderData> GizmoRenderList = RenderUtil::GetGizmoList(Editor, Scene, Camera, View.Viewport);
 		for (const auto& Item : GizmoRenderList)
 		{
-			FMatrix MVP = (*Item.WorldMatrix) * ViewProjMatrix;
-			UpdateTransformConstantBuffer(MVP);
+			UpdateTransformConstantBuffer(*Item.WorldMatrix, ViewProjMatrix);
 
 			if (Item.isSelected)
 			{ RenderHighlight(Item); }
@@ -496,15 +495,15 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 		TArray<FWorldTextItem> TextItems = RenderUtil::GetTextRenderList(Scene, Camera, ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::UUID));
 		TArray<FVertexTexture> TextVerts = FTextMeshBuilder::Build(TextItems, *FontAtlas);
 		UpdateTextVertexBuffer(TextVerts);
-		UpdateTransformConstantBuffer(ViewProjMatrix); // 텍스트는 이미 월드공간이라 World=Identity
+		UpdateTransformConstantBuffer(FMatrix::Identity, ViewProjMatrix); // 텍스트는 이미 월드공간이라 World=Identity
 		const UINT TextVertexCount = (static_cast<UINT>(TextVerts.Num()) < MaxTextVertices) ? static_cast<UINT>(TextVerts.Num()) : MaxTextVertices;
 		RenderText(TextVertexCount / 4 * 6);
 	}
 
-	UpdateTransformConstantBuffer(ViewProjMatrix);
+	UpdateTransformConstantBuffer( FMatrix::Identity, ViewProjMatrix);
 }
 
-void FViewRenderer::UpdateTransformConstantBuffer(const FMatrix& MVP)
+void FViewRenderer::UpdateTransformConstantBuffer(const FMatrix& World, const FMatrix& VP)
 {
 	if (!DeviceContext || !TransformConstantBuffer)
 	{
@@ -518,7 +517,8 @@ void FViewRenderer::UpdateTransformConstantBuffer(const FMatrix& MVP)
 		FConstants* constants = (FConstants*)constantbufferMSR.pData;
 		if (constants)
 		{
-			constants->MVP = MVP;
+			constants->World = World;
+			constants->ViewProjection = VP;
 		}
 		DeviceContext->Unmap(TransformConstantBuffer.Get(), 0);
 	}
@@ -540,7 +540,7 @@ void FViewRenderer::RenderOutline(const FPrimitiveRenderData& Data)
 	DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 	DeviceContext->OMSetDepthStencilState(OutlineDepthStencilState, 1);
 
-	DeviceContext->DrawIndexed(Data.IndexCount, 0, 0);
+	DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
 
 	DeviceContext->OMSetDepthStencilState(DefaultDepthStencilState, 0);
 }
@@ -554,7 +554,7 @@ void FViewRenderer::RenderHighlight(const FPrimitiveRenderData& Data)
 
 	DeviceContext->OMSetDepthStencilState(HighlightDepthStencilState, 0);
 
-	DeviceContext->DrawIndexed(Data.IndexCount, 0, 0);
+	DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
 }
 
 void FViewRenderer::RenderGizmo(const FPrimitiveRenderData& Data)
@@ -586,7 +586,7 @@ void FViewRenderer::RenderBatchLine(const FMatrix& ViewProj)
 		return;
 	}
 
-	UpdateTransformConstantBuffer(ViewProj);
+	UpdateTransformConstantBuffer(FMatrix::Identity, ViewProj);
 
 	ID3D11Buffer* VB = LineBatcher.GetVertexBuffer();
 	ID3D11Buffer* IB = LineBatcher.GetIndexBuffer();

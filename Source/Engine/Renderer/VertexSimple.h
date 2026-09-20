@@ -24,17 +24,24 @@ struct FVertexTexture {
 };
 
 
-struct FNormalVertex {
-	float X = 0.0f, Y = 0.0f, Z = 0.0f;				// Position
-	float NX = 0.0f, NY = 0.0f, NZ = 0.0f;			// Normal Vector
-	float R = 0.0f, G = 0.0f, B = 0.0f, A = 1.0f;	//Color
-	float U = 0.0f, V = 0.0f;						//UV
+struct FVertexPNCT {
+	float x = 0.0f, y = 0.0f, z = 0.0f;				// Position
+	float nx = 0.0f, ny = 0.0f, nz = 0.0f;			// Normal Vector
+	float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;	//Color
+	float u = 0.0f, v = 0.0f;						//UV
 };
+
 //형식 체크용 static_assert
-static_assert(std::is_standard_layout_v<FNormalVertex>);
-static_assert(sizeof(FNormalVertex) == 48);
-static_assert(offsetof(FNormalVertex, X) == 0);
-static_assert(offsetof(FNormalVertex, NX) == 12);
-static_assert(offsetof(FNormalVertex, R) == 24);
-static_assert(offsetof(FNormalVertex, U) == 40);
+static_assert(std::is_standard_layout_v<FVertexPNCT>);
+static_assert(sizeof(FVertexPNCT) == 48);
+static_assert(offsetof(FVertexPNCT, x) == 0);
+static_assert(offsetof(FVertexPNCT, nx) == 12);
+static_assert(offsetof(FVertexPNCT, r) == 24);
+static_assert(offsetof(FVertexPNCT, u) == 40);
+
+static_assert(std::is_standard_layout_v<FVertexTexture>);
+static_assert(sizeof(FVertexTexture) == 36);
+static_assert(offsetof(FVertexTexture, x) == 0);
+static_assert(offsetof(FVertexTexture, r) == 12);
+static_assert(offsetof(FVertexTexture, u) == 28);
 

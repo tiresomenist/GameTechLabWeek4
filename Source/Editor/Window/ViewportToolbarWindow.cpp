@@ -19,7 +19,7 @@ void UViewportToolbarWindow::Render(float DeltaTime)
 	ImGui::Begin(Name.c_str(), nullptr, Flags);
 	{
         UCameraComponent* Camera = Editor->GetEditorCamera();
-    	
+
     	const char* ProjectionLabel = Camera->GetIsPerspective() ? "Perspective" : "Orthogonal";
         BeginPopupButton(ProjectionLabel, "ProjectionPopup", [this, Camera]()
             {
@@ -72,16 +72,29 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
 {
     int ProjectionSelection = Camera->GetIsPerspective() ? 0 : 1;
 
-    const char* ProjectionNames[] = { "Perspective", "Orthogonal" };
-	for (int i = 0; i < 2; ++i)
-	{
-		if (ImGui::RadioButton(ProjectionNames[i], ProjectionSelection == i))
-		{
-            ProjectionSelection = i;
-            ImGui::CloseCurrentPopup();
-		}
-	}
-	Camera->SetIsPerspective(ProjectionSelection == 0);
+    // if (지금 카메라가 perspective 카메라면) 아래로직 실행. 직교투영(탑, 프론트, 오른쪽)일때는 아예 버튼 없애기
+    uint32 currViewIdx = Editor->GetCurrentEditViewportIndex();
+    const TArray<FViewportClient>& Viewports = Editor->GetViewports();
+    if (Viewports[currViewIdx].GetViewportType() != EViewportType::Perspective)
+    {
+        if (ImGui::RadioButton("Orthogonal", true))
+        {
+            Camera->SetIsPerspective(false);
+        }
+    }
+    else
+    {
+	    const char* ProjectionNames[] = { "Perspective", "Orthogonal" };
+    	for (int i = 0; i < 2; ++i)
+    	{
+    		if (ImGui::RadioButton(ProjectionNames[i], ProjectionSelection == i))
+    		{
+    			ProjectionSelection = i;
+    			ImGui::CloseCurrentPopup();
+    		}
+    	}
+    	Camera->SetIsPerspective(ProjectionSelection == 0);
+    }
 
     // TODO: Orthographic 방향에 따라서 옵션 추가 분리
 

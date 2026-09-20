@@ -22,7 +22,7 @@ struct FTextureDrawConstants
 	FTextureUVTransform UV;
 
 	// 텍스처에 곱할 오브젝트별 색상
-	FVector4 Tint{ 1.0f, 1.0f, 1.0f, 1.0f };
+	FVector4 DiffuseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	// 해당 값보다 작은 알파의 픽셀을 제거함
 	float AlphaCutoff = 0.0f;
@@ -42,6 +42,7 @@ struct FPrimitiveRenderData
 	ID3D11Buffer*				VertexBuffer = nullptr;
 	ID3D11Buffer*				IndexBuffer = nullptr;
 	UINT						Stride = 0;
+	UINT						IndexStart = 0;
 	UINT						IndexCount = 0;
 	D3D11_PRIMITIVE_TOPOLOGY	Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -56,7 +57,7 @@ struct FPrimitiveRenderData
     FTextureUVTransform UVTransform;
 
 	// 텍스처에 곱할 색상
-	FVector4 TextureTint{ 1.0f, 1.0f, 1.0f, 1.0f };	//Material.Tint와 중복코드?
+	FVector4 DiffuseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	// 0이면 알파 컷아웃을 사용하지 않음
 	float AlphaCutoff = 0.0f;	//Material.AlphaCutoff와 중복코드?

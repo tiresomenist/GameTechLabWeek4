@@ -684,7 +684,7 @@ UObject* FEditor::SpawnObject(FClassType* Type)
 	return FObjectFactory::ConstructEditorObject(Type);
 }
 
-void FEditor::OnResize(uint32 Width, uint32 Height)
+void FEditor::OnResize(uint32 Width, uint32 Height, uint32 Left, uint32 Top)
 {	// 4개의 뷰포트들의 사이즈를 설정
 	// TODO: 고정크기가 아닌 가변 크기로 로직 바꾸어야 함.
 	if (Width == 0 || Height == 0) return;
@@ -696,13 +696,13 @@ void FEditor::OnResize(uint32 Width, uint32 Height)
 
 	// 언리얼엔진 기본 위치로 설정
 	// Perspective - 우측 상단
-	Viewports[0].SetRect(HalfWidth, 0.0f, HalfWidth, HalfHeight);
+	Viewports[0].SetRect(Left + HalfWidth, Top, HalfWidth, HalfHeight);
 	// top - 좌측 상단
-	Viewports[1].SetRect(0.0f, 0.0f, HalfWidth, HalfHeight);
+	Viewports[1].SetRect(Left, Top, HalfWidth, HalfHeight);
 	// front - 좌측 하단
-	Viewports[2].SetRect(0.0f, HalfHeight, HalfWidth, HalfHeight);
+	Viewports[2].SetRect(Left, Top + HalfHeight, HalfWidth, HalfHeight);
 	// right - 우측 하단
-	Viewports[3].SetRect(HalfWidth, HalfHeight, HalfWidth, HalfHeight);
+	Viewports[3].SetRect(Left + HalfWidth, Top + HalfHeight, HalfWidth, HalfHeight);
 }
 
 const TArray<FViewportClient>& FEditor::GetViewports()

@@ -141,7 +141,7 @@ FPrimitiveRenderData USpotLightComponent::BuildIconRenderData(const UCameraCompo
     Data.bTwoSided = true;
 
     // 흰색 아이콘에 광원 색상을 곱함
-    Data.TextureTint = FVector4(LightColor.X, LightColor.Y, LightColor.Z, 1.0f);
+    Data.DiffuseColor = FVector4(LightColor.X, LightColor.Y, LightColor.Z, 1.0f);
 
     // 투명 배경의 픽셀을 제거함
     Data.AlphaCutoff = 0.1f;

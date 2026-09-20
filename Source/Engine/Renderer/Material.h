@@ -13,6 +13,7 @@ enum class EPrimitiveBlendMode : uint32
 
 struct FMaterial
 {
+	// TODO:: 현재 .mat 파일이 없으므로 FMaterial이 자신의 텍스처 파일 경로를 가지고 있어야 함
 	// 모든 포인터는 비소유 참조.
 	// 참조 대상은 이 Material을 사용하는 Draw가 끝날 때까지 유효해야 한다.
 

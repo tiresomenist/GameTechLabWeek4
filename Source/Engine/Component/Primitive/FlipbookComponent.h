@@ -14,7 +14,7 @@ class UFlipbookComponent : public UPrimitiveComponent
 public:
     virtual void Initialize() override;
     virtual void Tick(float DeltaTime) override;
-    virtual FPrimitiveRenderData CreateRenderData(bool bSelected = false) const override;
+    virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
     virtual void Serialize(FArchive& Archive) override;
 
     // 프레임은 좌측 상단부터 행 순서로 재생하며 0이면 전체 칸을 사용함
@@ -26,6 +26,14 @@ public:
     void SetCurrentFrame(int32 Value);
     void Restart();
     virtual const FMatrix& GetRenderWorldMatrix(const UCameraComponent* Camera) const override;
+    virtual bool GetLocalBounds(FVector& OutMin, FVector& OutMax) const override
+    {
+        if (!QuadMesh || !QuadMesh->HasBounds()) return false;
+        OutMin = QuadMesh->GetBoundsMin();
+        OutMax = QuadMesh->GetBoundsMax();
+        return true;
+    }
+    virtual bool IsAABBOnlyPickable() const override { return true; }
 
     int32 GetColumns() const { return Columns; }
     int32 GetRows() const { return Rows; }
@@ -40,6 +48,7 @@ public:
 private:
     // 리소스 매니저가 소유하는 텍스처를 참조함
     FTextureResource* Texture = nullptr;
+    FMeshResource* QuadMesh = nullptr;
 
     int32 Columns = 6;
     int32 Rows = 6;
