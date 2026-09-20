@@ -6,13 +6,21 @@
 
 class FConsole;
 class FEditor;
+class FObjViewer;
+
+
+enum class EApplicationMode
+{
+	Editor,
+	ObjViewer
+};
 
 class GEngine
 {
 public:
 	static GEngine* GetInstance();
 
-	void Initialize(HWND InHwnd);
+	void Initialize(HWND InHwnd, EApplicationMode Mode);
 
 	void Tick();
 

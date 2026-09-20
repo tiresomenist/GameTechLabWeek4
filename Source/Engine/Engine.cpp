@@ -9,6 +9,7 @@
 #include "Engine/Log.h"
 
 #include "Editor/Editor.h"
+#include "Editor/ObjViewer.h"
 #include "Engine/Scene/SceneManager.h"
 #include "Engine/Console.h"
 
@@ -38,7 +39,7 @@ GEngine* GEngine::GetInstance()
 }
 
 // 엔진을 초기 상태로 초기화합니다.
-void GEngine::Initialize(HWND InHwnd)
+void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 {
     try
     {
@@ -87,7 +88,15 @@ void GEngine::Initialize(HWND InHwnd)
         SceneManager->Initialize();
 
         // 에디터 초기화
-        Editor = new FEditor();
+        if (Mode == EApplicationMode::ObjViewer)
+        {
+            Editor = new FObjViewer();
+        }
+        else
+        {
+            Editor = new FEditor();
+        }
+        // 가상함수로 객체별 이니셜라이즈
         Editor->Initialize();
 
         StartTime = GetTime();

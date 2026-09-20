@@ -73,8 +73,9 @@ private:
 	void ReleaseGrids();
 
 public:
+	virtual ~FEditor() = default;
 
-	void Initialize();
+	virtual void Initialize();
 
 	void Tick(float DeltaTime);
 
