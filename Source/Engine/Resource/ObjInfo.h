@@ -60,6 +60,9 @@ struct FObjInfo
     //파일 경로
     std::filesystem::path PathFileName;
 
+    //.obj, .mtl의 경로 모음
+    TArray<std::filesystem::path> SourceFiles;
+
     // 객체들을 담는 배열
     TArray<FObjObjectInfo> Objects;
 
