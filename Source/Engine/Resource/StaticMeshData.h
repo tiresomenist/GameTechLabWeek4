@@ -21,6 +21,20 @@ struct FStaticMeshMaterial
     float Opacity = 1.0f;
 
     std::filesystem::path DiffuseTexturePath;
+
+    // MTL의 Ka·Ks·Ke 값을 각각 보관한다.
+    FVector AmbientColor{};
+    FVector SpecularColor{};
+    FVector EmissiveColor{};
+
+    // MTL의 Ns·Ni·illum 값을 보관한다.
+    float SpecularExponent = 0.0f;
+    float RefractionIndex = 1.0f;
+    int32 IlluminationModel = 0;
+
+    // CPU 재질의 숫자가 보존 가능한 값과 기본 유효 범위를 만족하는지 검사한다.
+    bool HasValidNumericValues() const;
+
 };
 
 //객체 정보
