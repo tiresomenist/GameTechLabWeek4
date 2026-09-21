@@ -10,7 +10,6 @@
 void FEditorMenuLayout::Initialize(FEditor* InEditor)
 {
 	Editor = InEditor;
-	SceneName.reserve(128);
 }
 
 void FEditorMenuLayout::Draw()
@@ -89,9 +88,7 @@ void FEditorMenuLayout::SaveScene()
 		return; // 취소
 	}
 
-	// 이후 Save Scene이 같은 이름으로 저장되도록 이름 칸도 갱신
-	SceneName = ScenePath->stem().string();
-	Editor->SaveScene(SceneName);
+	Editor->SaveSceneToPath(ScenePath.value());
 }
 
 void FEditorMenuLayout::LoadScene()
@@ -105,9 +102,7 @@ void FEditorMenuLayout::LoadScene()
 		return; // 취소
 	}
 
-	// 이후 Save Scene이 같은 이름으로 저장되도록 이름 칸도 갱신
-	SceneName = ScenePath->stem().string();
-	Editor->LoadSceneFromPath(*ScenePath);
+	Editor->LoadSceneFromPath(ScenePath.value());
 }
 
 void FEditorMenuLayout::BuildDefaultLayout(bool bReset)

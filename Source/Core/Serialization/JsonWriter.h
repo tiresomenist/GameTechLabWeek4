@@ -48,7 +48,7 @@ public:
 
     // 완성된 JSON 문서를 기존 파일 저장 함수로 기록한다.
     void SaveToFile(FStringView Path) const;
-    void SaveToFilePath(std::filesystem::path Path) const;
+    void SaveToFilePath(const std::filesystem::path& Path) const;
 
 protected:
     bool SerializeValue(const char* Name, int32& Value) override;

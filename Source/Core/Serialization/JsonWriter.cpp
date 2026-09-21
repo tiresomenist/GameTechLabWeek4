@@ -174,7 +174,7 @@ void FJsonWriter::SaveToFile(FStringView Path) const
     File::WriteText(Path, ToString());
 }
 
-void FJsonWriter::SaveToFilePath(std::filesystem::path Path) const
+void FJsonWriter::SaveToFilePath(const std::filesystem::path& Path) const
 {
     File::WriteTextToPath(Path, ToString());
 }

@@ -208,6 +208,10 @@ std::optional<std::filesystem::path> File::SaveFileDialog(HWND Owner, EFileDialo
 		default: DefaultIndex = 3; break;
 		}
 		FileSave->SetFileTypeIndex(DefaultIndex);
+		if (Type == EFileDialogType::Json)
+		{
+			FileSave->SetDefaultExtension(L"json");
+		}
 		if (!InitialDir.empty())
 		{
 			const std::filesystem::path AbsoluteDir = std::filesystem::absolute(InitialDir);
