@@ -37,10 +37,12 @@ public:
 
 	virtual void EndPlay();
 
+	UCameraComponent* GetMainCamera() const { return MainCamera; }
+	void SetMainCamera(UCameraComponent* InCamera) { MainCamera = InCamera; }
 	FCameraSaveData GetMainCameraSaveData() const { return MainCameraSaveData; }
 	void SetMainCameraSaveData(UCameraComponent* InCamera);
 
-	// void CreateMainCamera();
+	void CreateMainCamera();
 
 	void Serialize(FArchive& Archive);
 
@@ -124,7 +126,12 @@ protected:
 	/// Scene에 종속된 모든 Actor를 담는 멤버 변수. Component는 Actor가 소유합니다.
 	/// </summary>
 	TArray<AActor*> Actors {};
-	
+
+	/// <summary>
+	/// Scene의 렌더링을 담당할 MainCamera를 담는 멤버 변수
+	/// </summary>
+	UCameraComponent* MainCamera = nullptr;
+
 	/// <summary>
 	/// 저장/불러오기 시에 사용하는 Scene의 메인 Perspective 카메라의 정보
 	/// </summary>

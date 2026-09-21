@@ -83,11 +83,11 @@ void UScene::SetMainCameraSaveData(UCameraComponent* InCamera)
     };
 }
 
-// void UScene::CreateMainCamera()
-// {
-//     AActor* CameraActor = SpawnActor<AActor*>(AActor::GetClass());
-//     MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
-// }
+void UScene::CreateMainCamera()
+{
+	AActor* CameraActor = SpawnActor<AActor*>(AActor::GetClass());
+	MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
+}
 
 void UScene::Serialize(FArchive& Archive)
 {
