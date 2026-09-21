@@ -32,7 +32,7 @@
 #include "GeometryGenerator.h"
 #include "Engine/Resource/MeshNames.h"
 #include "Engine/Log.h"
-#include "Core/Util/File.h"
+
 #include <memory>
 #include <limits>
 #include <stdexcept>
@@ -374,16 +374,18 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
     {
         return *StaticMesh;
     }
-    const FString MeshText = MeshKey.ToString();
-    std::filesystem::path FilePath = File::PathFromUtf8(MeshText);
-
+    FString FilePath = MeshKey.ToString();
     if (!std::filesystem::exists(FilePath))
     {
-        // 파일 경로가 아닌 기본 모델 이름이면 Models 폴더에서 찾습니다.
-        FilePath = std::filesystem::path("Assets/Models")
-            / File::PathFromUtf8(MeshText + ".obj");
-        if (!std::filesystem::exists(FilePath))
+        FString ModelPath = "Assets/Models/" + FilePath + ".obj";
+        if (std::filesystem::exists(ModelPath))
+        {
+            FilePath = ModelPath;
+        }
+        else
+        {
             return nullptr;
+        }
     }
     FObjInfo RawData = FObjImporter::Import(FilePath);
     FStaticMeshData StaticMeshData = FObjImporter::Cook(RawData);

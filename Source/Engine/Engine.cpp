@@ -134,7 +134,7 @@ void GEngine::Tick()
     GameTimeMs = (GameTimeMs * 0.9f) + (CurGameMs * 0.1f); // 프레임은 매 프레임마다 요동치므로 지수평균으로 보간
 
 	// 게임 화면을 렌더링합니다.
-	UScene* CurrentScene = SceneManager->GetScene();
+    UScene* CurrentScene = Editor->GetCurrentScene();
 	Renderer.Render(DeltaTime, Editor, CurrentScene);
 
     EngineStats.UpdateUnitStat(DeltaTime, GameTimeMs, Renderer.GetDrawTimeMs(),
