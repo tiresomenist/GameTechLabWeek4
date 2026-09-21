@@ -338,6 +338,57 @@ namespace
         Info.SourceFiles.Add(AbsolutePath);
     }
 
+    // 텍스처 선언의 옵션과 파일 경로를 읽어 지정된 맵에 저장한다.
+    void ReadTextureMap(FStringView Line, const std::filesystem::path& Path,
+        size_t LineNumber, std::filesystem::path& OutPath,
+        FStaticMeshTextureOptions& OutOptions, bool bIsBumpMap)
+    {
+        // 같은 맵을 다시 선언하면 이전 옵션을 상속하지 않고 기본값부터 읽는다.
+        FStaticMeshTextureOptions Options{};
+        Line = Trim(Line);
+
+        // 파일명 앞에 있는 옵션을 순서대로 읽는다.
+        while (!Line.empty() && Line.front() == '-')
+        {
+            const FStringView Option = TakeToken(Line);
+            if (Option == "-clamp")
+            {
+                const FStringView Value = TakeToken(Line);
+                if (Value == "on") Options.bClamp = true;
+                else if (Value == "off") Options.bClamp = false;
+                else ParseError(Path, LineNumber, "Expected on or off after -clamp");
+            }
+            else if (Option == "-bm")
+            {
+                // 범프 전용 옵션이며 숫자 형식과 유한값 검사는 기존 함수를 재사용한다.
+                if (!bIsBumpMap)
+                    ParseError(Path, LineNumber, "-bm is only supported for bump maps.");
+                Options.BumpMultiplier = TakeFloat(Line, Path, LineNumber);
+            }
+            else
+            {
+                ParseError(Path, LineNumber, "Unsupported texture map option: " + FString(Option));
+            }
+            Line = Trim(Line);
+        }
+
+        // 옵션 뒤의 나머지를 경로로 읽으며 기존 공백·따옴표 처리를 유지한다.
+        FStringView TextureName = Trim(Line);
+        if (TextureName.empty())
+            ParseError(Path, LineNumber, "Missing texture map path");
+
+        if (TextureName.front() == '"')
+        {
+            FStringView Remaining = TextureName;
+            TextureName = TakePathToken(Remaining, Path, LineNumber);
+            RequireEnd(Remaining, Path, LineNumber);
+        }
+
+        // 선언 전체를 읽은 뒤 경로와 옵션을 함께 갱신한다.
+        OutPath = ResolvePath(Path.parent_path(), TextureName);
+        OutOptions = Options;
+    }
+
     // MTL의 머티리얼 수치와 용도별 텍스처 경로를 읽어 CPU 데이터에 보관한다.
     void ReadMtl(const std::filesystem::path& Path, FObjInfo& Info, TMap<FString, int32>& MaterialLookup)
     {
@@ -421,31 +472,31 @@ namespace
                 }
                 else
                 {
-                    // map_Kd의 기존 경로 해석을 유지하며 옵션 지원은 후속 단계로 둔다.
-                    FStringView TextureName = Trim(Line);
-                    if (TextureName.empty())
-                        ParseError(Path, LineNumber, "Missing texture map path");
-                    if (TextureName.front() == '-')
-                        ParseError(Path, LineNumber, "Texture map options are not supported");
-
-                    if (TextureName.front() == '"')
-                    {
-                        FStringView Remaining = TextureName;
-                        TextureName = TakePathToken(Remaining, Path, LineNumber);
-                        RequireEnd(Remaining, Path, LineNumber);
-                    }
-                    // 지시문에 따라 저장할 필드만 선택하고 경로 해석은 한 번 수행한다.
-                    std::filesystem::path* TexturePath = &Material.DiffuseTexturePath;
-                    if (Prefix == "map_d") TexturePath = &Material.OpacityTexturePath;
-                    else if (Prefix == "map_Ka") TexturePath = &Material.AmbientTexturePath;
-                    else if (Prefix == "map_Ks") TexturePath = &Material.SpecularTexturePath;
-                    else if (Prefix == "map_Ke") TexturePath = &Material.EmissiveTexturePath;
-                    else if (Prefix == "map_Ns") TexturePath = &Material.SpecularExponentTexturePath;
-                    else if (bBumpTexture) TexturePath = &Material.BumpTexturePath;
-                    else if (Prefix == "norm") TexturePath = &Material.NormalTexturePath;
-                    else if (Prefix == "disp") TexturePath = &Material.DisplacementTexturePath;
-
-                    *TexturePath = ResolvePath(Path.parent_path(), TextureName);
+                    // 선택한 맵의 경로와 옵션에 공통 파싱 함수를 적용한다.
+                    auto ReadMap = [&](std::filesystem::path& TexturePath,
+                        FStaticMeshTextureOptions& TextureOptions)
+                        {
+                            ReadTextureMap(Line, Path, LineNumber, TexturePath, TextureOptions, bBumpTexture);
+                        };
+                    // 지시문에 대응하는 경로와 옵션을 반드시 같은 쌍으로 전달한다.
+                    if (Prefix == "map_Kd")
+                        ReadMap(Material.DiffuseTexturePath, Material.DiffuseTextureOptions);
+                    else if (Prefix == "map_d")
+                        ReadMap(Material.OpacityTexturePath, Material.OpacityTextureOptions);
+                    else if (Prefix == "map_Ka")
+                        ReadMap(Material.AmbientTexturePath, Material.AmbientTextureOptions);
+                    else if (Prefix == "map_Ks")
+                        ReadMap(Material.SpecularTexturePath, Material.SpecularTextureOptions);
+                    else if (Prefix == "map_Ke")
+                        ReadMap(Material.EmissiveTexturePath, Material.EmissiveTextureOptions);
+                    else if (Prefix == "map_Ns")
+                        ReadMap(Material.SpecularExponentTexturePath, Material.SpecularExponentTextureOptions);
+                    else if (bBumpTexture)
+                        ReadMap(Material.BumpTexturePath, Material.BumpTextureOptions);
+                    else if (Prefix == "norm")
+                        ReadMap(Material.NormalTexturePath, Material.NormalTextureOptions);
+                    else if (Prefix == "disp")
+                        ReadMap(Material.DisplacementTexturePath, Material.DisplacementTextureOptions);
                 }
 
                 // 바이너리 복원과 동일한 수치 검사로 잘못된 머티리얼을 Import에서 거부한다.

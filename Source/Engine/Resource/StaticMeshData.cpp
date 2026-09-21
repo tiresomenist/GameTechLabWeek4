@@ -18,8 +18,9 @@ namespace
     // 버전 5부터 MTL의 불투명도 텍스처 경로를 저장한다.
     // 버전 7부터 범프·노멀·변위 텍스처 경로를 저장한다.
     // 버전 8부터 각 텍스처 맵의 Clamp 옵션을 저장한다.
+    // 버전 9부터 텍스처 옵션에 범프 배율을 저장한다.
 
-    constexpr uint32 MeshVersion = 8;
+    constexpr uint32 MeshVersion = 9;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -109,6 +110,7 @@ namespace
             throw std::runtime_error("Missing mesh texture options.");
 
         Archive.Field("Clamp", Options.bClamp);
+        Archive.Field("BumpMultiplier", Options.BumpMultiplier);
         Archive.EndObject();
     }
     // CPU 머티리얼의 수치와 용도별 텍스처 경로를 저장하거나 복원한다.
@@ -264,7 +266,11 @@ namespace
         }
     }
 }
-
+bool FStaticMeshTextureOptions::HasValidNumericValues() const
+{
+    // 원본 배율은 유지하면서 연산에 사용할 수 없는 값만 거부한다.
+    return std::isfinite(BumpMultiplier);
+}
 // 머티리얼 색상과 수치가 유한하며 기본적인 의미 범위를 만족하는지 검사한다.
 bool FStaticMeshMaterial::HasValidNumericValues() const
 {
@@ -274,6 +280,18 @@ bool FStaticMeshMaterial::HasValidNumericValues() const
     {
         return false;
     }
+
+    // 모든 맵의 옵션을 검사해 바이너리 복원 경로에도 같은 기준을 적용한다.
+    if (!DiffuseTextureOptions.HasValidNumericValues()
+        || !OpacityTextureOptions.HasValidNumericValues()
+        || !AmbientTextureOptions.HasValidNumericValues()
+        || !SpecularTextureOptions.HasValidNumericValues()
+        || !EmissiveTextureOptions.HasValidNumericValues()
+        || !SpecularExponentTextureOptions.HasValidNumericValues()
+        || !BumpTextureOptions.HasValidNumericValues()
+        || !NormalTextureOptions.HasValidNumericValues()
+        || !DisplacementTextureOptions.HasValidNumericValues())
+        return false;
 
     // 불투명도는 0~1, 지수는 음수 금지, 굴절률은 양수로 검사한다.
     return std::isfinite(Opacity) && Opacity >= 0.0f && Opacity <= 1.0f
@@ -290,7 +308,7 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 113, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 149, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);

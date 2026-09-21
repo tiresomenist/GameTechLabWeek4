@@ -16,6 +16,12 @@ struct FStaticMeshTextureOptions
     // -clamp on이면 true, off 또는 미지정이면 false로 보관한다.
     // mtl 파일에선 clamp에 대해서만 on/off를 정함. 즉 미러나 보더 등의 다른 샘플러 상태는 여기서는 고려하지않음
     bool bClamp = false;
+
+    // 범프 맵의 -bm 값이며, 미지정 시 원래 배율을 유지한다.
+    float BumpMultiplier = 1.0f;
+
+    // 텍스처 옵션의 수치가 저장 가능한 유한값인지 검사한다.
+    bool HasValidNumericValues() const;
 };
 
 // Cooked 메시가 사용하는 CPU 머티리얼 데이터.
