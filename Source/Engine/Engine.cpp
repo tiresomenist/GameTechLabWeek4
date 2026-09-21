@@ -112,11 +112,9 @@ void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 // 엔진의 메인 게임 루프를 실행합니다.
 void GEngine::Tick()
 {
-    using Clock = std::chrono::high_resolution_clock;
 	float DeltaTime = GetTime() - LastTickTime;
 	LastTickTime = GetTime();
 
-    auto StartGame = Clock::now();
 	if (DeltaTime > 0.1f)
 	{
 		UE_LOG("[경고] 프레임 업데이트 시간이 100ms를 초과했습니다. 걸린 시간: {:.1f} ms", DeltaTime * 1000);
@@ -129,17 +127,9 @@ void GEngine::Tick()
 
 	Editor->Tick(DeltaTime);
 
-    auto EndGame = Clock::now();
-    float CurGameMs = std::chrono::duration<float, std::milli>(EndGame - StartGame).count();
-    GameTimeMs = (GameTimeMs * 0.9f) + (CurGameMs * 0.1f); // 프레임은 매 프레임마다 요동치므로 지수평균으로 보간
-
 	// 게임 화면을 렌더링합니다.
-	UScene* CurrentScene = SceneManager->GetScene();
-	Renderer.Render(DeltaTime, Editor, CurrentScene);
-
-    EngineStats.UpdateUnitStat(DeltaTime, GameTimeMs, Renderer.GetDrawTimeMs(),
-        Renderer.GetGPUTimeMs(), Renderer.GetGPUWaitMs());
-    EngineStats.UpdateMemoryStat();
+    UScene* CurrentScene = Editor->GetCurrentScene();
+    Renderer.Render(DeltaTime, Editor, CurrentScene);
 }
 
 // 엔진의 자원을 정리합니다.
