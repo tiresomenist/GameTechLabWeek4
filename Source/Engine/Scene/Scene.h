@@ -15,8 +15,8 @@ class FArchive;
 
 struct FCameraSaveData
 {
-	FVector Location;
-	FRotator Rotation;
+	FVector Location = FVector(-15.0f, -15.0f, 10.0f);
+	FRotator Rotation = FRotator(-25.239f, 45.0f, 0.0f);
 	float FOV = 60.0f * PI / 180.0f;
 	float NearZ = 0.1f;
 	float FarZ = 1000.0f;
