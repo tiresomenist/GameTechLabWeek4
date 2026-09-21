@@ -46,6 +46,21 @@ void UAssetBrowserWindow::Render(float DeltaTime)
 	ImGui::End();
 }
 
+void UAssetBrowserWindow::MoveTo(const std::filesystem::path& Path)
+{
+	const std::filesystem::path NewPath = Path.lexically_normal();
+
+	std::error_code Error;
+	if (NewPath == CurrentPath || !std::filesystem::is_directory(NewPath))
+	{
+		return;
+	}
+
+	BackHistory.Add(CurrentPath);
+	CurrentPath = NewPath;
+	RefreshCurrentContents();
+}
+
 void UAssetBrowserWindow::DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bool bRoot)
 {
 	ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
@@ -67,8 +82,7 @@ void UAssetBrowserWindow::DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bo
 	const bool bNodeOpen = ImGui::TreeNodeEx((Label + "###" +  Path).c_str(), Flags);
 	if (ImGui::IsItemClicked())
 	{
-		CurrentPath = Entry.Path;
-		RefreshCurrentContents();
+		MoveTo(Entry.Path);
 	}
 	if (bNodeOpen && !Entry.Children.IsEmpty())
 	{
@@ -82,15 +96,36 @@ void UAssetBrowserWindow::DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bo
 
 void UAssetBrowserWindow::DrawContentView()
 {
-	const std::filesystem::path Relative = RootPath.filename() / CurrentPath.lexically_relative(RootPath);
-	ImGui::SeparatorText(File::PathToUtf8(Relative).c_str());
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 2.0f));
+
+	ImGui::BeginDisabled(BackHistory.IsEmpty());
+	if (ImGui::ArrowButton("Back", ImGuiDir_Left))
+	{
+		CurrentPath = BackHistory.Pop();
+		RefreshCurrentContents();
+	}
+	ImGui::EndDisabled();
 	
+	ImGui::SameLine();
+	ImGui::BeginDisabled(CurrentPath.lexically_normal() == RootPath.lexically_normal());
+	if (ImGui::ArrowButton("Up", ImGuiDir_Up))
+	{
+		MoveTo(CurrentPath.parent_path());
+	}
+	ImGui::EndDisabled();
+
+	ImGui::PopStyleVar();
+
 	ImGui::SameLine();
 	if (ImGui::SmallButton("Refresh"))
 	{
 		RefreshDirectoryEntries();
 		RefreshCurrentContents();
 	}
+
+	const std::filesystem::path Relative = RootPath.filename() / CurrentPath.lexically_relative(RootPath);
+	ImGui::SameLine();
+	ImGui::SeparatorText(File::PathToUtf8(Relative).c_str());
 
 	constexpr float ThumbnailSize = 64.0f;
 	constexpr float CellSize = ThumbnailSize + 20.0f;
@@ -175,8 +210,7 @@ void UAssetBrowserWindow::DrawContentView()
 
 	if (!NextPath.empty())
 	{
-		CurrentPath = NextPath;
-		RefreshCurrentContents();
+		MoveTo(NextPath);
 	}
 }
 

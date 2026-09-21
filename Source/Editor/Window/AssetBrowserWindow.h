@@ -34,6 +34,8 @@ public:
 	virtual void Render(float DeltaTime) override;
 
 private:
+	void MoveTo(const std::filesystem::path& Path);
+	
 	void DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bool bRoot = false);
 	void DrawContentView();
 
@@ -41,8 +43,10 @@ private:
 	void RefreshCurrentContents();
 	FDirectoryEntry ConstructDirectoryEntry(const std::filesystem::path& Path) const;
 
+
 	std::filesystem::path RootPath = "Assets";
 	std::filesystem::path CurrentPath = "Assets";
+	TArray<std::filesystem::path> BackHistory;
 
 	FDirectoryEntry RootDirectoryEntry;
 	TArray<FAssetEntry> CurrentContents;
