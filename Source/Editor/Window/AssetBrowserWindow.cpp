@@ -83,7 +83,14 @@ void UAssetBrowserWindow::DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bo
 void UAssetBrowserWindow::DrawContentView()
 {
 	const std::filesystem::path Relative = RootPath.filename() / CurrentPath.lexically_relative(RootPath);
-	ImGui::SeparatorText(Relative.string().c_str());
+	ImGui::SeparatorText(File::PathToUtf8(Relative).c_str());
+	
+	ImGui::SameLine();
+	if (ImGui::SmallButton("Refresh"))
+	{
+		RefreshDirectoryEntries();
+		RefreshCurrentContents();
+	}
 
 	constexpr float ThumbnailSize = 64.0f;
 	constexpr float CellSize = ThumbnailSize + 20.0f;
