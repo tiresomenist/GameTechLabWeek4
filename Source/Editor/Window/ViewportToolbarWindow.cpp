@@ -45,18 +45,6 @@ void UViewportToolbarWindow::Render(float DeltaTime)
             {
                 DrawShowFlagsPopup();
             });
-
-        ImGui::SameLine();
-        if (ImGui::Button("HideStat"))
-        {
-            Editor->HideAllStats();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("ShowStat"))
-        {
-            Editor->ShowAllStats();
-        }
-        
 	}
 	ImGui::End();
 }

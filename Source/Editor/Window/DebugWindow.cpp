@@ -25,53 +25,6 @@ void UDebugWindow::Render(float DeltaTime)
 		ImGui::Text("UObject Heap Memory 객체 수: %zu개", AllocationCount);
 
 		ImGui::Separator();
-
-		static char CommandBuffer[64] = "";
-		ImGui::Text("Command:");
-		ImGui::SameLine();
-
-		static bool bReclaimFocus = false;
-		if (bReclaimFocus)
-		{
-			ImGui::SetKeyboardFocusHere(0);
-			bReclaimFocus = false;
-		}
-
-		bool bEnter = ImGui::InputText("##ConsoleCmd", CommandBuffer, sizeof(CommandBuffer),
-			ImGuiInputTextFlags_EnterReturnsTrue);
-		if (bEnter)
-		{
-			ImGui::SetKeyboardFocusHere(-1);
-		}
-		ImGui::SameLine();
-		bool bExecute = ImGui::Button("실행");
-
-		if (bEnter || bExecute)
-		{
-			if (_stricmp(CommandBuffer, "stat FPS") == 0)
-			{
-				Editor->ToggleShowStatFPS();
-			}
-			else if (_stricmp(CommandBuffer, "stat unit") == 0)
-			{
-				Editor->ToggleShowStatUnit();
-			}
-			else if (_stricmp(CommandBuffer, "stat memory") == 0)
-			{
-				Editor->ToggleShowStatMemory();
-			}
-			else if (_stricmp(CommandBuffer, "stat none") == 0)
-			{
-				Editor->HideAllStats();
-			}
-			else if (_stricmp(CommandBuffer, "stat all") == 0)
-			{
-				Editor->ShowAllStats();
-			}
-			CommandBuffer[0] = '\0';
-			bReclaimFocus = true;
-		}
-
 		if (ImGui::Button("SpawnSolarSystem"))
 		{
 			SpawnSolarSystem(Editor->GetCurrentScene());
