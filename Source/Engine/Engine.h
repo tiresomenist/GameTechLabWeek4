@@ -7,6 +7,15 @@
 class FConsole;
 class FEditor;
 
+struct FUnitData
+{
+	float FrameTimeMs = 0.0f;
+	float GameTimeMs = 0.0f;
+	float DrawTimeMs = 0.0f;
+	float GPUTimeMs = 0.0f;
+	float GPUWaitMs = 0.0f;
+};
+
 class GEngine
 {
 public:
@@ -26,6 +35,8 @@ public:
 	// 게임 시작 이후 얼마나 흘렀는지 반환합니다.
 	float GetTime();
 
+	const FUnitData& GetUnitData() const { return UnitData; };
+
 private:
 	float LastTickTime = 0;
 	float StartTime = 0;
@@ -39,4 +50,7 @@ private:
 	~GEngine() = default;
 	GEngine(const GEngine&) = delete;
 	GEngine& operator=(const GEngine&) = delete;
+
+	FUnitData UnitData;
+	float GameTimeMs = 0.0f;
 };
