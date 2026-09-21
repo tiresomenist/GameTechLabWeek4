@@ -13,7 +13,6 @@ public:
 
 private:
 	FEditor* Editor = nullptr;
-	FString SceneName{ "NewScene" };
 	static ImGuiID GetDockSpaceID() { return ImHashStr("EditorDockSpace"); }
 
 	void NewScene();

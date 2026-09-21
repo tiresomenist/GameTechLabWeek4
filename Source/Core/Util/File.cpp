@@ -42,6 +42,27 @@ void File::WriteText(FStringView Path, FStringView Text)
     }
 }
 
+void File::WriteTextToPath(const std::filesystem::path& Path, FStringView Text)
+{
+	try
+	{
+		std::ofstream Out;
+		Out.exceptions(std::ios::failbit | std::ios::badbit);
+		Out.open(Path, std::ios::binary | std::ios::trunc);
+		Out << Text;
+		Out.flush();
+		Out.close();
+		if (!MoveFileExW(Path.c_str(), Path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+			throw std::system_error(GetLastError(), std::system_category());
+	}
+	catch (...)
+	{
+		std::error_code Ignored;
+		std::filesystem::remove(Path, Ignored);
+		throw;
+	}
+}
+
 FString File::ReadText(FStringView Path)
 {
 	FString PathString{ Path };
@@ -154,6 +175,83 @@ std::optional<std::filesystem::path> File::OpenFileDialog(HWND Owner, EFileDialo
 	return Result;
 }
 
+std::optional<std::filesystem::path> File::SaveFileDialog(HWND Owner, EFileDialogType Type, const std::filesystem::path& InitialDir)
+{
+	std::optional<std::filesystem::path> Result = std::nullopt;
+
+	// S_OK / S_FALSE 면 짝을 맞춰 Uninit, RPC_E_CHANGED_MODE 면 건드리지 않음
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	const bool bNeedUninit = SUCCEEDED(hr);
+
+	IFileSaveDialog* FileSave = nullptr;
+	hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&FileSave));
+
+	if (SUCCEEDED(hr))
+	{
+		COMDLG_FILTERSPEC Filters[] =
+		{
+			{ L"JSON Scene Files (*.json)", L"*.json" },
+			{ L"Image Files (*.png;*.jpg;*.dds;*.tga)", L"*.png;*.jpg;*.jpeg;*.dds;*.tga" },
+			{ L"All Files (*.*)",           L"*.*" },
+			{ L"Wavefront OBJ Files (*.obj)", L"*.obj" }
+
+		};
+		FileSave->SetFileTypes(ARRAYSIZE(Filters), Filters);
+
+		int DefaultIndex = 1;
+		switch (Type)
+		{
+		case EFileDialogType::Json: DefaultIndex = 1; break;
+		case EFileDialogType::Image:DefaultIndex = 2; break;
+		case EFileDialogType::All:	DefaultIndex = 3; break;
+		case EFileDialogType::Obj:   DefaultIndex = 4; break;
+		default: DefaultIndex = 3; break;
+		}
+		FileSave->SetFileTypeIndex(DefaultIndex);
+		if (Type == EFileDialogType::Json)
+		{
+			FileSave->SetDefaultExtension(L"json");
+		}
+		if (!InitialDir.empty())
+		{
+			const std::filesystem::path AbsoluteDir = std::filesystem::absolute(InitialDir);
+			IShellItem* FolderItem = nullptr;
+			if (SUCCEEDED(SHCreateItemFromParsingName(AbsoluteDir.c_str(), nullptr, IID_PPV_ARGS(&FolderItem))))
+			{
+				FileSave->SetFolder(FolderItem);
+				FolderItem->Release();
+			}
+		}
+
+		FileSave->SetFileTypeIndex(DefaultIndex);
+		// 취소 시 hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)
+		hr = FileSave->Show(Owner);
+
+		if (SUCCEEDED(hr))
+		{
+			IShellItem* Item = nullptr;
+			if (SUCCEEDED(FileSave->GetResult(&Item)))
+			{
+				PWSTR FilePath = nullptr;
+				if (SUCCEEDED(Item->GetDisplayName(SIGDN_FILESYSPATH, &FilePath)))
+				{
+					Result = std::filesystem::path(FilePath);
+					CoTaskMemFree(FilePath);
+				}
+				Item->Release();
+			}
+		}
+
+		FileSave->Release();
+	}
+
+	if (bNeedUninit)
+	{
+		CoUninitialize();
+	}
+
+	return Result;
+}
 // 파일경로를 UTF-8 문자열로 변환
 FString File::PathToUtf8(const std::filesystem::path& Path)
 {

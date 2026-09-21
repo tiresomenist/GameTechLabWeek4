@@ -13,6 +13,15 @@ class UCameraComponent;
 class FRenderer;
 class FArchive;
 
+struct FCameraSaveData
+{
+	FVector Location = FVector(-15.0f, -15.0f, 10.0f);
+	FRotator Rotation = FRotator(-25.239f, 45.0f, 0.0f);
+	float FOV = 60.0f * PI / 180.0f;
+	float NearZ = 0.1f;
+	float FarZ = 1000.0f;
+};
+
 // Scene은 Actor를 소유하는 컨테이너입니다. UUID/RTTI가 필요한 UObject가 아닙니다.
 class UScene
 {
@@ -30,6 +39,8 @@ public:
 
 	UCameraComponent* GetMainCamera() const { return MainCamera; }
 	void SetMainCamera(UCameraComponent* InCamera) { MainCamera = InCamera; }
+	FCameraSaveData GetMainCameraSaveData() const { return MainCameraSaveData; }
+	void SetMainCameraSaveData(UCameraComponent* InCamera);
 
 	void CreateMainCamera();
 
@@ -115,11 +126,16 @@ protected:
 	/// Scene에 종속된 모든 Actor를 담는 멤버 변수. Component는 Actor가 소유합니다.
 	/// </summary>
 	TArray<AActor*> Actors {};
-	
+
 	/// <summary>
 	/// Scene의 렌더링을 담당할 MainCamera를 담는 멤버 변수
 	/// </summary>
 	UCameraComponent* MainCamera = nullptr;
+
+	/// <summary>
+	/// 저장/불러오기 시에 사용하는 Scene의 메인 Perspective 카메라의 정보
+	/// </summary>
+	FCameraSaveData MainCameraSaveData{};
 
 public:
 	friend TArray<FPrimitiveRenderData> RenderUtil::GetRenderList(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera);

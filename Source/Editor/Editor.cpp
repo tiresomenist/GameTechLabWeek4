@@ -325,6 +325,27 @@ void FEditor::InitializeGrids()
 
 void FEditor::Tick(float DeltaTime)
 {
+	if (bPendingCameraLoad)
+	{
+		for (const auto& Viewport : Viewports)
+		{
+			if (Viewport.GetViewportType() == EViewportType::Perspective)
+			{
+				FCameraSaveData CameraData = GetCurrentScene()->GetMainCameraSaveData();
+				UCameraComponent& Camera = *Viewport.GetCamera();
+				Camera.SetRelativeLocation(CameraData.Location);
+				Camera.SetRelativeRotation(CameraData.Rotation);
+				Camera.SetFOVByRadian(CameraData.FOV);
+				Camera.SetNearZ(CameraData.NearZ);
+				Camera.SetFarZ(CameraData.FarZ);
+
+				break;
+			}
+		}
+
+		bPendingCameraLoad = false;
+	}
+
 	//CameraController.Tick(DeltaTime);
 	GEngine& Engine = *GEngine::GetInstance();
 	GInputManager& Input = *GInputManager::GetInstance();
@@ -542,6 +563,8 @@ void FEditor::LoadScene(FStringView SceneName)
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
 
 	SceneManager->LoadScene(SceneType, SceneName);
+
+	bPendingCameraLoad = true;
 }
 
 void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
@@ -551,12 +574,38 @@ void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
 
 	SceneManager->LoadSceneFromPath(SceneType, ScenePath);
+
+	bPendingCameraLoad = true;
 }
 
 void FEditor::SaveScene(FStringView SceneName)
 {
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
+
+	for (const auto& Viewport : Viewports)
+	{
+		if (Viewport.GetViewportType() == EViewportType::Perspective)
+		{
+			GetCurrentScene()->SetMainCameraSaveData(Viewport.GetCamera());
+			break;
+		}
+	}
+
 	SceneManager->SaveScene(SceneName);
+}
+
+void FEditor::SaveSceneToPath(const std::filesystem::path& ScenePath)
+{
+	GSceneManager* SceneManager = GSceneManager::GetInstance();
+	for (const auto& Viewport : Viewports)
+	{
+		if (Viewport.GetViewportType() == EViewportType::Perspective)
+		{
+			GetCurrentScene()->SetMainCameraSaveData(Viewport.GetCamera());
+			break;
+		}
+	}
+	SceneManager->SaveSceneToPath(ScenePath);
 }
 
 UScene* FEditor::GetCurrentScene()
