@@ -478,10 +478,10 @@ void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 	for (int i = 0; i < Count; ++i)
 	{
 		AActor* Actor = CurrentScene->SpawnActor<AActor*>(AActor::GetClass());
-		auto* StaticMesh = static_cast<UStaticMeshComponent*>(
+		auto* StaticMeshComp = static_cast<UStaticMeshComponent*>(
 			Actor->CreateComponent(UStaticMeshComponent::GetClass()));
 
-		StaticMesh->SetStaticMesh(MeshKey);
+		StaticMeshComp->SetStaticMesh(MeshKey);
 		/*if (MeshKey == "Cube" || MeshKey == "Sphere")
 		{
 			StaticMesh->SetMaterial("Assets/Textures/DefaultMaterial.png");
@@ -489,7 +489,7 @@ void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 		// 로켓 색상은 정점 색상에 있으므로 흰색 텍스처를 곱해 원래 색을 유지함
 		if (MeshKey == "Rocket")
 		{
-			StaticMesh->SetMaterial("Assets/Textures/WhiteTexture.png");
+			StaticMeshComp->SetOverrideMaterial("Assets/Textures/WhiteTexture.png");
 		}
 
 		Actor->CreateComponent(UWidgetComponent::GetClass());

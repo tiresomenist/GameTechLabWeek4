@@ -16,23 +16,26 @@ void UStaticMesh::BuildFromMeshData(const FStaticMeshData& MeshData)
 	GResourceManager* RM = GResourceManager::GetInstance();
 	this->MeshResource = RM->CreateStaticMeshResource( MeshData.PathFileName, MeshData.Vertices, MeshData.Indices);
 
-	for (const FStaticMeshMaterial CPUMaterial : MeshData.Materials)
-	{
-		ID3D11ShaderResourceView* SRV = nullptr;
-		if (!CPUMaterial.DiffuseTexturePath.empty())
-		{
-			if (FTextureResource* Tex = RM->GetOrLoadTexture(CPUMaterial.DiffuseTexturePath.generic_string()))
-				SRV = Tex->GetSRV();
-		}
-		if (!SRV)
-		{
-			// WhiteTexture로 대체
-			if (FTextureResource* WhiteTex = RM->GetOrLoadTexture("Assets/Textures/WhiteTexture.png"))
-				SRV = WhiteTex->GetSRV();
-		}
-		FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(SRV);
-		Materials.Add(new FMaterial(GPUMaterial));
-	}
+    for (const FStaticMeshMaterial CPUMaterial : MeshData.Materials)
+    {
+        ID3D11ShaderResourceView* SRV = nullptr;
+        FString TexturePath = CPUMaterial.DiffuseTexturePath.generic_string();
+        if (!CPUMaterial.DiffuseTexturePath.empty())
+        {
+            if (FTextureResource* Tex = RM->GetOrLoadTexture(TexturePath))
+                SRV = Tex->GetSRV();
+        }
+
+        // SRV 로드에 실패했거나 경로가 없었던 경우 화이트 텍스처로 대체
+        if (!SRV)
+        {
+            TexturePath = "Assets/Textures/WhiteTexture.png"; 
+            if (FTextureResource* WhiteTex = RM->GetOrLoadTexture(TexturePath))
+                SRV = WhiteTex->GetSRV();
+        }
+        FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(SRV, TexturePath);
+        Materials.Add(new FMaterial(GPUMaterial));
+    }
 	BoundsMin = MeshData.BoundsMin;
 	BoundsMax = MeshData.BoundsMax;
 	bHasBounds = true;
