@@ -369,7 +369,11 @@ void FRenderer::OnResize(uint32 Width, uint32 Height)
 // 단일 View -> 이제 더이상 다중 View를 호출하지 않음
 void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 {
+	using Clock = std::chrono::high_resolution_clock;
 	if (!IsRenderReady() || !Editor || !Scene) return;
+
+	GPUTimer.BeginFrame(DeviceContext);
+	auto StartDraw = Clock::now();
 
 	BeginFrame();
 	Editor->DrawMenu();
@@ -383,6 +387,11 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 
 	SetViewportAndScissor(ViewportInfo);
 	Editor->DrawWindows(DeltaTime);
+
+	auto EndDraw = Clock::now();
+	float CurDrawMs = std::chrono::duration<float, std::milli>(EndDraw - StartDraw).count();
+	DrawTimeMs = (DrawTimeMs * 0.9f) + (CurDrawMs * 0.1f);
+
 	EndFrame();
 
 }
@@ -416,10 +425,10 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene, const TArr
 	{
 		Item->Render(DeltaTime);
 	}
+	Editor->DrawWindows(DeltaTime);
 	auto EndDraw = Clock::now();
 	float CurDrawMs = std::chrono::duration<float, std::milli>(EndDraw - StartDraw).count();
 	DrawTimeMs = (DrawTimeMs * 0.9f) + (CurDrawMs * 0.1f);
-	Editor->DrawWindows(DeltaTime);
 
 
 	EndFrame();
