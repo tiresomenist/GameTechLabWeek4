@@ -77,6 +77,8 @@ void FEditorMenuLayout::Draw()
 		LoadScene();
 		bRequestedLoad = false;
 	}
+
+	Editor->DrawStatOverlay();
 }
 
 void FEditorMenuLayout::NewScene()
