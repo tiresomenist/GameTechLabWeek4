@@ -14,7 +14,7 @@ void FViewportClient::Initialize(EViewportType InType, UCameraComponent* InCamer
 		Camera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
 		Camera->LookAt(FVector(0.0f, 0.0f, 0.0f));
 
-		ViewSetting.ViewMode = EViewModeIndex::VMI_Lit;
+		ViewSettings.ViewMode = EViewModeIndex::VMI_Lit;
 		break;
 	}
 	case EViewportType::Top:				// 2사분면
@@ -22,7 +22,7 @@ void FViewportClient::Initialize(EViewportType InType, UCameraComponent* InCamer
 		Camera->SetIsPerspective(false);
 		Camera->SetRelativeRotation(FQuaternion::FromAxisAngle(FVector(0.0f, 1.0f, 0.0f), PI * 0.5f));
 		Camera->SetRelativeLocation(FVector(0.0f, 0.0f, 30.0f));
-		ViewSetting.ViewMode = EViewModeIndex::VMI_Unlit;
+		ViewSettings.ViewMode = EViewModeIndex::VMI_Unlit;
 		break;
 	}
 	case EViewportType::Front:				// 3사분면
@@ -30,7 +30,7 @@ void FViewportClient::Initialize(EViewportType InType, UCameraComponent* InCamer
 		Camera->SetIsPerspective(false);
 		Camera->SetRelativeRotation(FQuaternion::FromAxisAngle(FVector(0.0f, 0.0f, 1.0f), PI));
 		Camera->SetRelativeLocation(FVector(30.0f, 0.0f, 0.0f));
-		ViewSetting.ViewMode = EViewModeIndex::VMI_Unlit;
+		ViewSettings.ViewMode = EViewModeIndex::VMI_Unlit;
 		break;
 	}
 	case EViewportType::Right:				// 4사분면
@@ -38,7 +38,7 @@ void FViewportClient::Initialize(EViewportType InType, UCameraComponent* InCamer
 		Camera->SetIsPerspective(false);
 		Camera->SetRelativeRotation(FQuaternion::FromAxisAngle(FVector(0.0f, 0.0f, 1.0f), -PI * 0.5f));
 		Camera->SetRelativeLocation(FVector(0.0f, 30.0f, 0.0f));
-		ViewSetting.ViewMode = EViewModeIndex::VMI_Unlit;
+		ViewSettings.ViewMode = EViewModeIndex::VMI_Unlit;
 		break;
 	}
 	}
@@ -59,7 +59,7 @@ FRenderView FViewportClient::GetRenderView() const
 	FRenderView result;
 	result.bDrawEditorGizmos = bDrawEditorGizmos;
 	result.Camera = Camera;
-	result.ViewSettings = ViewSetting;
+	result.ViewSettings = ViewSettings;
 	result.Viewport = ViewportInfo;
 
 	return result;

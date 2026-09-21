@@ -277,15 +277,36 @@ void FEditor::Initialize()
 	RightView.Initialize(EViewportType::Right, RightCamera);
 	Viewports.Add(RightView);
 
-	// 초기 뷰포트 크기 설정
-	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
-	OnResize(EngineViewport.Width, EngineViewport.Height);
-
 	// 기본으로 PerspectiveCamera 설정
 	EditorCamera = PerspectiveCamera;
 	CameraController.SetCamera(PerspectiveCamera);
+	CameraController.SetViewportClient(&Viewports[0]);
 	
+	// 스플리터 초기화
+	SWindow* WinPerspective = new SWindow;
+	WinPerspective->SetViewportClient(&Viewports[0]);
+	SWindow* WinTop = new SWindow;
+	WinTop->SetViewportClient(&Viewports[1]);
+	SWindow* WinFront = new SWindow;
+	WinFront->SetViewportClient(&Viewports[2]);
+	SWindow* WinRight = new SWindow;
+	WinRight->SetViewportClient(&Viewports[3]);
+
+	SSplitterV* LeftSplitter = new SSplitterV;
+	LeftSplitter->SideLT = WinTop;
+	LeftSplitter->SideRB = WinFront;
+
+	SSplitterV* RightSplitter = new SSplitterV;
+	RightSplitter->SideLT = WinPerspective;
+	RightSplitter->SideRB = WinRight;
 	
+	RootSplitter = new SSplitterH;
+	RootSplitter->SideLT = LeftSplitter;
+	RootSplitter->SideRB = RightSplitter;
+
+	// 초기 뷰포트 크기 설정
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
 
 	ObjectPicker = new FObjectPicker(this);
 	GizmoPicker = new FGizmoPicker(this);
@@ -364,24 +385,52 @@ void FEditor::Tick(float DeltaTime)
 	const bool bLFirstPressed = bLDown && !bPrevLDown;
 	const bool bRFirstPressed = bRDown && !bPrevRDown;
 
+	ImVec2 MousePos = IO.MousePos;
+	FPoint MouseCoord{ MousePos.x, MousePos.y };
+	
+	bool bIsLeftClick = Input.ConsumeLeftClick();
+
+	if (RootSplitter)
+	{
+		RootSplitter->OnMouseMove(MouseCoord);
+	}
+
+	// 스플리터 클릭시 클릭소모
+	if (!IO.WantCaptureMouse && bIsLeftClick)
+	{
+		if (RootSplitter && RootSplitter->OnMouseDown(MouseCoord))
+		{
+			return;
+		}
+	}
+
+	// 마우스 떼면 스플리터 드래그 종료
+	if (!bLDown && RootSplitter)
+	{
+		RootSplitter->OnMouseUp(MouseCoord);
+	}
+
+
 	// 뷰포트 선택
 	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
 		const float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
 		const float y = bLFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+		
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
 			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
 			{
 				EditorCamera = Viewports[i].GetCamera();
 				CameraController.SetCamera(EditorCamera);
+				CameraController.SetViewportClient(&Viewports[i]);
 				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
 				break;
 			}
 		}
 	}
 
-	if (Input.ConsumeLeftClick() &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
+	if (bIsLeftClick &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
 	{
 		D3D11_VIEWPORT currViewport = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
 		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo, currViewport);
@@ -426,8 +475,6 @@ void FEditor::Tick(float DeltaTime)
 		GizmoController->ChangeMod();
 	}
 
-	
-
 	bPrevLDown = bLDown;
 	bPrevRDown = bRDown;
 }
@@ -450,6 +497,7 @@ void FEditor::Release()
 	GizmoController = nullptr;
 
 	CameraController.SetCamera(nullptr);
+	CameraController.SetViewportClient(nullptr);
 
 	delete ObjectPicker;
 	ObjectPicker = nullptr;
@@ -463,6 +511,7 @@ void FEditor::Release()
 	ReleaseGizmos();
 	ReleaseWindows();
 	ReleaseGrids();
+	ReleaseRootSplitter();
 }
 
 void FEditor::ReleaseGizmos()
@@ -492,6 +541,12 @@ void FEditor::ReleaseGrids()
 		delete Grid;
 	}
 	Grids.Empty();
+}
+
+void FEditor::ReleaseRootSplitter()
+{
+	if (RootSplitter) delete RootSplitter;
+	RootSplitter = nullptr;
 }
 
 void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
@@ -721,21 +776,14 @@ void FEditor::OnResize(uint32 Width, uint32 Height, uint32 Left, uint32 Top)
 
 	if (Viewports.IsEmpty()) return;
 
-	const float HalfWidth = Width * 0.5f;
-	const float HalfHeight = Height * 0.5f;
-
-	// 언리얼엔진 기본 위치로 설정
-	// Perspective - 우측 상단
-	Viewports[0].SetRect(Left + HalfWidth, Top, HalfWidth, HalfHeight);
-	// top - 좌측 상단
-	Viewports[1].SetRect(Left, Top, HalfWidth, HalfHeight);
-	// front - 좌측 하단
-	Viewports[2].SetRect(Left, Top + HalfHeight, HalfWidth, HalfHeight);
-	// right - 우측 하단
-	Viewports[3].SetRect(Left + HalfWidth, Top + HalfHeight, HalfWidth, HalfHeight);
+	if (RootSplitter)
+	{
+		FRect rect{ static_cast<float>(Left), static_cast<float>(Top), static_cast<float>(Width), static_cast<float>(Height) };
+		RootSplitter->UpdateLayout(rect);
+	}
 }
 
-const TArray<FViewportClient>& FEditor::GetViewports()
+TArray<FViewportClient>& FEditor::GetViewports()
 {
 	return Viewports;
 }
@@ -998,6 +1046,12 @@ void FEditor::DrawMenu()
 // 기존 에디터에 등록된 창들을 구성합니다.
 void FEditor::DrawWindows(float DeltaTime)
 {
+	// 스플리터 막대기 렌더링
+	if (RootSplitter)
+	{
+		RootSplitter->Render();
+	}
+
 	// 기존 렌더러와 동일한 순서로 창을 처리합니다.
 	for (UEditorWindow* Window : Windows)
 	{

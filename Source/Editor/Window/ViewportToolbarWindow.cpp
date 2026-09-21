@@ -5,60 +5,82 @@
 
 void UViewportToolbarWindow::Render(float DeltaTime)
 {
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(0.0f, 36.0f),
-        ImVec2(FLT_MAX, 52.0f));
+    TArray<FViewportClient>& Viewports = Editor->GetViewports();
 
     constexpr ImGuiWindowFlags Flags =
         ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse;
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoDocking;
+    
+    //ImGui::SetNextWindowPos(ImVec2(VP.TopLeftX, VP.TopLeftY), ImGuiCond_Always);
 
-	ImGui::Begin(Name.c_str(), nullptr, Flags);
-	{
-        UCameraComponent* Camera = Editor->GetEditorCamera();
-
-    	const char* ProjectionLabel = Camera->GetIsPerspective() ? "Perspective" : "Orthogonal";
-        BeginPopupButton(ProjectionLabel, "ProjectionPopup", [this, Camera]()
-            {
-                DrawProjectionPopup(Camera);
-            });
-        ImGui::SameLine();
-        
-        const char* ViewModeLabel = "Unknown";
-        for (const FViewModeEntry& Entry : ViewModeEntries)
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("Stats"))
         {
-	        if (Entry.Mode == Editor->GetViewMode())
-	        {
-				ViewModeLabel = Entry.Name;
-	        }
-        }
-        BeginPopupButton(ViewModeLabel, "ViewModePopup", [this]()
+            if (ImGui::MenuItem("Hide Stat"))
             {
-                DrawViewModePopup();
-            });
-        ImGui::SameLine();
-
-        BeginPopupButton("Show Flags", "ShowFlagsPopup", [this]()
+                Editor->HideAllStats();
+            }
+            if (ImGui::MenuItem("Show Stat"))
             {
-                DrawShowFlagsPopup();
-            });
-
-        ImGui::SameLine();
-        if (ImGui::Button("HideStat"))
-        {
-            Editor->HideAllStats();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("ShowStat"))
-        {
-            Editor->ShowAllStats();
+                Editor->ShowAllStats();
+            }
+            ImGui::EndMenu();
         }
         
+        ImGui::EndMainMenuBar();
+    }
+
+    for (uint32 i = 0; i < Viewports.Num(); ++i)
+    {
+        FViewportClient& VC = Viewports[i];
+        const D3D11_VIEWPORT& VP = VC.GetViewportInfo();
+
+        ImGui::SetNextWindowPos(ImVec2(VP.TopLeftX, VP.TopLeftY), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(VP.Width, 40.0f), ImGuiCond_Always);
+        
+        FString name = std::format("{}{}", Name.c_str(), i);
+
+        ImGui::Begin(name.c_str(), nullptr, Flags);
+        {
+            UCameraComponent* Camera = VC.GetCamera();
+
+   	        const char* ProjectionLabel = Camera->GetIsPerspective() ? "Perspective" : "Orthogonal";
+            //ImGui::SetNextWindowPos(ImVec2(VP.TopLeftX, VP.TopLeftY), ImGuiCond_Always);
+               BeginPopupButton(ProjectionLabel, "ProjectionPopup", [this, Camera, &VC, VP]()
+                   {
+                      DrawProjectionPopup(Camera, VC);
+                   });
+               ImGui::SameLine();
+       
+               const char* ViewModeLabel = "Unknown";
+               for (const FViewModeEntry& Entry : ViewModeEntries)
+               {
+                   if (Entry.Mode == VC.GetViewMode())
+                   {
+   			            ViewModeLabel = Entry.Name;
+                   }
+               }
+               BeginPopupButton(ViewModeLabel, "ViewModePopup", [this, &VC]()
+                   {
+                       DrawViewModePopup(VC);
+                   });
+               ImGui::SameLine();
+               
+               BeginPopupButton("Show Flags", "ShowFlagsPopup", [this, &VC]()
+                   {
+                       DrawShowFlagsPopup(VC);
+                   });
+        }
+        ImGui::End();
 	}
-	ImGui::End();
+   
+
 }
 
 void UViewportToolbarWindow::BeginPopupButton(const char* ButtonName, const char* PopupName,
@@ -80,14 +102,14 @@ void UViewportToolbarWindow::BeginPopupButton(const char* ButtonName, const char
     }
 }
 
-void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
+void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera, FViewportClient& InVC)
 {
     int ProjectionSelection = Camera->GetIsPerspective() ? 0 : 1;
 
     // if (지금 카메라가 perspective 카메라면) 아래로직 실행. 직교투영(탑, 프론트, 오른쪽)일때는 아예 버튼 없애기
-    uint32 currViewIdx = Editor->GetCurrentEditViewportIndex();
-    const TArray<FViewportClient>& Viewports = Editor->GetViewports();
-    if (Viewports[currViewIdx].GetViewportType() != EViewportType::Perspective)
+    //uint32 currViewIdx = Editor->GetCurrentEditViewportIndex();
+    //const TArray<FViewportClient>& Viewports = Editor->GetViewports();
+    if (InVC.GetViewportType() != EViewportType::Perspective)
     {
         if (ImGui::RadioButton("Orthogonal", true))
         {
@@ -120,17 +142,20 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
         Camera->SetMoveSpeed(std::clamp(CameraMoveSpeed, 0.1f, 100.0f));
     }
 
-	float FOV = Camera->GetFOV() * 180.0f / PI;
-    if (ImGui::SliderFloat("Field of View", &FOV, 5.0f, 170.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+    if (InVC.GetViewportType() == EViewportType::Perspective)
     {
-        Editor->SetCameraFOV(FOV);
+        float FOV = Camera->GetFOV() * 180.0f / PI;
+        if (ImGui::SliderFloat("Field of View", &FOV, 5.0f, 170.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+        {
+            Camera->SetFOVByDegree(FOV);
+        }
     }
 
     ImGui::PopItemWidth();
 
     ImGui::Separator();
 
-    FVector CameraLocation = Editor->GetCameraLocation();
+    FVector CameraLocation = InVC.GetCamera()->GetRelativeLocation();
     static bool bEditingCameraRotation = false;
     static FVector CameraRotationDegree;
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.2f); // Item 너비 설정
@@ -150,41 +175,45 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
     constexpr ImGuiSliderFlags PitchFlags = ImGuiSliderFlags_AlwaysClamp;
     constexpr ImGuiSliderFlags YawFlags = ImGuiSliderFlags_WrapAround | ImGuiSliderFlags_AlwaysClamp;
 
-    // ConstrainEditorRotation()이 Roll을 제거하므로 수정할 수 없는 값으로 표시한다.
-    if (!bEditingCameraRotation)
+    if (InVC.GetViewportType() == EViewportType::Perspective)
     {
-        CameraRotationDegree = Editor->GetCameraRotationDegree();
-    }
-    ImGui::BeginDisabled();
-    ImGui::DragFloat("##cameraRX", &CameraRotationDegree.X, 0.1f, -180.0f, 180.0f, "%.3f");
-    ImGui::EndDisabled();
-    bRotationActive |= ImGui::IsItemActive();
-    bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    ImGui::SameLine();
-    bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.0f, 89.0f, "%.3f", PitchFlags);
-    bRotationActive |= ImGui::IsItemActive();
-    bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
-    ImGui::SameLine();
-    bRotationChanged |= ImGui::DragFloat("##cameraRZ", &CameraRotationDegree.Z, 0.1f, 0.0f, 0.0f, "%.3f", YawFlags);
-    bRotationActive |= ImGui::IsItemActive();
-    bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
-    DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
-    ImGui::SameLine();
-    ImGui::Text("Camera Rotation");
-    if (bRotationChanged || bRotationFinished)
-    {
-        CameraRotationDegree.X = 0.0f;
+        // ConstrainEditorRotation()이 Roll을 제거하므로 수정할 수 없는 값으로 표시한다.
+        if (!bEditingCameraRotation)
+        {
+            const FRotator& CameraRotation = Camera->GetRelativeRotator();
+            CameraRotationDegree = CameraRotation.ToEulerDegrees();
+        }
+        ImGui::BeginDisabled();
+        ImGui::DragFloat("##cameraRX", &CameraRotationDegree.X, 0.1f, -180.0f, 180.0f, "%.3f");
+        ImGui::EndDisabled();
+        bRotationActive |= ImGui::IsItemActive();
+        bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::SameLine();
+        bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.9f, 89.9f, "%.3f", PitchFlags);
+        bRotationActive |= ImGui::IsItemActive();
+        bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
+        DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
+        ImGui::SameLine();
+        bRotationChanged |= ImGui::DragFloat("##cameraRZ", &CameraRotationDegree.Z, 0.1f, 0.0f, 0.0f, "%.3f", YawFlags);
+        bRotationActive |= ImGui::IsItemActive();
+        bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
+        DrawItemBottomLine(IM_COL32(30, 102, 245, 255), 2.0f);
+        ImGui::SameLine();
+        ImGui::Text("Camera Rotation");
+        if (bRotationChanged || bRotationFinished)
+        {
+            CameraRotationDegree.X = 0.0f;
 
-        // 카메라 Pitch를 도 단위로 제한함
-        CameraRotationDegree.Y = std::clamp(CameraRotationDegree.Y, -89.0f, 89.0f);
+            // 카메라 Pitch를 도 단위로 제한함
+            CameraRotationDegree.Y = std::clamp(CameraRotationDegree.Y, -89.9f, 89.9f);
 
-        // 도 단위 입력값을 FRotator Setter로 전달함
-        Editor->SetCameraRotationDegree(CameraRotationDegree);
+            // 도 단위 입력값을 FRotator Setter로 전달함
+            Camera->SetRelativeRotation(FRotator::FromEulerDegrees(CameraRotationDegree));
+        }
+        bEditingCameraRotation = bRotationActive;
+        ImGui::PopItemWidth();
+        InVC.GetCamera()->SetRelativeLocation(CameraLocation);
     }
-    bEditingCameraRotation = bRotationActive;
-    ImGui::PopItemWidth();
-    Editor->SetCameraLocation(CameraLocation);
 
     ImGui::Separator();
 
@@ -198,43 +227,43 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
     ImGui::PopItemWidth();
 }
 
-void UViewportToolbarWindow::DrawViewModePopup()
+void UViewportToolbarWindow::DrawViewModePopup(FViewportClient& InVC)
 {
     for (const FViewModeEntry& Entry : ViewModeEntries)
     {
-        if (ImGui::RadioButton(Entry.Name, Entry.Mode == Editor->GetViewMode()))
+        if (ImGui::RadioButton(Entry.Name, Entry.Mode == InVC.GetViewMode()))
         {
-            Editor->SetViewMode(Entry.Mode);
+            InVC.SetViewMode(Entry.Mode);
             ImGui::CloseCurrentPopup();
         }
     }
 }
 
-void UViewportToolbarWindow::DrawShowFlagsPopup()
+void UViewportToolbarWindow::DrawShowFlagsPopup(FViewportClient& InVC)
 {
-    bool bShowUUIDLabels = Editor->IsShowingUUIDLabels();
+    bool bShowUUIDLabels = InVC.IsShowingUUIDLabels();
     if (ImGui::Checkbox("UUID", &bShowUUIDLabels))
     {
-        Editor->SetShowUUIDLabels(bShowUUIDLabels);
+        InVC.SetShowUUIDLabels(bShowUUIDLabels);
     }
-    bool bShowBoundingBoxes = Editor->IsShowingBoundingBoxes();
+    bool bShowBoundingBoxes = InVC.IsShowingBoundingBoxes();
     if (ImGui::Checkbox("Bounding Boxes", &bShowBoundingBoxes))
     {
-        Editor->SetShowBoundingBoxes(bShowBoundingBoxes);
+        InVC.SetShowBoundingBoxes(bShowBoundingBoxes);
     }
-    bool bShowPrimitives = Editor->IsShowingPrimitives();
+    bool bShowPrimitives = InVC.IsShowingPrimitives();
     if (ImGui::Checkbox("Primitives", &bShowPrimitives))
     {
-        Editor->SetShowPrimitives(bShowPrimitives);
+        InVC.SetShowPrimitives(bShowPrimitives);
     }
-    bool bShowGrid = Editor->IsShowingGrid();
+    bool bShowGrid = InVC.IsShowingGrid();
     if (ImGui::Checkbox("Grid", &bShowGrid))
     {
-        Editor->SetShowGrid(bShowGrid);
+        InVC.SetShowGrid(bShowGrid);
     }
-    bool bShowWorldAxis = Editor->IsShowingWorldAxis();
+    bool bShowWorldAxis = InVC.IsShowingWorldAxis();
     if (ImGui::Checkbox("World Axis", &bShowWorldAxis))
     {
-        Editor->SetShowWorldAxis(bShowWorldAxis);
+        InVC.SetShowWorldAxis(bShowWorldAxis);
     }
 }
