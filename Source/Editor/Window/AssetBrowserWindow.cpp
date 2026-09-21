@@ -10,6 +10,10 @@ void UAssetBrowserWindow::InitializeWindow(FEditor* InEditor, const FString& InN
 {
 	UEditorWindow::InitializeWindow(InEditor, InName);
 
+	DirectoryTexture = GResourceManager::GetInstance()->GetOrLoadTexture("Assets/Editor/Directory.png");
+	StaticMeshTexture = GResourceManager::GetInstance()->GetOrLoadTexture("Assets/Editor/StaticMesh.png");
+	FileTexture = GResourceManager::GetInstance()->GetOrLoadTexture("Assets/Editor/File.png");
+
 	RefreshDirectoryEntries();
 	RefreshCurrentContents();
 }
@@ -104,12 +108,22 @@ void UAssetBrowserWindow::DrawContentView()
 
 			if (Entry.Type == EAssetType::StaticMesh)
 			{
-				ImGui::Button("Mesh", ImVec2(Size, Size));
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+				ImGui::ImageButton("StaticMesh", ImTextureRef(StaticMeshTexture->GetSRV()), ImVec2(Size, Size));
+				ImGui::PopStyleColor();
+				if (ImGui::BeginDragDropSource())
+				{
+					ImGui::SetDragDropPayload("STATIC_MESH", Path.c_str(), Path.size() + 1);
+					ImGui::Image(ImTextureRef(StaticMeshTexture->GetSRV()), ImVec2(Size, Size));
+					ImGui::EndDragDropSource();
+				}
 			}
 			else if (Entry.Type == EAssetType::Texture)
 			{
 				FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(Path);
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 				ImGui::ImageButton("Thumbnail", ImTextureRef(Texture->GetSRV()), ImVec2(Size, Size));
+				ImGui::PopStyleColor();
 				if (ImGui::BeginDragDropSource())
 				{
 					ImGui::SetDragDropPayload("TEXTURE", Path.c_str(), Path.size() + 1);
@@ -119,12 +133,16 @@ void UAssetBrowserWindow::DrawContentView()
 			}
 			else if (Entry.Type == EAssetType::Directory)
 			{
-				ImGui::Button("Folder", ImVec2(Size, Size));
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+				ImGui::ImageButton("Directory", ImTextureRef(DirectoryTexture->GetSRV()), ImVec2(Size, Size));
+				ImGui::PopStyleColor();
 			}
 			else
 			{
 				ImGui::BeginDisabled(true);
-				ImGui::Button("File", ImVec2(Size, Size));
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+				ImGui::ImageButton("File", ImTextureRef(FileTexture->GetSRV()), ImVec2(Size, Size));
+				ImGui::PopStyleColor();
 				ImGui::EndDisabled();
 			}
 
@@ -179,6 +197,8 @@ void UAssetBrowserWindow::RefreshCurrentContents()
 		return;
 	}
 
+	TArray<FAssetEntry> DirectoryEntries;
+	TArray<FAssetEntry> FileEntries;
 	for (const auto& Entry : std::filesystem::directory_iterator(CurrentPath))
 	{
 		FAssetEntry AssetEntry{
@@ -197,7 +217,24 @@ void UAssetBrowserWindow::RefreshCurrentContents()
 				AssetEntry.Type = EAssetType::Texture;
 			}
 		}
-		CurrentContents.Add(AssetEntry);
+
+		if (AssetEntry.Type == EAssetType::Directory)
+		{
+			DirectoryEntries.Add(AssetEntry);
+		}
+		else
+		{
+			FileEntries.Add(AssetEntry);
+		}
+	}
+
+	for (const auto& Entry : DirectoryEntries)
+	{
+		CurrentContents.Add(Entry);
+	}
+	for (const auto& Entry : FileEntries)
+	{
+		CurrentContents.Add(Entry);
 	}
 }
 

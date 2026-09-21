@@ -3,6 +3,8 @@
 #include "EditorWindow.h"
 #include <filesystem>
 
+class FTextureResource;
+
 enum class EAssetType
 {
 	Directory,
@@ -44,4 +46,8 @@ private:
 
 	FDirectoryEntry RootDirectoryEntry;
 	TArray<FAssetEntry> CurrentContents;
+
+	FTextureResource* DirectoryTexture = nullptr;
+	FTextureResource* StaticMeshTexture = nullptr;
+	FTextureResource* FileTexture = nullptr;
 };

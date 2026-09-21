@@ -474,8 +474,24 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 	{
 		auto* MeshComp = static_cast<UStaticMeshComponent*>(InspectedComponent);
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
+
 		ImGui::SetNextItemWidth(150.0f);
-		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
+		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey)) 
+			MeshComp->SetStaticMesh(NewMeshKey);
+
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("STATIC_MESH"))
+			{
+				FString MeshPath = static_cast<const char*>(Payload->Data);
+				MeshComp->SetStaticMesh(MeshPath);
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		ImGui::SameLine();
+		ImGui::TextUnformatted("Mesh Key");
+
 		UStaticMesh* Mesh = MeshComp->GetStaticMesh();
 		uint32 NumSlots = Mesh ? static_cast<uint32>(Mesh->GetDefaultMeshMaterials().Num()) : 0;
 
@@ -500,7 +516,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				{
 					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("TEXTURE"))
 					{
-						const char* TexturePath = static_cast<const char*>(Payload->Data);
+						FString TexturePath = static_cast<const char*>(Payload->Data);
 						MeshComp->SetOverrideMaterial(TexturePath, SlotIdx);
 						CurrentTexPath = TexturePath;
 					}
