@@ -76,6 +76,9 @@ protected:
 
     bool bIsDragging = false;
     bool bIsLineHovered = false;
+
+    inline static constexpr float MinRatio = 0.05f;
+    inline static constexpr float MaxRatio = 0.95f;
 };
 
 // 수평배치 (좌우)
@@ -124,7 +127,7 @@ public:
         if (bIsLineHovered && bIsDragging)
         {
             float NewRatio = (Coord.X - Rect.X) / Rect.Width;
-            SplitRatio = NewRatio;
+            SplitRatio = std::clamp(NewRatio, MinRatio, MaxRatio);
 
             UpdateLayout(Rect);
             return true;
@@ -184,7 +187,8 @@ public:
         if (bIsLineHovered && bIsDragging)
         {
             float NewRatio = (Coord.Y - Rect.Y) / Rect.Height;
-            SplitRatio = NewRatio;
+            SplitRatio = std::clamp(NewRatio, MinRatio, MaxRatio);
+
 
             UpdateLayout(Rect);
             return true;
