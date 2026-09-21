@@ -64,10 +64,15 @@ private:
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
 	bool bCanSaveEditorSettings = false;
+	bool bPendingCameraLoad = false;
 
 	// 이전 프레임 마우스 눌림상태 저장 - 드래그 중 뷰포트 변경 방지
 	bool bPrevLDown = false;
 	bool bPrevRDown = false;
+
+	bool bShowStatUnit = false;
+	bool bShowStatMemory = false;
+	bool bShowStatFPS = false;
 
 	void InitializeGizmos();
 	void InitializeWindows();
@@ -77,6 +82,10 @@ private:
 	void ReleaseWindows();
 	void ReleaseGrids();
 	void ReleaseRootSplitter();
+
+	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
+	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
+	float DrawStatMemory(ImDrawList* DrawList, float X, float Y);
 
 public:
 	virtual ~FEditor() = default;
@@ -95,6 +104,7 @@ public:
 	void LoadScene(FStringView SceneName);
 	void LoadSceneFromPath(const std::filesystem::path& ScenePath);
 	void SaveScene(FStringView SceneName);
+	void SaveSceneToPath(const std::filesystem::path& ScenePath);
 
 	virtual UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }
@@ -174,8 +184,26 @@ public:
 	TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
 
+
 	// 스플리터
 	SSplitter* GetSplitter() const { return RootSplitter; }
+
+	bool IsShowingStatUnit() const { return bShowStatUnit; }
+	void SetShowStatUnit(bool bShow) { bShowStatUnit = bShow; }
+	void ToggleShowStatUnit() { bShowStatUnit = !bShowStatUnit; }
+
+	bool IsShowingStatFPS() const { return bShowStatFPS; }
+	void SetShowStatFPS(bool bShow) { bShowStatFPS = bShow; }
+	void ToggleShowStatFPS() { bShowStatFPS = !bShowStatFPS; }
+
+	bool IsShowingStatMemory() const { return bShowStatMemory; }
+	void SetShowStatMemory(bool bShow) { bShowStatMemory = bShow; }
+	void ToggleShowStatMemory() { bShowStatMemory = !bShowStatMemory; }
+
+	void HideAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = false; }
+	void ShowAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = true; }
+
+	void DrawStatOverlay();
 
 	// 씬 렌더링 전에 메뉴와 화면 배치를 구성합니다.
 	virtual void DrawMenu();

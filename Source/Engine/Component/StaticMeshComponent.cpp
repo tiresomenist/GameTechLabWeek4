@@ -31,18 +31,40 @@ void UStaticMeshComponent::Serialize(FArchive& Archive)
 {
     Super::Serialize(Archive);
 	// 로딩모드이거나 메시키가 없으면 None으로 처리
-	//FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
-	//	? FString{} : MeshKey.ToString();
-	//FString MaterialPathValue = MaterialPath;
+	FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
+		? FString{} : MeshKey.ToString();
+	Archive.OptionalField("MeshKey", MeshKeyValue);
 
-	//Archive.OptionalField("MeshKey", MeshKeyValue);
-	//const bool bHasMaterial = Archive.OptionalField("MaterialPath", MaterialPathValue);
+	TArray<FString> OverrideMaterialPaths;
 
-	//if (Archive.IsLoading())
-	//{
-	//	SetStaticMesh(FName(MeshKeyValue));
-	//	if (bHasMaterial) SetMaterial(MaterialPathValue);
-	//}
+	if (Archive.IsSaving())
+	{
+		OverrideMaterialPaths.SetNum(OverrideMaterialList.Num());
+
+		for (uint32 Slot = 0; Slot < OverrideMaterialList.Num(); ++Slot)
+		{
+			const FMaterial* Material = OverrideMaterialList[Slot];
+			if (Material != nullptr)
+			{
+				OverrideMaterialPaths[Slot] = Material->TexturePath;
+			}
+		}
+	}
+
+	Archive.Field("OverrideMaterialPaths", OverrideMaterialPaths);
+
+	if (Archive.IsLoading())
+	{
+		SetStaticMesh(FName(MeshKeyValue));
+
+		for (uint32 Slot = 0; Slot < OverrideMaterialPaths.Num(); ++Slot)
+		{
+			if (!OverrideMaterialPaths[Slot].empty())
+			{
+				SetOverrideMaterial(OverrideMaterialPaths[Slot], Slot);
+			}
+		}
+	}
 }
 
 
@@ -74,6 +96,9 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 		OutData.isSelected = bSelected;
 		OutData.Min = MeshResource->GetBoundsMin();
 		OutData.Max = MeshResource->GetBoundsMax();
+
+		OutData.UVTransform.Scale = UVScale;
+		OutData.UVTransform.Offset = UVOffset;
 
 		const FMaterial* SectionMaterial = nullptr;
 		if ((Section.MaterialIndex < static_cast<uint32>(OverrideMaterialList.Num()) && OverrideMaterialList[Section.MaterialIndex]))

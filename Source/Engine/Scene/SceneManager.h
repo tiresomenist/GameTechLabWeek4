@@ -22,6 +22,7 @@ public:
 	// 파일 대화상자 등에서 얻은 전체 경로로 씬을 로드
 	void LoadSceneFromPath(FSceneType* SceneType, const std::filesystem::path& ScenePath);
 	void SaveScene(FStringView SerializedName);
+	void SaveSceneToPath(const std::filesystem::path& ScenePath);
 
 	UScene* GetScene() { return CurrentScene; };
 

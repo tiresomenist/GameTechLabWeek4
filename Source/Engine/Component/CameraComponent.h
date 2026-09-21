@@ -38,6 +38,9 @@ public:
 
     void SetAspectRatio(const float& InRatio);
 
+	void SetNearZ(float InNearZ) { NearZ = InNearZ; }
+	void SetFarZ(float InFarZ) { FarZ = InFarZ; }
+
     //카메라가 원하는 지점을 바라보도록 하는 함수
     void LookAt(const FVector& InTargetPosition);
     

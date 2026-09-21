@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <utility>
 #include <cstdlib>
+#include <chrono>
 
 using Microsoft::WRL::ComPtr;
 
@@ -44,6 +45,7 @@ void FRenderer::Create(HWND HWnd, GDevice* InDevice, uint32 Width, uint32 Height
 	}
 
 	ViewRenderer.Create(D3DDevice, DeviceContext);
+	GPUTimer.Initialize(D3DDevice);
 	IMGUI_CHECKVERSION();
 	if (!ImGui::CreateContext()) throw std::runtime_error("ImGui context failed");
 	bImGuiContextCreated = true;
@@ -79,6 +81,7 @@ void FRenderer::Shutdown()
 	if (DeviceContext){	DeviceContext->ClearState();}
 
 	ViewRenderer.Shutdown();
+	GPUTimer.Release();
 
 	if (bImGuiDX11Initialized){ImGui_ImplDX11_Shutdown();}
 
@@ -114,7 +117,14 @@ void FRenderer::SwapBuffer()
 {
 	if (!IsRenderReady() || !SwapChain.Get()) { return; }
 
+	using Clock = std::chrono::high_resolution_clock;
+	auto StartWait = Clock::now();
+
 	const HRESULT Result = SwapChain->Present(0, 0);
+
+	auto EndWait = Clock::now();
+	float CurWaitMs = std::chrono::duration<float, std::milli>(EndWait - StartWait).count();
+	GPUWaitMs = (GPUWaitMs * 0.9f) + (CurWaitMs * 0.1f);
 
 	if (FAILED(Result))
 	{
@@ -149,6 +159,8 @@ void FRenderer::EndFrame()
 {
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+	GPUTimer.EndFrame(DeviceContext);
 
 	SwapBuffer();
 
@@ -357,7 +369,11 @@ void FRenderer::OnResize(uint32 Width, uint32 Height)
 // 단일 View -> 이제 더이상 다중 View를 호출하지 않음
 void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 {
+	using Clock = std::chrono::high_resolution_clock;
 	if (!IsRenderReady() || !Editor || !Scene) return;
+
+	GPUTimer.BeginFrame(DeviceContext);
+	auto StartDraw = Clock::now();
 
 	BeginFrame();
 	Editor->DrawMenu();
@@ -371,6 +387,11 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 
 	SetViewportAndScissor(ViewportInfo);
 	Editor->DrawWindows(DeltaTime);
+
+	auto EndDraw = Clock::now();
+	float CurDrawMs = std::chrono::duration<float, std::milli>(EndDraw - StartDraw).count();
+	DrawTimeMs = (DrawTimeMs * 0.9f) + (CurDrawMs * 0.1f);
+
 	EndFrame();
 
 }
@@ -378,11 +399,14 @@ void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 // 다중 View
 void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TArray<FRenderView>& Views)
 {
+	using Clock = std::chrono::high_resolution_clock;
 	if (!IsRenderReady() || !Editor || !Scene)
 	{
 		return;
 	}
+	GPUTimer.BeginFrame(DeviceContext);
 
+	auto StartDraw = Clock::now();
 	BeginFrame();
 	Editor->DrawMenu();
 
@@ -402,7 +426,14 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TA
 	}
 
 	// UI 렌더링
+	for (auto Item : Editor->GetWindows())
+	{
+		Item->Render(DeltaTime);
+	}
 	Editor->DrawWindows(DeltaTime);
+	auto EndDraw = Clock::now();
+	float CurDrawMs = std::chrono::duration<float, std::milli>(EndDraw - StartDraw).count();
+	DrawTimeMs = (DrawTimeMs * 0.9f) + (CurDrawMs * 0.1f);
 
 
 	EndFrame();

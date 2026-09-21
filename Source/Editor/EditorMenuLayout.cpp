@@ -6,11 +6,11 @@
 #include "Editor/Window/EditorWindow.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_internal.h"
+#include "ImGui/imgui_stdlib.h"
 
 void FEditorMenuLayout::Initialize(FEditor* InEditor)
 {
 	Editor = InEditor;
-	SceneName.reserve(128);
 }
 
 void FEditorMenuLayout::Draw()
@@ -24,11 +24,6 @@ void FEditorMenuLayout::Draw()
 		{
 			NewScene();
 		}
-
-		// TODO: 다이얼로그 창으로 변경
-		ImGui::PushItemWidth(100.0f);
-		ImGui::InputText("Scene Name", SceneName.data(), SceneName.capacity() + 1);
-		ImGui::PopItemWidth();
 
 		if (ImGui::MenuItem("Save Scene"))
 		{
@@ -76,6 +71,8 @@ void FEditorMenuLayout::Draw()
 		LoadScene();
 		bRequestedLoad = false;
 	}
+
+	Editor->DrawStatOverlay();
 }
 
 void FEditorMenuLayout::NewScene()
@@ -85,7 +82,16 @@ void FEditorMenuLayout::NewScene()
 
 void FEditorMenuLayout::SaveScene()
 {
-	Editor->SaveScene(SceneName);
+	// imgui_impl_win32가 메인 뷰포트에 HWND를 넣어두므로 그걸 대화상자 owner로 사용
+	const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
+
+	const std::optional<std::filesystem::path> ScenePath = File::SaveFileDialog(Owner, EFileDialogType::Json, "Scenes");
+	if (!ScenePath)
+	{
+		return; // 취소
+	}
+
+	Editor->SaveSceneToPath(ScenePath.value());
 }
 
 void FEditorMenuLayout::LoadScene()
@@ -99,9 +105,7 @@ void FEditorMenuLayout::LoadScene()
 		return; // 취소
 	}
 
-	// 이후 Save Scene이 같은 이름으로 저장되도록 이름 칸도 갱신
-	SceneName = ScenePath->stem().string();
-	Editor->LoadSceneFromPath(*ScenePath);
+	Editor->LoadSceneFromPath(ScenePath.value());
 }
 
 void FEditorMenuLayout::BuildDefaultLayout(bool bReset)

@@ -10,6 +10,7 @@
 #include "Engine/Component/Primitive/PrimitiveComponent.h"
 #include "Engine/Component/Primitive/FlipbookComponent.h"
 #include "Engine/Component/Primitive/TextComponent.h"
+#include "Engine/Component/MeshComponent.h"
 #include "Engine/Component/StaticMeshComponent.h"
 #include "Engine/Component/WidgetComponent.h"
 #include "Core/Math/Rotator.h"
@@ -504,8 +505,8 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
 					if (TexturePath)
 					{
-						const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-						MeshComp->SetOverrideMaterial(FString(RelativePath.generic_string().c_str()), SlotIdx);
+						const std::filesystem::path RelativePath =std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+						MeshComp->SetOverrideMaterial(File::PathToUtf8(RelativePath), SlotIdx);
 					}
 				}
 				ImGui::SameLine();
@@ -516,6 +517,38 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				ImGui::PopID();
 			}
 			ImGui::TextDisabled("Press Enter to apply path, or Reset to default.");
+		}
+	}
+
+	if (InspectedComponent->IsA(UMeshComponent::GetClass()) &&
+		ImGui::CollapsingHeader("UV & Scroll", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		auto* MeshComp = static_cast<UMeshComponent*>(InspectedComponent);
+
+		bool bScroll = MeshComp->IsUVScrollEnabled();
+		if (ImGui::Checkbox("Enable UV Scroll", &bScroll))
+		{
+			MeshComp->SetUVScrollEnabled(bScroll);
+		}
+
+		FVector2 Scale = MeshComp->GetUVScale();
+		if (ImGui::DragFloat2("UV Scale", &Scale.X, 0.05f, 0.01f, 50.0f, "%.2f"))
+		{
+			MeshComp->SetUVScale(Scale);
+		}
+
+		FVector2 Speed = MeshComp->GetScrollSpeed();
+		if (ImGui::DragFloat2("Scroll Speed", &Speed.X, 0.01f, -10.0f, 10.0f, "%.3f"))
+		{
+			MeshComp->SetScrollSpeed(Speed);
+		}
+
+		const FVector2& Offset = MeshComp->GetUVOffset();
+		ImGui::Text("Current Offset: (%.3f, %.3f)", Offset.X, Offset.Y);
+		ImGui::SameLine();
+		if (ImGui::Button("Reset Offset"))
+		{
+			MeshComp->ResetUVOffset();
 		}
 	}
 

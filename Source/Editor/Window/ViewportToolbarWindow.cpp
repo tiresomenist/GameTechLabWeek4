@@ -7,6 +7,35 @@ void UViewportToolbarWindow::Render(float DeltaTime)
 {
     TArray<FViewportClient>& Viewports = Editor->GetViewports();
 
+    constexpr ImGuiWindowFlags Flags =
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoDocking;
+    
+    //ImGui::SetNextWindowPos(ImVec2(VP.TopLeftX, VP.TopLeftY), ImGuiCond_Always);
+
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("Stats"))
+        {
+            if (ImGui::MenuItem("Hide Stat"))
+            {
+                Editor->HideAllStats();
+            }
+            if (ImGui::MenuItem("Show Stat"))
+            {
+                Editor->ShowAllStats();
+            }
+            ImGui::EndMenu();
+        }
+        
+        ImGui::EndMainMenuBar();
+    }
+
     for (uint32 i = 0; i < Viewports.Num(); ++i)
     {
         FViewportClient& VC = Viewports[i];
@@ -15,15 +44,6 @@ void UViewportToolbarWindow::Render(float DeltaTime)
         ImGui::SetNextWindowPos(ImVec2(VP.TopLeftX, VP.TopLeftY), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(VP.Width, 40.0f), ImGuiCond_Always);
         
-        constexpr ImGuiWindowFlags Flags =
-            ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoScrollbar |
-            ImGuiWindowFlags_NoSavedSettings |
-            ImGuiWindowFlags_AlwaysAutoResize |
-            ImGuiWindowFlags_NoDocking;
-
         FString name = std::format("{}{}", Name.c_str(), i);
 
         ImGui::Begin(name.c_str(), nullptr, Flags);
@@ -58,7 +78,9 @@ void UViewportToolbarWindow::Render(float DeltaTime)
                    });
         }
         ImGui::End();
-    }
+	}
+   
+
 }
 
 void UViewportToolbarWindow::BeginPopupButton(const char* ButtonName, const char* PopupName,
