@@ -59,21 +59,21 @@ namespace
     }
 
     // 정점의 위치, 법선, 색상, UV를 정해진 순서로 처리한다.
-    void SerializeVertex(FArchive& Archive, FNormalVertex& Vertex)
+    void SerializeVertex(FArchive& Archive, FVertexPNCT& Vertex)
     {
         // 메모리 구조체 전체가 아닌 실제 데이터 성분만 기록한다.
-        Archive.Field("X", Vertex.X);
-        Archive.Field("Y", Vertex.Y);
-        Archive.Field("Z", Vertex.Z);
-        Archive.Field("NX", Vertex.NX);
-        Archive.Field("NY", Vertex.NY);
-        Archive.Field("NZ", Vertex.NZ);
-        Archive.Field("R", Vertex.R);
-        Archive.Field("G", Vertex.G);
-        Archive.Field("B", Vertex.B);
-        Archive.Field("A", Vertex.A);
-        Archive.Field("U", Vertex.U);
-        Archive.Field("V", Vertex.V);
+        Archive.Field("X", Vertex.x);
+        Archive.Field("Y", Vertex.y);
+        Archive.Field("Z", Vertex.z);
+        Archive.Field("NX", Vertex.nx);
+        Archive.Field("NY", Vertex.ny);
+        Archive.Field("NZ", Vertex.nz);
+        Archive.Field("R", Vertex.r);
+        Archive.Field("G", Vertex.g);
+        Archive.Field("B", Vertex.b);
+        Archive.Field("A", Vertex.a);
+        Archive.Field("U", Vertex.u);
+        Archive.Field("V", Vertex.v);
     }
 
     // 섹션의 인덱스 범위와 재질 및 객체 참조를 처리한다.
@@ -156,20 +156,20 @@ namespace
             throw std::runtime_error("Invalid mesh bounds.");
 
         // 정점의 모든 성분과 Bounds 포함 여부를 검사한다.
-        for (const FNormalVertex& Vertex : Data.Vertices)
+        for (const FVertexPNCT& Vertex : Data.Vertices)
         {
             const float Components[] = {
-                Vertex.X, Vertex.Y, Vertex.Z, Vertex.NX, Vertex.NY, Vertex.NZ,
-                Vertex.R, Vertex.G, Vertex.B, Vertex.A, Vertex.U, Vertex.V
+                Vertex.x, Vertex.y, Vertex.z, Vertex.nx, Vertex.ny, Vertex.nz,
+                Vertex.r, Vertex.g, Vertex.b, Vertex.a, Vertex.u, Vertex.v
             };
             for (float Component : Components)
             {
                 if (!std::isfinite(Component))
                     throw std::runtime_error("Non-finite mesh vertex component.");
             }
-            if (Vertex.X < Data.BoundsMin.X || Vertex.X > Data.BoundsMax.X
-                || Vertex.Y < Data.BoundsMin.Y || Vertex.Y > Data.BoundsMax.Y
-                || Vertex.Z < Data.BoundsMin.Z || Vertex.Z > Data.BoundsMax.Z)
+            if (Vertex.x < Data.BoundsMin.X || Vertex.x > Data.BoundsMax.X
+                || Vertex.y < Data.BoundsMin.Y || Vertex.y > Data.BoundsMax.Y
+                || Vertex.z < Data.BoundsMin.Z || Vertex.z > Data.BoundsMax.Z)
                 throw std::runtime_error("Mesh vertex lies outside bounds.");
         }
 
