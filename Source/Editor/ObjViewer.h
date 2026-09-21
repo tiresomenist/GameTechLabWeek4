@@ -3,6 +3,7 @@
 #include <filesystem>
 class UScene;
 class AActor;
+class UStaticMesh;
 
 class FObjViewer : public FEditor
 {
@@ -50,4 +51,8 @@ private:
 
     // PreviewScene이 소유한 현재 모델 Actor를 참조합니다.
     AActor* PreviewActor = nullptr;
+
+    //선택 된 섹션
+    UStaticMesh* PreviewMesh = nullptr;
+    int32 SelectedSectionIndex = -1;
 };

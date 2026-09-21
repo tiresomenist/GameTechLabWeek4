@@ -14,6 +14,7 @@
 #include "Engine/Resource/ResourceManager.h"
 #include <cmath>
 #include <stdexcept>
+#include <format>
 
 // Viewer 전용 씬, 카메라, 그리드와 월드축을 생성합니다.
 void FObjViewer::Initialize()
@@ -82,6 +83,8 @@ void FObjViewer::Release()
     FEditor::Release();
     EditorCamera = nullptr;
     PreviewActor = nullptr;
+    PreviewMesh = nullptr;
+    SelectedSectionIndex = -1;
 
     // 씬을 삭제하면 소유 Actor와 카메라 컴포넌트도 함께 삭제됩니다.
     if (PreviewScene)
@@ -147,13 +150,99 @@ void FObjViewer::DrawMenu()
     ImGui::EndMainMenuBar();
 }
 
-// Viewer 도구 창을 구성하며 이번 단계에서는 별도 창을 만들지 않습니다.
+
+// 오른쪽 패널에 현재 모델 정보와 선택 가능한 섹션 목록을 표시합니다.
 void FObjViewer::DrawWindows(float DeltaTime)
 {
-    // 모델 정보와 섹션 목록은 이후 단계에서 추가합니다.
+    const D3D11_VIEWPORT FullViewport = GEngine::GetInstance()->GetViewport();
+    const D3D11_VIEWPORT SceneViewport = GetRenderViewport(FullViewport);
+    const float PanelWidth = FullViewport.Width - SceneViewport.Width;
+    if (PanelWidth <= 0.0f || SceneViewport.Height <= 0.0f) return;
+
+    // DirectX의 클라이언트 좌표를 ImGui의 화면 좌표로 변환합니다.
+    const ImGuiViewport* MainViewport = ImGui::GetMainViewport();
+    const ImVec2 PanelPosition(
+        MainViewport->Pos.x + SceneViewport.TopLeftX + SceneViewport.Width,
+        MainViewport->Pos.y + SceneViewport.TopLeftY);
+    ImGui::SetNextWindowViewport(MainViewport->ID);
+    ImGui::SetNextWindowPos(PanelPosition, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(PanelWidth, SceneViewport.Height), ImGuiCond_Always);
+
+    // 별도 도킹 구성 없이 Viewer 안에 고정된 정보 패널을 배치합니다.
+    constexpr ImGuiWindowFlags Flags = ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings;
+    if (!ImGui::Begin("Model Info", nullptr, Flags))
+    {
+        ImGui::End();
+        return;
+    }
+
+    // 모델이 없는 상태에서도 파일을 여는 방법을 안내합니다.
+    if (!PreviewMesh)
+    {
+        ImGui::TextWrapped("Open an OBJ file from File > Open OBJ.");
+        ImGui::End();
+        return;
+    }
+
+    const FMeshResource* Resource = PreviewMesh->GetMeshResource();
+    const TArray<FMeshSection>& Sections = PreviewMesh->GetSections();
+
+    // 공유 메시의 원본 정보를 읽으며 미리보기용 크기 변환은 반영하지 않습니다.
+    ImGui::TextWrapped("%s", SelectedObjName.c_str());
+    ImGui::Separator();
+    ImGui::Text("Vertices: %u", Resource->GetVertexCount());
+    ImGui::Text("Triangles: %u", Resource->GetIndexCount() / 3);
+    ImGui::Text("Sections: %d", Sections.Num());
+    ImGui::Text("Material slots: %d", PreviewMesh->GetDefaultMeshMaterials().Num());
+
+    const FVector OriginalSize = PreviewMesh->GetBoundsMax() - PreviewMesh->GetBoundsMin();
+    ImGui::Text("Original size");
+    ImGui::Text("X: %.3f  Y: %.3f  Z: %.3f", OriginalSize.X, OriginalSize.Y, OriginalSize.Z);
+    ImGui::Separator();
+
+    // 현재 선택한 섹션의 인덱스 범위와 재질 연결 정보를 표시합니다.
+    if (SelectedSectionIndex >= 0 && SelectedSectionIndex < Sections.Num())
+    {
+        const FMeshSection& Section = Sections[SelectedSectionIndex];
+        ImGui::Text("Selected section: %d", SelectedSectionIndex);
+        ImGui::Text("Triangles: %u", Section.IndexCount / 3);
+        ImGui::Text("First index: %u", Section.FirstIndex);
+        ImGui::Text("Material slot: %u", Section.MaterialIndex);
+        if (Section.ObjectIndex >= 0)
+            ImGui::Text("Object index: %d", Section.ObjectIndex);
+        else
+            ImGui::TextUnformatted("Object: none");
+
+        if (ImGui::Button("Clear Selection"))
+            SelectedSectionIndex = -1;
+    }
+    else
+    {
+        ImGui::TextUnformatted("No section selected");
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Sections");
+
+    // 많은 섹션도 별도 스크롤 영역에서 선택할 수 있도록 구성합니다.
+    if (ImGui::BeginChild("SectionList", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
+    {
+        for (int32 Index = 0; Index < Sections.Num(); ++Index)
+        {
+            const FMeshSection& Section = Sections[Index];
+            const FString Label = std::format("Section {} | Material {}", Index, Section.MaterialIndex);
+            ImGui::PushID(Index);
+            if (ImGui::Selectable(Label.c_str(), SelectedSectionIndex == Index))
+                SelectedSectionIndex = Index;
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndChild();
+    ImGui::End();
 }
 
-// Viewer에서는 오브젝트 변형용 기즈모를 표시하지 않습니다.
 bool FObjViewer::ShouldDrawEditorGizmos() const
 {
     return false;
@@ -182,11 +271,15 @@ D3D11_VIEWPORT FObjViewer::GetRenderViewport(const D3D11_VIEWPORT& FullViewport)
 {
     D3D11_VIEWPORT Viewport = FullViewport;
 
-    // 작은 창에서도 뷰포트 높이가 음수가 되지 않도록 제한합니다.
+    // 작은 창에서도 음수 크기가 생기지 않도록 메뉴와 패널 크기를 제한합니다.
+    const float FullWidth = (std::max)(0.0f, FullViewport.Width);
     const float FullHeight = (std::max)(0.0f, FullViewport.Height);
     const float ReservedHeight = std::clamp(MenuBarHeight, 0.0f, FullHeight);
+    const float PanelWidth = (std::min)(320.0f, FullWidth * 0.35f);
+
     Viewport.TopLeftY += ReservedHeight;
     Viewport.Height = FullHeight - ReservedHeight;
+    Viewport.Width = FullWidth - PanelWidth;
     return Viewport;
 }
 
@@ -299,6 +392,8 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     // 준비가 끝난 뒤 기존 모델을 제거하고 표시 상태를 함께 교체합니다.
     if (PreviewActor) PreviewScene->DestroyActor(PreviewActor);
     PreviewActor = NewActor;
+    PreviewMesh = Mesh;
+    SelectedSectionIndex = -1;
     SelectedObjPath.swap(NewPath);
     SelectedObjName.swap(NewName);
     FileSelectionError.clear();
