@@ -73,7 +73,7 @@ namespace
     }
 
     // 경로 토큰 하나를 복사 없이 읽고 Text를 전진시킨다. 큰따옴표로 묶인 경로의 형식도 검사한다.
-    FStringView TakePathToken(FStringView& Text,const std::filesystem::path& Path,size_t LineNumber)
+    FStringView TakePathToken(FStringView& Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         Text = Trim(Text);
         if (Text.empty() || Text.front() != '"')
@@ -132,7 +132,7 @@ namespace
             }
 
             //한줄 읽음
-            FStringView Line(Begin,static_cast<size_t>(Cursor - Begin));
+            FStringView Line(Begin, static_cast<size_t>(Cursor - Begin));
 
             //다음줄이 있으면 커서를 다음줄로 이동
             if (Cursor < End)
@@ -159,7 +159,7 @@ namespace
             // 줄이음은 지원하지 않음
             if (Line.back() == '\\')
             {
-                ParseError(Path, LineNumber,"Line continuation is not supported");
+                ParseError(Path, LineNumber, "Line continuation is not supported");
             }
             // 예외처리 후, 등록한 ProcessLine 함수 호출
             ProcessLine(Line, LineNumber);
@@ -214,7 +214,7 @@ namespace
     }
 
     // float 읽어오기
-    float TakeFloat( FStringView& Text,const std::filesystem::path& Path, size_t LineNumber)
+    float TakeFloat(FStringView& Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         return ReadNumber<float>(TakeToken(Text), Path, LineNumber);
     }
@@ -230,7 +230,7 @@ namespace
     }
 
     // 필요한 값을 읽은 뒤 남은 내용이 공백뿐인지 검사하는 함수
-    void RequireEnd(FStringView Text,const std::filesystem::path& Path,size_t LineNumber)
+    void RequireEnd(FStringView Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         if (!Trim(Text).empty())
         {
@@ -243,7 +243,7 @@ namespace
     {
         const int32 ObjIndex = ReadNumber<int32>(Token, Path, LineNumber);
 
-        const int64 Index = ObjIndex > 0 ? static_cast<int64>(ObjIndex) - 1: static_cast<int64>(Count) + ObjIndex;
+        const int64 Index = ObjIndex > 0 ? static_cast<int64>(ObjIndex) - 1 : static_cast<int64>(Count) + ObjIndex;
 
         if (ObjIndex == 0 || Index < 0 || Index >= Count)
         {
@@ -260,7 +260,7 @@ namespace
         FObjVertexIndex Result;
         const size_t Slash1 = Token.find('/');
 
-        Result.PositionIndex = ResolveIndex(Token.substr(0, Slash1),Info.Positions.Num(), Path, LineNumber);
+        Result.PositionIndex = ResolveIndex(Token.substr(0, Slash1), Info.Positions.Num(), Path, LineNumber);
 
         if (Slash1 == FStringView::npos)
         {
@@ -288,7 +288,7 @@ namespace
             Result.UVIndex = ResolveIndex(UVToken, Info.TexCoords.Num(), Path, LineNumber);
         }
 
-        Result.NormalIndex = ResolveIndex(Token.substr(Slash2 + 1),Info.Normals.Num(), Path, LineNumber);
+        Result.NormalIndex = ResolveIndex(Token.substr(Slash2 + 1), Info.Normals.Num(), Path, LineNumber);
 
         return Result; // v//vn 또는 v/vt/vn
     }
@@ -316,7 +316,7 @@ namespace
     }
 
     //파일 경로를 연결하는 함수
-    std::filesystem::path ResolvePath(const std::filesystem::path& Parent,FStringView Name)
+    std::filesystem::path ResolvePath(const std::filesystem::path& Parent, FStringView Name)
     {
         const std::filesystem::path Relative = std::filesystem::u8path(Name.begin(), Name.end());
 
@@ -345,7 +345,7 @@ namespace
         AddSourceFile(Info, Path);
         int32 CurrentMaterial = -1;
 
-        ForEachLine(Text, Path,[&](FStringView Line, size_t LineNumber)
+        ForEachLine(Text, Path, [&](FStringView Line, size_t LineNumber)
             {
                 const FStringView Prefix = TakeToken(Line);
 
@@ -358,73 +358,78 @@ namespace
                         ParseError(Path, LineNumber, "Missing material name");
                     }
 
-                    CurrentMaterial = GetOrAddMaterial(Info, MaterialLookup,Name);
+                    CurrentMaterial = GetOrAddMaterial(Info, MaterialLookup, Name);
 
                     FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
 
                     // 같은 이름을 재정의하면 나중 정의 사용.
-                    Material.DiffuseColor = { 1.0f, 1.0f, 1.0f };
-                    Material.Opacity = 1.0f;
-                    Material.DiffuseTexturePath.clear();
+                    Material = FObjMaterialInfo{};
+                    Material.Name = FString(Name);
                     Material.bDefined = true;
+                    return;
                 }
-                else if (Prefix == "Kd" || Prefix == "map_Kd" || Prefix == "d" || Prefix == "Tr")
+                const bool bColor = Prefix == "Ka" || Prefix == "Kd"
+                    || Prefix == "Ks" || Prefix == "Ke";
+                const bool bScalar = Prefix == "Ns" || Prefix == "Ni"
+                    || Prefix == "d" || Prefix == "Tr";
+
+                // 아직 지원하지 않는 지시문은 기존처럼 건너뛴다.
+                if (!bColor && !bScalar && Prefix != "illum" && Prefix != "map_Kd")
+                    return;
+                if (CurrentMaterial < 0)
+                    ParseError(Path, LineNumber, "Material property appears before newmtl");
+
+                FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
+
+                if (bColor)
                 {
-                    if (CurrentMaterial < 0)
+                    // 지시문에 대응하는 필드만 선택하고 RGB 읽기 로직은 공유한다.
+                    FVector* Color = &Material.DiffuseColor;
+                    if (Prefix == "Ka") Color = &Material.AmbientColor;
+                    else if (Prefix == "Ks") Color = &Material.SpecularColor;
+                    else if (Prefix == "Ke") Color = &Material.EmissiveColor;
+
+                    *Color = TakeVector3(Line, Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
+                }
+                else if (bScalar)
+                {
+                    // Tr은 투명도이므로 기존 정책대로 불투명도 1-Tr로 변환한다.
+                    const float Value = TakeFloat(Line, Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
+
+                    if (Prefix == "Ns") Material.SpecularExponent = Value;
+                    else if (Prefix == "Ni") Material.RefractionIndex = Value;
+                    else Material.Opacity = Prefix == "Tr" ? 1.0f - Value : Value;
+                }
+                else if (Prefix == "illum")
+                {
+                    // 조명 모델은 실수가 아닌 정수 번호로 보관한다.
+                    Material.IlluminationModel =
+                        ReadNumber<int32>(TakeToken(Line), Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
+                }
+                else
+                {
+                    // map_Kd의 기존 경로 해석을 유지하며 옵션 지원은 후속 단계로 둔다.
+                    FStringView TextureName = Trim(Line);
+                    if (TextureName.empty())
+                        ParseError(Path, LineNumber, "Missing diffuse texture path");
+                    if (TextureName.front() == '-')
+                        ParseError(Path, LineNumber, "map_Kd options are not supported");
+
+                    if (TextureName.front() == '"')
                     {
-                        ParseError(Path, LineNumber,"Material property appears before newmtl");
+                        FStringView Remaining = TextureName;
+                        TextureName = TakePathToken(Remaining, Path, LineNumber);
+                        RequireEnd(Remaining, Path, LineNumber);
                     }
-
-                    FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
-
-                    if (Prefix == "Kd")
-                    {
-                        Material.DiffuseColor = TakeVector3(Line, Path, LineNumber);
-
-                        RequireEnd(Line, Path, LineNumber);
-                    }
-                    else if (Prefix == "map_Kd")
-                    {
-                        FStringView TextureName = Trim(Line);
-
-                        if (TextureName.empty())
-                        {
-                            ParseError(Path, LineNumber,"Missing diffuse texture path");
-                        }
-
-                        if (TextureName.front() == '-')
-                        {
-                            ParseError(Path, LineNumber,"map_Kd options are not supported");
-                        }
-
-                        if (TextureName.front() == '"')
-                        {
-                            FStringView Remaining = TextureName;
-
-                            TextureName = TakePathToken(Remaining, Path, LineNumber);
-
-                            RequireEnd(Remaining, Path, LineNumber);
-                        }
-
-                        // 텍스처 경로는 MTL 파일 위치 기준.
-                        Material.DiffuseTexturePath = ResolvePath(Path.parent_path(), TextureName);
-                    }
-                    else
-                    {
-                        const float Value = TakeFloat(Line, Path, LineNumber);
-
-                        RequireEnd(Line, Path, LineNumber);
-
-                        if (Value < 0.0f || Value > 1.0f)
-                        {
-                            ParseError(Path, LineNumber,"Opacity must be between 0 and 1");
-                        }
-
-                        Material.Opacity = Prefix == "Tr" ? 1.0f - Value : Value;
-                    }
+                    Material.DiffuseTexturePath = ResolvePath(Path.parent_path(), TextureName);
                 }
 
-                // Ka/Ks/Ns/illum 등은 현재 사용하지 않는다.
+                // 바이너리 복원과 동일한 수치 검사로 잘못된 재질을 Import에서 거부한다.
+                if (!Material.HasValidNumericValues())
+                    ParseError(Path, LineNumber, "Invalid material numeric values");
             });
     }
 }
