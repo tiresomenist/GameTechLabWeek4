@@ -140,21 +140,16 @@ void GSceneManager::InternalLoadScene()
         return;
     }
 
-    // 기본 검사를 통과한 뒤 기존 씬을 정리한다.
-    if (CurrentScene)
-    {
-        CurrentScene->EndPlay();
-        delete CurrentScene;
-        CurrentScene = nullptr;
-    }
+
+    const uint32 PreviousNextUUID = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
+    std::unique_ptr<UScene> Candidate;
 
     // 새 씬의 객체를 복원하고 완료된 씬의 플레이를 시작한다.
     try
     {
-        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
-        CurrentScene = NextScene->SceneConstructor();
-        if (CurrentScene == nullptr)
-            throw std::runtime_error("Failed to create scene.");
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, (std::max)(PreviousNextUUID, NextUUID));
+        Candidate.reset(NextScene->SceneConstructor());
+        if (!Candidate){ throw std::runtime_error("Failed to create scene."); }
 
         CurrentScene->Serialize(*Reader);
         CurrentScene->BeginPlay();
@@ -162,11 +157,21 @@ void GSceneManager::InternalLoadScene()
     catch (const std::exception& Error)
     {
         // 복원 중 실패한 씬을 남기지 않고 정리한다.
-        delete CurrentScene;
-        CurrentScene = nullptr;
-        UE_LOG("[SceneManager] Scene restoration failed: {}", Error.what());
+        if(Candidate){ Candidate->EndPlay(); }
+        Candidate.reset();
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, PreviousNextUUID);
+        UE_LOG("[SceneManager] Scene Create Fail : {}", Error.what());
+        ClearNextScene();
+        return;
     }
 
+    // 다음 씬이 생성된 후에 기존 씬을 정리한다.
+    if (CurrentScene)
+    {
+        CurrentScene->EndPlay();
+        delete CurrentScene;
+    }
+    CurrentScene = Candidate.release();
     ClearNextScene();
 }
 
