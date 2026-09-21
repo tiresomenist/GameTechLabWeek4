@@ -278,6 +278,7 @@ void FEditor::Initialize()
 	// 기본으로 PerspectiveCamera 설정
 	EditorCamera = PerspectiveCamera;
 	CameraController.SetCamera(PerspectiveCamera);
+	CameraController.SetViewportClient(&Viewports[0]);
 	
 	// 스플리터 초기화
 	SWindow* WinPerspective = new SWindow;
@@ -399,6 +400,7 @@ void FEditor::Tick(float DeltaTime)
 			{
 				EditorCamera = Viewports[i].GetCamera();
 				CameraController.SetCamera(EditorCamera);
+				CameraController.SetViewportClient(&Viewports[i]);
 				CurrEditedViewportIndex = i;	// 현재 인덱스 저장
 				break;
 			}
@@ -472,6 +474,7 @@ void FEditor::Release()
 	GizmoController = nullptr;
 
 	CameraController.SetCamera(nullptr);
+	CameraController.SetViewportClient(nullptr);
 
 	delete ObjectPicker;
 	ObjectPicker = nullptr;
