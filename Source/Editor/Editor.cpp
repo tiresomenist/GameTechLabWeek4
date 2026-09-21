@@ -3,12 +3,15 @@
 
 #include "Engine/Component/CameraComponent.h"
 #include "Engine/Actor/Actor.h"
-#include "Editor/Window/EditorWindow.h"
 
+#include "Editor/Window/EditorWindow.h"
 #include "Editor/Window/ConsoleWindow.h"
 #include "Editor/Window/PropertyWindow.h"
 #include "Editor/Window/PlaceActorWindow.h"
 #include "Editor/Window/OutlinerWindow.h"
+#include "Editor/Window/AssetBrowserWindow.h"
+#include "Editor/Window/DebugWindow.h"
+#include "Editor/Window/ViewportToolbarWindow.h"
 
 #include "Editor/Gizmo/ObjectAxisGizmo.h"
 #include "Editor/Gizmo/WorldAxisGizmo.h"
@@ -42,9 +45,6 @@
 #include <stdexcept>
 #include <system_error>
 #include <psapi.h>
-
-#include "Window/DebugWindow.h"
-#include "Window/ViewportToolbarWindow.h"
 
 namespace
 {
@@ -311,6 +311,7 @@ void FEditor::InitializeGizmos()
 void FEditor::InitializeWindows()
 {
 	RegisterWindow(UConsoleWindow::GetClass(), "Console");
+	RegisterWindow(UAssetBrowserWindow::GetClass(), "Asset Browser");
 	RegisterWindow(UDebugWindow::GetClass(), "Debug");
 	RegisterWindow(UPropertyWindow::GetClass(), "Properties");
 	RegisterWindow(UPlaceActorWindow::GetClass(), "Place Actors");

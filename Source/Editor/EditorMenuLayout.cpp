@@ -151,6 +151,7 @@ void FEditorMenuLayout::BuildDefaultLayout(bool bReset)
 		ConsoleNode->UpdateMergedFlags();
 	}
 	ImGui::DockBuilderDockWindow("Console", ConsoleID);
+	ImGui::DockBuilderDockWindow("Asset Browser", ConsoleID);
 	ImGui::DockBuilderDockWindow("Debug", ConsoleID);
 
 	if (ImGuiDockNode* SceneNode = ImGui::DockBuilderGetNode(SceneID))
