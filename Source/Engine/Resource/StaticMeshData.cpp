@@ -15,8 +15,8 @@ namespace
     // 버전 2부터 메시 본문 뒤에 원본 파일 상태 목록을 저장한다.
     // 버전 3부터 추가된 MTL 색상·정반사 지수·굴절률·조명 모델을 저장한다.
     // 버전 4부터 Ka·Ks·Ke·Ns·Ni·illum의 실제 파싱 결과를 저장한다.
-
-    constexpr uint32 MeshVersion = 4;
+    // 버전 5부터 MTL의 불투명도 텍스처 경로를 저장한다.
+    constexpr uint32 MeshVersion = 5;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -114,6 +114,10 @@ namespace
         Archive.Field("SpecularExponent", Material.SpecularExponent);
         Archive.Field("RefractionIndex", Material.RefractionIndex);
         Archive.Field("IlluminationModel", Material.IlluminationModel);
+
+        // 이미지 대신 UTF-8 경로를 보존하며 기존 경로 직렬화를 재사용한다.
+        SerializePath(Archive, "OpacityTexturePath", Material.OpacityTexturePath);
+
     }
 
     // 메시 객체의 이름을 저장하거나 복원한다.
@@ -256,7 +260,7 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 72, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 76, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);

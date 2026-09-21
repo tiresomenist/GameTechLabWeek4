@@ -372,9 +372,10 @@ namespace
                     || Prefix == "Ks" || Prefix == "Ke";
                 const bool bScalar = Prefix == "Ns" || Prefix == "Ni"
                     || Prefix == "d" || Prefix == "Tr";
-
+                const bool bTexture = Prefix == "map_Kd" || Prefix == "map_d";
                 // 아직 지원하지 않는 지시문은 기존처럼 건너뛴다.
-                if (!bColor && !bScalar && Prefix != "illum" && Prefix != "map_Kd")
+                // 기본 색상 맵과 불투명도 맵은 같은 경로 읽기 로직을 사용한다.
+                if (!bColor && !bScalar && Prefix != "illum" && !bTexture)
                     return;
                 if (CurrentMaterial < 0)
                     ParseError(Path, LineNumber, "Material property appears before newmtl");
@@ -414,9 +415,9 @@ namespace
                     // map_Kd의 기존 경로 해석을 유지하며 옵션 지원은 후속 단계로 둔다.
                     FStringView TextureName = Trim(Line);
                     if (TextureName.empty())
-                        ParseError(Path, LineNumber, "Missing diffuse texture path");
+                        ParseError(Path, LineNumber, "Missing texture map path");
                     if (TextureName.front() == '-')
-                        ParseError(Path, LineNumber, "map_Kd options are not supported");
+                        ParseError(Path, LineNumber, "Texture map options are not supported");
 
                     if (TextureName.front() == '"')
                     {
@@ -424,7 +425,8 @@ namespace
                         TextureName = TakePathToken(Remaining, Path, LineNumber);
                         RequireEnd(Remaining, Path, LineNumber);
                     }
-                    Material.DiffuseTexturePath = ResolvePath(Path.parent_path(), TextureName);
+                    std::filesystem::path& TexturePath = Prefix == "map_Kd" ? Material.DiffuseTexturePath : Material.OpacityTexturePath;
+                    TexturePath = ResolvePath(Path.parent_path(), TextureName);
                 }
 
                 // 바이너리 복원과 동일한 수치 검사로 잘못된 재질을 Import에서 거부한다.

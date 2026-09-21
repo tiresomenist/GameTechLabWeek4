@@ -21,7 +21,7 @@ struct FStaticMeshMaterial
     float Opacity = 1.0f;
 
     std::filesystem::path DiffuseTexturePath;
-
+    std::filesystem::path OpacityTexturePath;
     // MTL의 Ka·Ks·Ke 값을 각각 보관한다.
     FVector AmbientColor{};
     FVector SpecularColor{};
