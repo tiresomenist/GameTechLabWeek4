@@ -15,7 +15,9 @@
 #include <cmath>
 #include <stdexcept>
 #include <format>
-
+#include "Engine/Component/CameraComponent.h"
+#include <algorithm>
+#include "Core/Math/Quaternion.h"
 
 #if defined(OBJVIEWER_APP)
 // 기존 메시 렌더링을 재사용하며 Viewer의 섹션 선택만 추가합니다.
@@ -24,31 +26,45 @@ class UObjViewerMeshComponent : public UStaticMeshComponent
     UCLASS(UObjViewerMeshComponent, "ObjViewerMeshComponent", UStaticMeshComponent)
 
 public:
-    // 강조할 섹션 번호를 저장합니다.
-    void SetSelectedSection(int32 InSectionIndex)
+    // 선택한 섹션과 단독 표시 여부를 함께 설정합니다.
+    void SetSectionDisplay(int32 InSectionIndex, bool bInOnlySelectedSection)
     {
         SelectedSectionIndex = InSectionIndex;
+        bOnlySelectedSection = bInOnlySelectedSection;
     }
 
     // 선택한 섹션의 렌더 데이터에 외곽선 표시를 요청합니다.
+    // 기존 섹션 렌더 데이터를 생성하고 표시할 섹션만 남깁니다.
     void CreateRenderData(TArray<FPrimitiveRenderData>& OutData, bool bSelected) override
     {
-        // 기존 배열의 데이터는 유지하고 이번 컴포넌트가 추가한 범위만 처리합니다.
+        // 부모 함수가 이번 컴포넌트의 렌더 데이터를 추가한 범위를 구합니다.
         const int32 FirstNewIndex = OutData.Num();
         Super::CreateRenderData(OutData, false);
+        const int32 SectionCount = OutData.Num() - FirstNewIndex;
+        const bool bValidSelection = SelectedSectionIndex >= 0
+            && SelectedSectionIndex < SectionCount;
+        const bool bFilterSections = bOnlySelectedSection && bValidSelection;
 
-        // 부모 함수는 현재 Sections 순서대로 렌더 데이터를 하나씩 추가합니다.
-        for (int32 Index = FirstNewIndex; Index < OutData.Num(); ++Index)
+        // 유지할 데이터를 앞쪽으로 옮기며 선택한 섹션에 강조 표시를 설정합니다.
+        int32 WriteIndex = FirstNewIndex;
+        for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
         {
-            FPrimitiveRenderData& Data = OutData[Index];
-            const int32 SectionIndex = Index - FirstNewIndex;
-            Data.isSelected = SectionIndex == SelectedSectionIndex;
+            const bool bSectionSelected = bValidSelection && SectionIndex == SelectedSectionIndex;
+            if (bFilterSections && !bSectionSelected) continue;
+
+            FPrimitiveRenderData Data = OutData[FirstNewIndex + SectionIndex];
+            Data.isSelected = bSectionSelected;
             Data.bAllowOutline = true;
+            OutData[WriteIndex++] = Data;
         }
+
+        // 앞에서 유지한 데이터까지만 렌더러에 전달합니다.
+        OutData.SetNum(WriteIndex);
     }
 
 private:
     int32 SelectedSectionIndex = -1;
+    bool bOnlySelectedSection = false;
 };
 #endif
 
@@ -94,23 +110,13 @@ void FObjViewer::Tick(float DeltaTime)
         return;
     }
     PreviewScene->Tick(DeltaTime);
-    // 이번 단계에서 사용하지 않는 선택 및 기즈모 전환 입력을 소비합니다.
+    // 현재 Viewer에서 사용하지 않는 에디터 선택 입력을 소비합니다.
     GInputManager& Input = *GInputManager::GetInstance();
     Input.ConsumeLeftClick();
     Input.ConsumeSpacePress();
 
-    // UI 조작 중에는 카메라 입력을 차단하고 누적 회전량을 비웁니다.
-    const ImGuiIO& IO = ImGui::GetIO();
-    const D3D11_VIEWPORT Viewport = GetRenderViewport(GEngine::GetInstance()->GetViewport());
-    if (IO.WantCaptureMouse || IO.WantCaptureKeyboard
-        || Viewport.Width <= 0.0f || Viewport.Height <= 0.0f)
-    {
-        int32 DeltaX = 0, DeltaY = 0;
-        Input.ConsumeRightDragDelta(DeltaX, DeltaY);
-        return;
-    }
-
-    CameraController.Tick(DeltaTime);
+    // 입력 차단 여부와 화면 크기에 따른 보정은 전용 함수에서 처리합니다.
+    UpdateOrbitCamera(DeltaTime);
 }
 
 // 공통 등록 자원을 정리한 뒤 Viewer 씬을 제거합니다.
@@ -123,7 +129,7 @@ void FObjViewer::Release()
     PreviewComponent = nullptr;
     PreviewMesh = nullptr;
     SelectedSectionIndex = -1;
-
+    bOnlySelectedSection = false;
     // 씬을 삭제하면 소유 Actor와 카메라 컴포넌트도 함께 삭제됩니다.
     if (PreviewScene)
     {
@@ -253,6 +259,11 @@ void FObjViewer::DrawWindows(float DeltaTime)
         else
             ImGui::TextUnformatted("Object: none");
 
+        // 선택한 부위만 확인할 수 있도록 단독 표시 옵션을 제공합니다.
+        if (ImGui::Checkbox("Only Selected Section", &bOnlySelectedSection))
+            SelectSection(SelectedSectionIndex);
+
+        // 선택을 해제하면 단독 표시도 종료하고 전체 모델을 복원합니다.
         if (ImGui::Button("Clear Selection"))
             SelectSection(-1);
     }
@@ -398,7 +409,7 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     if (!std::isfinite(Radius) || Radius <= 0.0f)
         throw std::runtime_error("OBJ mesh has invalid spatial extent.");
 
-    const float PreviewScale = 5.0f / Radius;
+    const float PreviewScale = PreviewRadius / Radius;
     const FVector PreviewLocation = Center * -PreviewScale;
     if (!std::isfinite(PreviewScale) || !std::isfinite(PreviewLocation.X)
         || !std::isfinite(PreviewLocation.Y) || !std::isfinite(PreviewLocation.Z))
@@ -447,22 +458,119 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     // 정규화한 모델 중심을 기본 카메라 위치에서 바라봅니다.
     EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
     EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+    FramePreviewMesh();
 }
 
-// 섹션 번호를 검사하고 UI와 미리보기 컴포넌트의 선택을 동기화합니다.
+// 섹션 선택과 단독 표시 상태를 미리보기 컴포넌트에 반영합니다.
 void FObjViewer::SelectSection(int32 SectionIndex)
 {
-    // 모델이 없거나 유효한 섹션 번호가 아니면 선택을 해제합니다.
+    // 선택 해제나 새 모델 로드 시 전체 표시 상태로 돌아갑니다.
     const bool bValid = PreviewMesh && SectionIndex >= 0
         && SectionIndex < PreviewMesh->GetSections().Num();
     SelectedSectionIndex = bValid ? SectionIndex : -1;
+    if (!bValid) bOnlySelectedSection = false;
 
 #if defined(OBJVIEWER_APP)
-    // Viewer 빌드에서 생성한 전용 컴포넌트에 선택 상태를 전달합니다.
+    // Viewer 전용 컴포넌트에 두 표시 상태를 함께 전달합니다.
     if (PreviewComponent)
     {
         auto* Component = static_cast<UObjViewerMeshComponent*>(PreviewComponent);
-        Component->SetSelectedSection(SelectedSectionIndex);
+        Component->SetSectionDisplay(SelectedSectionIndex, bOnlySelectedSection);
     }
 #endif
+}
+
+// 현재 시선 방향을 유지하며 모델 전체가 보이는 최소 거리로 맞춥니다.
+void FObjViewer::FramePreviewMesh()
+{
+    if (!PreviewMesh || !EditorCamera) return;
+
+    const D3D11_VIEWPORT Viewport = GetRenderViewport(
+        GEngine::GetInstance()->GetViewport());
+    float MinDistance = 0.0f, MaxDistance = 0.0f;
+    if (!GetOrbitDistanceLimits(Viewport, MinDistance, MaxDistance)) return;
+
+    // 저장된 거리와 실제 카메라 위치를 함께 변경합니다.
+    OrbitDistance = MinDistance;
+    EditorCamera->SetIsPerspective(true);
+    EditorCamera->SetAspectRatio(Viewport.Width / Viewport.Height);
+    EditorCamera->ConstrainEditorRotation();
+
+    const FVector Forward = EditorCamera->GetForward().GetNormalized();
+    EditorCamera->SetRelativeLocation(Forward * -OrbitDistance);
+}
+
+// 화면 크기와 클리핑 범위로 카메라의 최소·최대 거리를 구합니다.
+bool FObjViewer::GetOrbitDistanceLimits(const D3D11_VIEWPORT& Viewport,
+    float& OutMinDistance, float& OutMaxDistance) const
+{
+    if (!EditorCamera || Viewport.Width <= 0.0f || Viewport.Height <= 0.0f)
+        return false;
+
+    // 가로와 세로 중 좁은 시야각에 바운딩 구 전체가 들어오도록 계산합니다.
+    const float Aspect = Viewport.Width / Viewport.Height;
+    const float HalfVerticalFOV = EditorCamera->GetFOV() * 0.5f;
+    const float HalfHorizontalFOV = std::atan(std::tan(HalfVerticalFOV) * Aspect);
+    const float HalfFOV = (std::min)(HalfVerticalFOV, HalfHorizontalFOV);
+    const float FramingRadius = PreviewRadius * 1.1f;
+
+    // 화면 여백을 확보하고 가까운 면과 먼 면에 모델이 잘리지 않도록 제한합니다.
+    OutMinDistance = (std::max)(FramingRadius / std::sin(HalfFOV),
+        FramingRadius + EditorCamera->GetNearZ());
+    OutMaxDistance = EditorCamera->GetFarZ() - FramingRadius;
+
+    // 창이 극단적으로 좁아 두 조건을 동시에 만족하지 못하면 적용하지 않습니다.
+    return std::isfinite(OutMinDistance) && std::isfinite(OutMaxDistance)
+        && OutMinDistance <= OutMaxDistance;
+}
+
+// 모델을 중심으로 공전하며 전체 모델이 화면 안에 들어오도록 거리를 제한합니다.
+void FObjViewer::UpdateOrbitCamera(float DeltaTime)
+{
+    // UI 조작 중이나 모델이 없는 동안에도 드래그 입력이 누적되지 않게 소비합니다.
+    GInputManager& Input = *GInputManager::GetInstance();
+    int32 DeltaX = 0, DeltaY = 0;
+    Input.ConsumeRightDragDelta(DeltaX, DeltaY);
+    if (!PreviewMesh || !EditorCamera) return;
+
+    const D3D11_VIEWPORT Viewport = GetRenderViewport(
+        GEngine::GetInstance()->GetViewport());
+    float MinDistance = 0.0f, MaxDistance = 0.0f;
+    if (!GetOrbitDistanceLimits(Viewport, MinDistance, MaxDistance)) return;
+
+    // UI가 입력을 사용하는 동안에는 사용자 조작만 차단합니다.
+    const ImGuiIO& IO = ImGui::GetIO();
+    const bool bAcceptInput = !IO.WantCaptureMouse && !IO.WantCaptureKeyboard;
+    if (bAcceptInput)
+    {
+        // 현재 시선에서 각도를 구하고 입력을 더한 뒤 Pitch를 제한합니다.
+        if (Input.GetKey(GInputManager::EI_RMOUSE))
+        {
+            const FVector Forward = EditorCamera->GetForward().GetNormalized();
+            const float RadiansPerPixel = OrbitSensitivity * PI / 180.0f;
+            float Yaw = std::atan2(Forward.Y, Forward.X);
+            float Pitch = std::atan2(-Forward.Z, std::hypot(Forward.X, Forward.Y));
+            Yaw = std::remainder(Yaw + DeltaX * RadiansPerPixel, 2.0f * PI);
+            constexpr float PitchLimit = 89.0f * PI / 180.0f;
+            Pitch = std::clamp(Pitch + DeltaY * RadiansPerPixel, -PitchLimit, PitchLimit);
+
+            const FQuaternion Rotation =
+                FQuaternion::FromAxisAngle(FVector(0, 0, 1), Yaw)
+                * FQuaternion::FromAxisAngle(FVector(0, 1, 0), Pitch);
+            EditorCamera->SetRelativeRotation(Rotation);
+        }
+
+        // W는 접근, S는 후퇴이며 카메라의 기존 이동 속도를 재사용합니다.
+        const float ZoomInput = float(Input.GetKey(GInputManager::EI_W)) - float(Input.GetKey(GInputManager::EI_S));
+        OrbitDistance -= ZoomInput * EditorCamera->GetMoveSpeed() * DeltaTime;
+    }
+
+    // 입력 여부와 무관하게 창 크기 변화에 맞춰 거리와 카메라 위치를 보정합니다.
+    OrbitDistance = std::clamp(OrbitDistance, MinDistance, MaxDistance);
+    EditorCamera->SetIsPerspective(true);
+    EditorCamera->SetAspectRatio(Viewport.Width / Viewport.Height);
+    EditorCamera->ConstrainEditorRotation();
+
+    const FVector Forward = EditorCamera->GetForward().GetNormalized();
+    EditorCamera->SetRelativeLocation(Forward * -OrbitDistance);
 }

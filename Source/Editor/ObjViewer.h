@@ -57,10 +57,30 @@ private:
     //선택 된 섹션
     UStaticMesh* PreviewMesh = nullptr;
     int32 SelectedSectionIndex = -1;
+    bool bOnlySelectedSection = false;
 
     // PreviewActor가 소유한 메시 컴포넌트를 참조합니다.
     UStaticMeshComponent* PreviewComponent = nullptr;
 
     // 목록 선택과 화면 강조에 사용할 섹션 번호를 함께 변경합니다.
     void SelectSection(int32 SectionIndex);
+
+    // 모델 정규화와 카메라 거리 계산에서 같은 반지름을 사용합니다.
+    static constexpr float PreviewRadius = 5.0f;
+
+    // 현재 시선 방향을 유지하면서 모델 전체를 화면에 맞춥니다.
+    void FramePreviewMesh();
+
+    // 모델 중심에서 카메라까지의 거리를 유지합니다.
+    float OrbitDistance = 25.0f;
+
+    // 마우스 한 픽셀 이동에 대응하는 회전 각도입니다.
+    static constexpr float OrbitSensitivity = 0.5f;
+
+    // 현재 출력 영역에서 모델 전체가 보이는 거리 범위를 계산합니다.
+    bool GetOrbitDistanceLimits(const D3D11_VIEWPORT& Viewport,
+        float& OutMinDistance, float& OutMaxDistance) const;
+
+    // 입력으로 회전·거리를 변경하고 모델 중심을 기준으로 카메라를 배치합니다.
+    void UpdateOrbitCamera(float DeltaTime);
 };
