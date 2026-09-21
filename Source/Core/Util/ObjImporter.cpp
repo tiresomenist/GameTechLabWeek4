@@ -293,7 +293,7 @@ namespace
         return Result; // v//vn 또는 v/vt/vn
     }
 
-    // 재질의 이름으로 마테리얼을 맵에 등록하거나 키값을 가져와서, 검색용 인덱스를 뱉는 함수
+    // 머티리얼의 이름으로 머티리얼을 맵에 등록하거나 키값을 가져와서, 검색용 인덱스를 뱉는 함수
     int32 GetOrAddMaterial(FObjInfo& Info, TMap<FString, int32>& MaterialLookup, FStringView Name)
     {
         FString Key(Name);
@@ -338,7 +338,7 @@ namespace
         Info.SourceFiles.Add(AbsolutePath);
     }
 
-    // MTL 파일을 읽어 재질 이름,Diffuse 색상,불투명도,텍스처 경로를 채움
+    // MTL의 머티리얼 수치와 용도별 텍스처 경로를 읽어 CPU 데이터에 보관한다.
     void ReadMtl(const std::filesystem::path& Path, FObjInfo& Info, TMap<FString, int32>& MaterialLookup)
     {
         const FString Text = File::ReadTextFromPath(Path);
@@ -372,9 +372,18 @@ namespace
                     || Prefix == "Ks" || Prefix == "Ke";
                 const bool bScalar = Prefix == "Ns" || Prefix == "Ni"
                     || Prefix == "d" || Prefix == "Tr";
-                const bool bTexture = Prefix == "map_Kd" || Prefix == "map_d";
+
+                // 범프 맵의 여러 표기를 하나의 종류로 취급한다.
+                const bool bBumpTexture = Prefix == "bump"
+                    || Prefix == "map_bump" || Prefix == "map_Bump";
+
+                // 지원하는 맵은 모두 기존 텍스처 경로 처리 분기로 전달한다.
+                const bool bTexture = Prefix == "map_Kd" || Prefix == "map_d"
+                    || Prefix == "map_Ka" || Prefix == "map_Ks"
+                    || Prefix == "map_Ke" || Prefix == "map_Ns"
+                    || bBumpTexture || Prefix == "norm" || Prefix == "disp";
+
                 // 아직 지원하지 않는 지시문은 기존처럼 건너뛴다.
-                // 기본 색상 맵과 불투명도 맵은 같은 경로 읽기 로직을 사용한다.
                 if (!bColor && !bScalar && Prefix != "illum" && !bTexture)
                     return;
                 if (CurrentMaterial < 0)
@@ -425,11 +434,21 @@ namespace
                         TextureName = TakePathToken(Remaining, Path, LineNumber);
                         RequireEnd(Remaining, Path, LineNumber);
                     }
-                    std::filesystem::path& TexturePath = Prefix == "map_Kd" ? Material.DiffuseTexturePath : Material.OpacityTexturePath;
-                    TexturePath = ResolvePath(Path.parent_path(), TextureName);
+                    // 지시문에 따라 저장할 필드만 선택하고 경로 해석은 한 번 수행한다.
+                    std::filesystem::path* TexturePath = &Material.DiffuseTexturePath;
+                    if (Prefix == "map_d") TexturePath = &Material.OpacityTexturePath;
+                    else if (Prefix == "map_Ka") TexturePath = &Material.AmbientTexturePath;
+                    else if (Prefix == "map_Ks") TexturePath = &Material.SpecularTexturePath;
+                    else if (Prefix == "map_Ke") TexturePath = &Material.EmissiveTexturePath;
+                    else if (Prefix == "map_Ns") TexturePath = &Material.SpecularExponentTexturePath;
+                    else if (bBumpTexture) TexturePath = &Material.BumpTexturePath;
+                    else if (Prefix == "norm") TexturePath = &Material.NormalTexturePath;
+                    else if (Prefix == "disp") TexturePath = &Material.DisplacementTexturePath;
+
+                    *TexturePath = ResolvePath(Path.parent_path(), TextureName);
                 }
 
-                // 바이너리 복원과 동일한 수치 검사로 잘못된 재질을 Import에서 거부한다.
+                // 바이너리 복원과 동일한 수치 검사로 잘못된 머티리얼을 Import에서 거부한다.
                 if (!Material.HasValidNumericValues())
                     ParseError(Path, LineNumber, "Invalid material numeric values");
             });
@@ -814,7 +833,7 @@ namespace
     }
 }
 
-// Import 결과를 렌더링용 정점·인덱스·섹션과 CPU 재질 데이터로 변환한다.
+// Import 결과를 렌더링용 정점·인덱스·섹션과 CPU 머티리얼 데이터로 변환한다.
 FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
 {
     // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
@@ -849,7 +868,7 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
         int32 MaterialIndex = Triangle.MaterialIndex;
         if (MaterialIndex < 0)
         {
-            // 기존 재질 인덱스는 유지하고, 미지정 재질은 기본 재질 하나를 공유한다.
+            // 기존 머티리얼 인덱스는 유지하고, 미지정 머티리얼은 기본 머티리얼 하나를 공유한다.
             if (DefaultMaterialIndex < 0)
             {
                 DefaultMaterialIndex = Result.Materials.Num();
@@ -858,7 +877,7 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
             MaterialIndex = DefaultMaterialIndex;
         }
 
-        // 입력 순서를 유지하며 연속된 객체·재질 범위를 하나의 Section으로 묶는다.
+        // 입력 순서를 유지하며 연속된 객체·머티리얼 범위를 하나의 Section으로 묶는다.
         if (Result.Sections.IsEmpty()
             || Result.Sections[Result.Sections.Num() - 1].ObjectIndex != Triangle.ObjectIndex
             || Result.Sections[Result.Sections.Num() - 1].MaterialIndex != static_cast<uint32>(MaterialIndex))

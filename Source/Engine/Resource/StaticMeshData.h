@@ -10,7 +10,7 @@
 
 class FArchive;
 
-// Cooked 메시가 사용하는 CPU 재질 데이터.
+// Cooked 메시가 사용하는 CPU 머티리얼 데이터.
 // 셰이더·SRV 등 GPU 리소스는 포함하지 않는다.
 // TODO:: 해당 구조체 FMaterial을 직렬화 해서 신정보에 저장할 때 필요할 수도 있음
 struct FStaticMeshMaterial
@@ -22,6 +22,14 @@ struct FStaticMeshMaterial
 
     std::filesystem::path DiffuseTexturePath;
     std::filesystem::path OpacityTexturePath;
+    std::filesystem::path AmbientTexturePath;
+    std::filesystem::path SpecularTexturePath;
+    std::filesystem::path EmissiveTexturePath;
+    std::filesystem::path SpecularExponentTexturePath;
+    std::filesystem::path BumpTexturePath;
+    std::filesystem::path NormalTexturePath;
+    std::filesystem::path DisplacementTexturePath;
+
     // MTL의 Ka·Ks·Ke 값을 각각 보관한다.
     FVector AmbientColor{};
     FVector SpecularColor{};
@@ -32,7 +40,7 @@ struct FStaticMeshMaterial
     float RefractionIndex = 1.0f;
     int32 IlluminationModel = 0;
 
-    // CPU 재질의 숫자가 보존 가능한 값과 기본 유효 범위를 만족하는지 검사한다.
+    // CPU 머티리얼의 숫자가 보존 가능한 값과 기본 유효 범위를 만족하는지 검사한다.
     bool HasValidNumericValues() const;
 
 };
