@@ -26,6 +26,7 @@
 #include "Engine/Component/WidgetComponent.h"
 #include "Engine/Component/StaticMeshComponent.h"
 #include "Engine/Component/Primitive/PrimitiveComponent.h"
+#include "Engine/Memory/Allocator.h"
 
 #include "Engine/Scene/SceneManager.h"
 
@@ -40,6 +41,7 @@
 #include <format>
 #include <stdexcept>
 #include <system_error>
+#include <psapi.h>
 
 #include "Window/DebugWindow.h"
 #include "Window/ViewportToolbarWindow.h"
@@ -836,3 +838,104 @@ void FEditor::SaveEditorSetting() {
 
 	File::WriteText("editor.ini", FileText);
 }
+
+static void DrawShadowedText(ImDrawList* DrawList, ImVec2 Pos, ImU32 Color, const char* Text)
+{
+	DrawList->AddText(ImVec2(Pos.x + 1.0f, Pos.y + 1.0f), IM_COL32(0, 0, 0, 255), Text);
+	DrawList->AddText(Pos, Color, Text);
+}
+
+// TODO:: 뷰포트 크기 변해도 잘 나오게 
+void FEditor::DrawStatOverlay()
+{
+	if (!bShowStatFPS && !bShowStatUnit && !bShowStatMemory) return;
+
+	if (CurrEditedViewportIndex >= Viewports.Num()) return;
+	const D3D11_VIEWPORT& D3DView = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
+	if (D3DView.Width <= 0.0f || D3DView.Height <= 0.0f) return;
+
+	ImVec2 MainOrigin = ImGui::GetMainViewport()->Pos;
+	float StartX = MainOrigin.x + D3DView.TopLeftX + D3DView.Width - 230.0f;
+	float StartY = MainOrigin.y + D3DView.TopLeftY + 12.0f;
+
+	ImDrawList* DrawList = ImGui::GetForegroundDrawList();
+
+	if (bShowStatFPS)    StartY = DrawStatFPS(DrawList, StartX, StartY);
+	if (bShowStatUnit)   StartY = DrawStatUnit(DrawList, StartX, StartY);
+	if (bShowStatMemory) StartY = DrawStatMemory(DrawList, StartX, StartY);
+}
+
+float FEditor::DrawStatFPS(ImDrawList* DrawList, float X, float Y)
+{
+	const FUnitStat& Unit = GEngine::GetInstance()->GetEngineStats().GetUnitStat();
+	float Fps = (Unit.FrameTimeMs > 0.0f) ? (1000.0f / Unit.FrameTimeMs) : 0.0f;
+
+	char Buffer[64];
+	sprintf_s(Buffer, "%6.2f ms  %5.1f FPS", Unit.FrameTimeMs, Fps);
+	DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+
+	return Y + 22.0f;
+}
+
+float FEditor::DrawStatUnit(ImDrawList* DrawList, float X, float Y)
+{
+	const FUnitStat& Unit = GEngine::GetInstance()->GetEngineStats().GetUnitStat();
+	char Buffer[128];
+	constexpr float LineHeight = 18.0f;
+
+	sprintf_s(Buffer, "Game:     %6.2f ms", Unit.GameTimeMs);
+	DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+	Y += LineHeight;
+
+	sprintf_s(Buffer, "Draw:     %6.2f ms", Unit.DrawTimeMs);
+	DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+	Y += LineHeight;
+
+	sprintf_s(Buffer, "GPU Time: %6.2f ms", Unit.GPUTimeMs);
+	DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+	Y += LineHeight;
+
+	sprintf_s(Buffer, "GPU Wait: %6.2f ms", Unit.GPUWaitMs);
+	DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+	Y += LineHeight;
+
+	return Y + 6.0f;
+}
+
+	float FEditor::DrawStatMemory(ImDrawList * DrawList, float X, float Y)
+	{
+		const FMemoryStat& Memory = GEngine::GetInstance()->GetEngineStats().GetMemoryStat();
+		char Buffer[128];
+		constexpr float LineHeight = 18.0f;
+
+		float ProcRamPercent = (Memory.TotalMemMB > 0)
+			? (float(Memory.PhysicalMemMB) / float(Memory.TotalMemMB) * 100.0f) : 0.0f;
+		sprintf_s(Buffer, "RAM (Proc):  %4zu MB / %zu MB (%.1f%%)",
+			Memory.PhysicalMemMB, Memory.TotalMemMB, ProcRamPercent);
+		DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+		Y += LineHeight;
+
+		sprintf_s(Buffer, "RAM (Virt):  %4zu MB", Memory.VirtualMemMB);
+		DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+		Y += LineHeight;
+
+		float SysRamPercent = (Memory.TotalMemMB > 0)
+			? (float(Memory.UsedMemMB) / float(Memory.TotalMemMB) * 100.0f) : 0.0f;
+		sprintf_s(Buffer, "RAM (Sys):  %4zu MB / %zu MB (%.1f%%)",
+			Memory.UsedMemMB, Memory.TotalMemMB, SysRamPercent);
+		DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+		Y += LineHeight;
+
+		float VramPercent = (Memory.GPUDedicatedMemMB > 0)
+			? (float(Memory.GPUVRAMUsedMB) / float(Memory.GPUDedicatedMemMB) * 100.0f) : 0.0f;
+		sprintf_s(Buffer, "GPU VRAM:    %4zu MB / %zu MB (%.1f%%)",
+			Memory.GPUVRAMUsedMB, Memory.GPUDedicatedMemMB, VramPercent);
+		DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+		Y += LineHeight;
+
+		sprintf_s(Buffer, "UObjects:  %4zu 개 (%5.2f MB)", Memory.ObjectCount, Memory.HeapBytes / (1024.0f * 1024.0f));
+		DrawShadowedText(DrawList, ImVec2(X, Y), IM_COL32(50, 255, 50, 255), Buffer);
+		Y += LineHeight;
+
+		return Y + 6.0f;
+	}

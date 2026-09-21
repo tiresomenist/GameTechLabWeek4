@@ -187,7 +187,8 @@ public:
 	void SetShowStatMemory(bool bShow) { bShowStatMemory = bShow; }
 	void ToggleShowStatMemory() { bShowStatMemory = !bShowStatMemory; }
 
-	void ClearAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = false; }
+	void HideAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = false; }
+	void ShowAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = true; }
 
 	void DrawStatOverlay();
 

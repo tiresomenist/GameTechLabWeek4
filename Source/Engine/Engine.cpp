@@ -127,11 +127,9 @@ void GEngine::Tick()
 	UScene* CurrentScene = SceneManager->GetScene();
 	Renderer.Render(DeltaTime, Editor, CurrentScene);
 
-    UnitData.GameTimeMs = GameTimeMs;
-    UnitData.FrameTimeMs = DeltaTime * 1000.0f;
-    UnitData.DrawTimeMs = Renderer.GetDrawTimeMs();
-    UnitData.GPUTimeMs = Renderer.GetGPUTimeMs();
-    UnitData.GPUWaitMs = Renderer.GetGPUWaitMs();
+    EngineStats.UpdateUnitStat(DeltaTime, GameTimeMs, Renderer.GetDrawTimeMs(),
+        Renderer.GetGPUTimeMs(), Renderer.GetGPUWaitMs());
+    EngineStats.UpdateMemoryStat();
 }
 
 // 엔진의 자원을 정리합니다.
