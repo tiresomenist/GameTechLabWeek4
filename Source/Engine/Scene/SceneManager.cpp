@@ -199,3 +199,31 @@ void GSceneManager::SaveScene(FStringView SerializedName)
         UE_LOG("[SceneManager] Save {} failed: {}", SerializedName, Error.what());
     }
 }
+
+void GSceneManager::SaveSceneToPath(const std::filesystem::path& ScenePath)
+{
+    if (!CurrentScene || ScenePath.empty()) return;
+
+    try
+    {
+        FJsonWriter Writer;
+
+        // 파일 전체에 대한 버전과 다음 UUID를 루트에 기록한다.
+        int32 Version = 1;
+        uint32 NextUUID = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
+        Writer.Field("Version", Version);
+        Writer.Field("NextUUID", NextUUID);
+        CurrentScene->Serialize(Writer);
+
+        // 완성된 메모리상의 문서를 검사한 뒤 실제 파일에 저장한다.
+        FJsonReader ValidationReader(Writer.ToString());
+        ValidateSceneArchive(ValidationReader);
+
+        std::filesystem::create_directories(SceneDirectory);
+        Writer.SaveToFilePath(ScenePath);
+    }
+    catch (const std::exception& Error)
+    {
+        UE_LOG("[SceneManager] Save {} failed: {}", ScenePath.string(), Error.what());
+    }
+}

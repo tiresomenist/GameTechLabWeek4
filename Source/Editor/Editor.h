@@ -91,6 +91,7 @@ public:
 	void LoadScene(FStringView SceneName);
 	void LoadSceneFromPath(const std::filesystem::path& ScenePath);
 	void SaveScene(FStringView SceneName);
+	void SaveSceneToPath(const std::filesystem::path& ScenePath);
 
 	virtual UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }

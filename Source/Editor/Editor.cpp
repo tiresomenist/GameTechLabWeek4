@@ -592,6 +592,20 @@ void FEditor::SaveScene(FStringView SceneName)
 	SceneManager->SaveScene(SceneName);
 }
 
+void FEditor::SaveSceneToPath(const std::filesystem::path& ScenePath)
+{
+	GSceneManager* SceneManager = GSceneManager::GetInstance();
+	for (const auto& Viewport : Viewports)
+	{
+		if (Viewport.GetViewportType() == EViewportType::Perspective)
+		{
+			GetCurrentScene()->SetMainCameraSaveData(Viewport.GetCamera());
+			break;
+		}
+	}
+	SceneManager->SaveSceneToPath(ScenePath);
+}
+
 UScene* FEditor::GetCurrentScene()
 {
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
