@@ -2,6 +2,7 @@
 
 #include <d3d11.h>
 #include "Core/Core.h"
+#include "Core/Container/String.h"
 
 struct FShaderResource;
 
@@ -24,4 +25,6 @@ struct FMaterial
 	EPrimitiveBlendMode BlendMode = EPrimitiveBlendMode::Opaque;	//Blend mode
 
 	ID3D11Buffer* ConstantBuffer = nullptr;	//UV·Tint·AlphaCutoff등을 담을 constantBuffer
+
+	FString TexturePath;
 };

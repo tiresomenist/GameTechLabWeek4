@@ -10,7 +10,8 @@ enum class EFileDialogType
 {
 	Json,
 	Image,
-	All
+	All,
+	Obj
 };
 
 namespace File

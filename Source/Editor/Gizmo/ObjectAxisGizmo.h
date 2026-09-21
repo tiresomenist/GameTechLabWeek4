@@ -29,7 +29,7 @@ private:
 	// 모드 변경 시 메시에서 구한 축별 기준 길이(GizmoScale 반영).
 	TArray<float> HandleBaseLengths;
 	// 이동·스케일: 축 길이, 회전: 링 반지름
-	float GizmoScreenHeightRatio = 0.15f;
+	float GizmoScreenHeightRatio = 0.3f;
 	// X,Y,Z 핸들
 	FVector GizmoScale = FVector(0.2f,0.2f,0.2f);
 };

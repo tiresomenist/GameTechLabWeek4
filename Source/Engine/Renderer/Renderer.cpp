@@ -354,30 +354,25 @@ void FRenderer::OnResize(uint32 Width, uint32 Height)
 	bRenderReady = true;
 }
 
-// 단일 View
+// 단일 View -> 이제 더이상 다중 View를 호출하지 않음
 void FRenderer::Render(float DeltaTime,FEditor* Editor,UScene* Scene)
 {
-	if (!IsRenderReady() || !Editor || !Scene)
+	if (!IsRenderReady() || !Editor || !Scene) return;
+
+	BeginFrame();
+	Editor->DrawMenu();
+
+	// 메뉴에서 갱신한 설정과 출력 영역으로 렌더 뷰를 생성합니다.
+	const TArray<FRenderView> Views = Editor->BuildRenderViews(ViewportInfo);
+	for (const FRenderView& View : Views)
 	{
-		return;
+		ViewRenderer.RenderView(Editor, Scene, View);
 	}
 
-	//FRenderView View{};
-	//View.Camera = Editor->GetEditorCamera();
-	//View.Viewport = ViewportInfo;
-	//View.ViewSettings = Editor->GetViewSettings();
-	//View.bDrawEditorGizmos = true;
+	SetViewportAndScissor(ViewportInfo);
+	Editor->DrawWindows(DeltaTime);
+	EndFrame();
 
-	TArray<FRenderView> Views;
-	//Views.Add(View);
-
-	for (const auto& view : Editor->GetViewports())
-	{
-		FRenderView View = view.GetRenderView();
-		Views.Add(View);
-	}
-
-	Render(DeltaTime, Editor, Scene, Views);
 }
 
 // 다중 View
@@ -389,8 +384,8 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TA
 	}
 
 	BeginFrame();
+	Editor->DrawMenu();
 
-	Editor->DrawLayout();
 
 	for (const FRenderView& View : Views)
 	{
@@ -407,10 +402,8 @@ void FRenderer::Render(float DeltaTime, FEditor* Editor, UScene* Scene, const TA
 	}
 
 	// UI 렌더링
-	for (auto Item : Editor->GetWindows())
-	{
-		Item->Render(DeltaTime);
-	}
+	Editor->DrawWindows(DeltaTime);
+
 
 	EndFrame();
 }

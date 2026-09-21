@@ -2,6 +2,7 @@
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/MeshResource.h"
 #include "Core/Serialization/Archive.h"
+#include "Engine\Resource\TextureResource.h"
 #include "MeshComponent.h"
 
 void UMeshComponent::Serialize(FArchive& Archive)
@@ -12,40 +13,57 @@ void UMeshComponent::Serialize(FArchive& Archive)
 
 void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
-	if (MaterialSlot >= OverrideMaterialList.Num())
+	if (MaterialSlot >= static_cast<uint32>(OverrideMaterialList.Num()))
 	{
 		OverrideMaterialList.resize(MaterialSlot + 1);
+	}
+	if (OverrideMaterialList[MaterialSlot] != InMaterial)
+	{
+		delete OverrideMaterialList[MaterialSlot];
 	}
 	OverrideMaterialList[MaterialSlot] = InMaterial;
 }
 
-// TODO:: renderdata 받을 때 meshresource가 아니라 StaticMesh 받도록 해야 함
-// staticmeshComponent로 옮기기
+void UMeshComponent::SetOverrideMaterial(const FString& InMaterialPath, uint32 MaterialSlot)
+{
+	if (InMaterialPath.empty())
+	{
+		SetOverrideMaterial(nullptr, MaterialSlot);
+		return;
+	}
+
+	GResourceManager* RM = GResourceManager::GetInstance();
+	if (FTextureResource* Tex = RM->GetOrLoadTexture(InMaterialPath))
+	{
+		if (Tex->GetSRV())
+		{
+			FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(Tex->GetSRV(), InMaterialPath);
+			SetOverrideMaterial(new FMaterial(GPUMaterial), MaterialSlot);
+		}
+	}
+}
+
+const FString& UMeshComponent::GetMaterialPath(uint32 MaterialSlot) const
+{
+	static const FString EmptyString = "";
+	const FMaterial* Mat = GetMaterial(MaterialSlot);
+	if (Mat)
+	{
+		return Mat->TexturePath;
+	}
+	return EmptyString;
+}
+const FMaterial* UMeshComponent::GetMaterial(uint32 MaterialSlot) const
+{
+	if (MaterialSlot < static_cast<uint32>(OverrideMaterialList.Num()))
+	{
+		return OverrideMaterialList[MaterialSlot];
+	}
+	else
+		return nullptr;
+}
+
 void UMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected)
 {
-	//// TODO:: 해당 작업은 StaticMeshData ---> StaticMeshData 전환 한뒤에
-	//FClassType* ClassType = GetInstanceClass();
-	//FMeshResource* MeshResource = GetMeshResource();
-
-	//FPrimitiveRenderData OutData{};
-	//if (MeshResource == nullptr)
-	//{
-	//	ComponentRenderData.Add(OutData);
-	//	return;
-	//}
-
-	//for (const FMeshSection& section : Mesh)
-	//OutData.VertexBuffer = MeshResource->GetVertexBuffer();
-	//OutData.IndexBuffer = MeshResource->GetIndexBuffer();
-	//OutData.IndexCount = MeshResource->GetIndexCount();
-	//OutData.Stride = MeshResource->GetStride();
-	//OutData.WorldMatrix = &GetWorldMatrix();
-	//OutData.isSelected = bSelected;
-	//OutData.Material = GResourceManager::GetInstance()->CreateColorMaterial();
-	//OutData.Min = MeshResource->GetBoundsMin();
-	//OutData.Max = MeshResource->GetBoundsMax();
-
-	//ComponentRenderData.Add(OutData);
-	//return;
 	return;
 }
