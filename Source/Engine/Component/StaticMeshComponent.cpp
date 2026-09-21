@@ -33,12 +33,37 @@ void UStaticMeshComponent::Serialize(FArchive& Archive)
 	// 로딩모드이거나 메시키가 없으면 None으로 처리
 	FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
 		? FString{} : MeshKey.ToString();
-
 	Archive.OptionalField("MeshKey", MeshKeyValue);
+
+	TArray<FString> OverrideMaterialPaths;
+
+	if (Archive.IsSaving())
+	{
+		OverrideMaterialPaths.SetNum(OverrideMaterialList.Num());
+
+		for (uint32 Slot = 0; Slot < OverrideMaterialList.Num(); ++Slot)
+		{
+			const FMaterial* Material = OverrideMaterialList[Slot];
+			if (Material != nullptr)
+			{
+				OverrideMaterialPaths[Slot] = Material->TexturePath;
+			}
+		}
+	}
+
+	Archive.Field("OverrideMaterialPaths", OverrideMaterialPaths);
 
 	if (Archive.IsLoading())
 	{
 		SetStaticMesh(FName(MeshKeyValue));
+
+		for (uint32 Slot = 0; Slot < OverrideMaterialPaths.Num(); ++Slot)
+		{
+			if (!OverrideMaterialPaths[Slot].empty())
+			{
+				SetOverrideMaterial(OverrideMaterialPaths[Slot], Slot);
+			}
+		}
 	}
 }
 
