@@ -60,6 +60,7 @@ private:
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
 	bool bCanSaveEditorSettings = false;
+	bool bPendingCameraLoad = false;
 
 	// 이전 프레임 마우스 눌림상태 저장 - 드래그 중 뷰포트 변경 방지
 	bool bPrevLDown = false;
@@ -98,6 +99,7 @@ public:
 	void LoadScene(FStringView SceneName);
 	void LoadSceneFromPath(const std::filesystem::path& ScenePath);
 	void SaveScene(FStringView SceneName);
+	void SaveSceneToPath(const std::filesystem::path& ScenePath);
 
 	virtual UScene* GetCurrentScene();
 	UCameraComponent* GetEditorCamera() { return EditorCamera; }
