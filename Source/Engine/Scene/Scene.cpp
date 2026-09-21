@@ -72,32 +72,49 @@ void UScene::EndPlay()
     }
 }
 
-void UScene::CreateMainCamera()
+void UScene::SetMainCameraSaveData(UCameraComponent* InCamera)
 {
-    AActor* CameraActor = SpawnActor<AActor*>(AActor::GetClass());
-    MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
+    MainCameraSaveData = {
+		.Location = InCamera->GetRelativeLocation(),
+		.Rotation = InCamera->GetRelativeRotator(),
+		.FOV = InCamera->GetFOV(),
+		.NearZ = InCamera->GetNearZ(),
+		.FarZ = InCamera->GetFarZ(),
+    };
 }
+
+// void UScene::CreateMainCamera()
+// {
+//     AActor* CameraActor = SpawnActor<AActor*>(AActor::GetClass());
+//     MainCamera = static_cast<UCameraComponent*>(CameraActor->CreateComponent(UCameraComponent::GetClass()));
+// }
 
 void UScene::Serialize(FArchive& Archive)
 {
     const bool bLoading = Archive.IsLoading();
 
-    std::optional<uint32> PendingMainCameraUUID;
-    if (!bLoading)
+    // 메인 카메라 처리. 일단은 값이 없어도 기본값으로 설정
+    FCameraSaveData PerspectiveCamera = MainCameraSaveData;
+    if (Archive.BeginObject("PerspectiveCamera"))
     {
-	    if (MainCamera != nullptr)
-	    {
-			uint32 MainCameraUUID = MainCamera->GetUUID();
-			Archive.Field("MainCameraComponentUUID", MainCameraUUID);
-	    }
-    }
-    else
-    {
-		uint32 MainCameraComponentUUID = 0;
-		if (Archive.OptionalField("MainCameraComponentUUID", MainCameraComponentUUID))
-		{
-			PendingMainCameraUUID = MainCameraComponentUUID;
-		}
+        TArray<float> Location = { PerspectiveCamera.Location.X, PerspectiveCamera.Location.Y, PerspectiveCamera.Location.Z };
+        Archive.Float3OrDefault("Location", Location, 0.0f);
+
+        TArray<float> Rotation = { PerspectiveCamera.Rotation.Pitch, PerspectiveCamera.Rotation.Yaw, PerspectiveCamera.Rotation.Roll };
+        Archive.Float3OrDefault("Rotation", Rotation, 0.0f);
+
+		Archive.Field("FOV", PerspectiveCamera.FOV);
+		Archive.Field("NearZ", PerspectiveCamera.NearZ);
+		Archive.Field("FarZ", PerspectiveCamera.FarZ);
+
+        Archive.EndObject();
+
+        if (bLoading)
+        {
+			PerspectiveCamera.Location = FVector(Location[0], Location[1], Location[2]);
+			PerspectiveCamera.Rotation = FRotator(Rotation[0], Rotation[1], Rotation[2]);
+            MainCameraSaveData = PerspectiveCamera;
+        }
     }
 
     TArray<FPendingActorInfo> PendingActorInfos;
@@ -310,17 +327,6 @@ void UScene::Serialize(FArchive& Archive)
 		Pending.Actor->SetRootComponent(static_cast<USceneComponent*>(*RootComponentPtr));
     }
 
-    // 카메라 연결
-    MainCamera = nullptr;
-    if (PendingMainCameraUUID)
-    {
-		UActorComponent** CameraPtr = ComponentsByUUID.Find(*PendingMainCameraUUID);
-        if (CameraPtr == nullptr || *CameraPtr == nullptr || !(*CameraPtr)->IsA(UCameraComponent::GetClass()))
-            throw std::runtime_error("Invalid main camera component");
-
-		MainCamera = static_cast<UCameraComponent*>(*CameraPtr);
-    }
-
     EnsureUUIDWidgets();
 }
 
@@ -401,11 +407,6 @@ void UScene::DestroyActor(AActor* Actor)
     {
         if (Actors[Index] == Actor)
         {
-            if (MainCamera != nullptr && MainCamera->GetOwner() == Actor)
-            {
-                MainCamera = nullptr;
-            }
-
             Actor->EndPlay();
             delete Actor;
             Actors.RemoveAt(Index);
