@@ -19,6 +19,10 @@ struct FStaticMeshTextureOptions
 
     // 범프 맵의 -bm 값이며, 미지정 시 원래 배율을 유지한다.
     float BumpMultiplier = 1.0f;
+    
+    // MTL의 u·v·w 성분을 각각 X·Y·Z에 보관한다.
+    FVector Offset{ 0.0f, 0.0f, 0.0f };
+    FVector Scale{ 1.0f, 1.0f, 1.0f };
 
     // 텍스처 옵션의 수치가 저장 가능한 유한값인지 검사한다.
     bool HasValidNumericValues() const;
