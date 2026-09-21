@@ -16,6 +16,43 @@
 #include <stdexcept>
 #include <format>
 
+
+#if defined(OBJVIEWER_APP)
+// 기존 메시 렌더링을 재사용하며 Viewer의 섹션 선택만 추가합니다.
+class UObjViewerMeshComponent : public UStaticMeshComponent
+{
+    UCLASS(UObjViewerMeshComponent, "ObjViewerMeshComponent", UStaticMeshComponent)
+
+public:
+    // 강조할 섹션 번호를 저장합니다.
+    void SetSelectedSection(int32 InSectionIndex)
+    {
+        SelectedSectionIndex = InSectionIndex;
+    }
+
+    // 선택한 섹션의 렌더 데이터에 외곽선 표시를 요청합니다.
+    void CreateRenderData(TArray<FPrimitiveRenderData>& OutData, bool bSelected) override
+    {
+        // 기존 배열의 데이터는 유지하고 이번 컴포넌트가 추가한 범위만 처리합니다.
+        const int32 FirstNewIndex = OutData.Num();
+        Super::CreateRenderData(OutData, false);
+
+        // 부모 함수는 현재 Sections 순서대로 렌더 데이터를 하나씩 추가합니다.
+        for (int32 Index = FirstNewIndex; Index < OutData.Num(); ++Index)
+        {
+            FPrimitiveRenderData& Data = OutData[Index];
+            const int32 SectionIndex = Index - FirstNewIndex;
+            Data.isSelected = SectionIndex == SelectedSectionIndex;
+            Data.bAllowOutline = true;
+        }
+    }
+
+private:
+    int32 SelectedSectionIndex = -1;
+};
+#endif
+
+
 // Viewer 전용 씬, 카메라, 그리드와 월드축을 생성합니다.
 void FObjViewer::Initialize()
 {
@@ -83,6 +120,7 @@ void FObjViewer::Release()
     FEditor::Release();
     EditorCamera = nullptr;
     PreviewActor = nullptr;
+    PreviewComponent = nullptr;
     PreviewMesh = nullptr;
     SelectedSectionIndex = -1;
 
@@ -216,7 +254,7 @@ void FObjViewer::DrawWindows(float DeltaTime)
             ImGui::TextUnformatted("Object: none");
 
         if (ImGui::Button("Clear Selection"))
-            SelectedSectionIndex = -1;
+            SelectSection(-1);
     }
     else
     {
@@ -235,7 +273,7 @@ void FObjViewer::DrawWindows(float DeltaTime)
             const FString Label = std::format("Section {} | Material {}", Index, Section.MaterialIndex);
             ImGui::PushID(Index);
             if (ImGui::Selectable(Label.c_str(), SelectedSectionIndex == Index))
-                SelectedSectionIndex = Index;
+                SelectSection(Index);
             ImGui::PopID();
         }
     }
@@ -368,11 +406,18 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
 
     // 새 Actor를 구성하는 동안 기존 모델은 그대로 유지합니다.
     AActor* NewActor = nullptr;
+    UStaticMeshComponent* NewComponent = nullptr;
     try
     {
         NewActor = PreviewScene->SpawnActor<AActor*>(AActor::GetClass());
-        auto* Component = static_cast<UStaticMeshComponent*>(
-            NewActor->CreateComponent(UStaticMeshComponent::GetClass()));
+#if defined(OBJVIEWER_APP)
+        FClassType* ComponentClass = UObjViewerMeshComponent::GetClass();
+#else
+        FClassType* ComponentClass = UStaticMeshComponent::GetClass();
+#endif
+        NewComponent = static_cast<UStaticMeshComponent*>(
+            NewActor->CreateComponent(ComponentClass));
+        auto* Component = NewComponent;
 
         // 처음 로딩한 키를 그대로 전달하여 이미 생성된 메시를 재사용합니다.
         Component->SetStaticMesh(MeshKey);
@@ -392,8 +437,9 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     // 준비가 끝난 뒤 기존 모델을 제거하고 표시 상태를 함께 교체합니다.
     if (PreviewActor) PreviewScene->DestroyActor(PreviewActor);
     PreviewActor = NewActor;
+    PreviewComponent = NewComponent;
     PreviewMesh = Mesh;
-    SelectedSectionIndex = -1;
+    SelectSection(-1);
     SelectedObjPath.swap(NewPath);
     SelectedObjName.swap(NewName);
     FileSelectionError.clear();
@@ -401,4 +447,22 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     // 정규화한 모델 중심을 기본 카메라 위치에서 바라봅니다.
     EditorCamera->SetRelativeLocation(FVector(-15.0f, -15.0f, 10.0f));
     EditorCamera->LookAt(FVector(0.0f, 0.0f, 0.0f));
+}
+
+// 섹션 번호를 검사하고 UI와 미리보기 컴포넌트의 선택을 동기화합니다.
+void FObjViewer::SelectSection(int32 SectionIndex)
+{
+    // 모델이 없거나 유효한 섹션 번호가 아니면 선택을 해제합니다.
+    const bool bValid = PreviewMesh && SectionIndex >= 0
+        && SectionIndex < PreviewMesh->GetSections().Num();
+    SelectedSectionIndex = bValid ? SectionIndex : -1;
+
+#if defined(OBJVIEWER_APP)
+    // Viewer 빌드에서 생성한 전용 컴포넌트에 선택 상태를 전달합니다.
+    if (PreviewComponent)
+    {
+        auto* Component = static_cast<UObjViewerMeshComponent*>(PreviewComponent);
+        Component->SetSelectedSection(SelectedSectionIndex);
+    }
+#endif
 }

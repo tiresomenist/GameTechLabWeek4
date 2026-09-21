@@ -1,9 +1,11 @@
 #pragma once
 #include "Editor/Editor.h"
 #include <filesystem>
+
 class UScene;
 class AActor;
 class UStaticMesh;
+class UStaticMeshComponent;
 
 class FObjViewer : public FEditor
 {
@@ -55,4 +57,10 @@ private:
     //선택 된 섹션
     UStaticMesh* PreviewMesh = nullptr;
     int32 SelectedSectionIndex = -1;
+
+    // PreviewActor가 소유한 메시 컴포넌트를 참조합니다.
+    UStaticMeshComponent* PreviewComponent = nullptr;
+
+    // 목록 선택과 화면 강조에 사용할 섹션 번호를 함께 변경합니다.
+    void SelectSection(int32 SectionIndex);
 };
