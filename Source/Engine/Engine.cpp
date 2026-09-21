@@ -129,7 +129,11 @@ void GEngine::Tick()
 
 	// 게임 화면을 렌더링합니다.
     UScene* CurrentScene = Editor->GetCurrentScene();
-    Renderer.Render(DeltaTime, Editor, CurrentScene);
+	Renderer.Render(DeltaTime, Editor, CurrentScene);
+
+    EngineStats.UpdateUnitStat(DeltaTime, GameTimeMs, Renderer.GetDrawTimeMs(),
+        Renderer.GetGPUTimeMs(), Renderer.GetGPUWaitMs());
+    EngineStats.UpdateMemoryStat();
 }
 
 // 엔진의 자원을 정리합니다.
