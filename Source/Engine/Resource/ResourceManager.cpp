@@ -32,6 +32,7 @@
 #include "GeometryGenerator.h"
 #include "Engine/Resource/MeshNames.h"
 #include "Engine/Log.h"
+#include "Core/Util/File.h"
 
 #include <memory>
 #include <limits>
@@ -39,8 +40,95 @@
 #include <cmath>
 #include <d3dcompiler.h>
 #include <format>
+#include <filesystem>
+#include <string>
+#include <system_error>
+#include <utility>
 namespace
 {
+    // OBJ 경로에 확장자를 덧붙여 같은 폴더의 캐시 경로를 반환한다.
+    std::filesystem::path GetMeshCachePath(const std::filesystem::path& ObjPath)
+    {
+        // Cube.obj를 Cube.obj.meshcache로 만들어 원본 파일명 전체를 유지한다.
+        std::filesystem::path CachePath = ObjPath;
+        CachePath += ".meshcache";
+        return CachePath;
+    }
+
+    // 원본 파일 하나의 현재 상태를 조회하고, 성공했을 때만 결과를 전달한다.
+    bool TryReadMeshSourceFile(const std::filesystem::path& Path, FStaticMeshSourceFile& OutSource)
+    {
+        if (Path.empty()) return false;
+
+        // 경로와 파일 상태 조회 실패는 캐시를 사용할 수 없는 것으로 처리한다.
+        std::error_code Error;
+        const std::filesystem::path AbsolutePath =
+            std::filesystem::absolute(Path, Error).lexically_normal();
+        if (Error) return false;
+        if (!std::filesystem::is_regular_file(AbsolutePath, Error) || Error) return false;
+
+        const auto FileSize = std::filesystem::file_size(AbsolutePath, Error);
+        if (Error) return false;
+        const auto WriteTime = std::filesystem::last_write_time(AbsolutePath, Error);
+        if (Error) return false;
+
+        // 모든 조회가 성공한 뒤 정수값을 문자열로 보존하고 출력에 반영한다.
+        FStaticMeshSourceFile Source;
+        Source.FilePath = AbsolutePath;
+        Source.FileSize = std::to_string(FileSize);
+        Source.LastWriteTime = std::to_string(WriteTime.time_since_epoch().count());
+        OutSource = std::move(Source);
+        return true;
+    }
+
+    // Import에서 수집한 모든 원본의 상태를 기록하고, 전부 성공하면 결과를 전달한다.
+    bool TryCaptureMeshSourceFiles(const TArray<std::filesystem::path>& Paths,
+        TArray<FStaticMeshSourceFile>& OutSources)
+    {
+        if (Paths.IsEmpty()) return false;
+
+        // 일부 파일만 기록된 목록이 전달되지 않도록 임시 배열에 수집한다.
+        TArray<FStaticMeshSourceFile> Sources;
+        Sources.Reserve(Paths.Num());
+        for (const std::filesystem::path& Path : Paths)
+        {
+            FStaticMeshSourceFile Source;
+            if (!TryReadMeshSourceFile(Path, Source)) return false;
+            Sources.Add(std::move(Source));
+        }
+
+        // OBJ가 첫 항목인 Import 결과의 순서를 그대로 유지한다.
+        OutSources = std::move(Sources);
+        return true;
+    }
+
+    // 캐시가 요청한 OBJ의 것이며 모든 원본 파일 상태가 그대로인지 검사한다.
+    bool AreMeshSourcesCurrent(const FStaticMeshData& MeshData,
+        const std::filesystem::path& ObjPath)
+    {
+        if (ObjPath.empty() || MeshData.SourceFiles.IsEmpty()) return false;
+
+        // 다른 OBJ의 캐시를 잘못 재사용하지 않도록 대표 원본 경로를 비교한다.
+        std::error_code Error;
+        const std::filesystem::path AbsoluteObjPath =
+            std::filesystem::absolute(ObjPath, Error).lexically_normal();
+        if (Error || MeshData.SourceFiles[0].FilePath != AbsoluteObjPath) return false;
+
+        // 파일이 사라졌거나 크기·수정 시각이 하나라도 달라지면 재생성이 필요하다.
+        for (const FStaticMeshSourceFile& SavedSource : MeshData.SourceFiles)
+        {
+            if (!SavedSource.FilePath.is_absolute()) return false;
+
+            FStaticMeshSourceFile CurrentSource;
+            if (!TryReadMeshSourceFile(SavedSource.FilePath, CurrentSource)) return false;
+            if (SavedSource.FileSize != CurrentSource.FileSize ||
+                SavedSource.LastWriteTime != CurrentSource.LastWriteTime)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
     void CheckRenderResourceHR(HRESULT Result, const char* Operation)
     {
         if (FAILED(Result))
@@ -363,38 +451,96 @@ FTextureResource* GResourceManager::GetOrLoadTexture(const FString& FilePath)
 }
 
 // MeshKey - 메시파일 경로 또는 메시 이름
+// 메모리 캐시·바이너리·OBJ 순서로 메시를 확보하고 GPU 리소스를 생성한다.
 UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
 {
-    if (MeshKey.IsNone())
+    if (MeshKey.IsNone()) return nullptr;
+
+    // 이미 생성된 메시가 있으면 파일 접근과 GPU 리소스 생성을 생략한다.
+    if (UStaticMesh** Existing = StaticMeshCache.Find(MeshKey))
     {
-        return nullptr;
+        return *Existing;
     }
 
-    if (UStaticMesh** StaticMesh = StaticMeshCache.Find(MeshKey))
+    // 기존의 직접 경로와 "Cube" 같은 기본 모델 이름을 모두 지원한다.
+    const FString KeyText = MeshKey.ToString();
+    std::filesystem::path ObjPath = File::PathFromUtf8(KeyText);
+    std::error_code Error;
+    if (!std::filesystem::is_regular_file(ObjPath, Error))
     {
-        return *StaticMesh;
+        ObjPath = std::filesystem::path("Assets/Models")
+            / File::PathFromUtf8(KeyText + ".obj");
+        if (!std::filesystem::is_regular_file(ObjPath, Error)) return nullptr;
     }
-    FString FilePath = MeshKey.ToString();
-    if (!std::filesystem::exists(FilePath))
-    {
-        FString ModelPath = "Assets/Models/" + FilePath + ".obj";
-        if (std::filesystem::exists(ModelPath))
-        {
-            FilePath = ModelPath;
-        }
-        else
-        {
-            return nullptr;
-        }
-    }
-    FObjInfo RawData = FObjImporter::Import(FilePath);
-    FStaticMeshData StaticMeshData = FObjImporter::Cook(RawData);
 
-    UStaticMesh* NewStaticMesh = static_cast<UStaticMesh*> (
-        FObjectFactory::ConstructEngineObject(UStaticMesh::GetClass()));
-    NewStaticMesh->BuildFromMeshData(StaticMeshData);
-    StaticMeshCache.Add(MeshKey, NewStaticMesh);
-    return NewStaticMesh;
+    // Import와 캐시 검사가 같은 절대 경로를 기준으로 동작하게 한다.
+    ObjPath = std::filesystem::absolute(ObjPath).lexically_normal();
+    const FString ObjPathText = File::PathToUtf8(ObjPath);
+    const std::filesystem::path CachePath = GetMeshCachePath(ObjPath);
+
+    FStaticMeshData MeshData;
+    bool bLoadedFromBinary = false;
+
+    // 형식 검증과 원본 변경 검사를 모두 통과한 바이너리만 사용한다.
+    if (std::filesystem::is_regular_file(CachePath, Error))
+    {
+        try
+        {
+            FStaticMeshData CachedData = FStaticMeshData::LoadBinary(CachePath);
+            if (!CachedData.Vertices.IsEmpty() && AreMeshSourcesCurrent(CachedData, ObjPath))
+            {
+                MeshData = std::move(CachedData);
+                bLoadedFromBinary = true;
+                UE_LOG("[MeshCache] Hit: {}", ObjPathText);
+            }
+        }
+        catch (const std::exception& Exception)
+        {
+            // 손상되거나 구버전인 캐시는 원본에서 다시 생성한다.
+            UE_LOG("[MeshCache] Read failed: {} ({})", ObjPathText, Exception.what());
+        }
+    }
+
+    if (!bLoadedFromBinary)
+    {
+        // 원본 해석 실패는 기존 호출자에게 전달하고, 캐시 실패와 구분한다.
+        UE_LOG("[MeshCache] Import: {}", ObjPathText);
+        const FObjInfo RawData = FObjImporter::Import(ObjPath);
+        MeshData = FObjImporter::Cook(RawData);
+
+        // 캐시 생성 실패만으로 정상적으로 Cook한 모델의 로딩을 중단하지 않는다.
+        try
+        {
+            if (TryCaptureMeshSourceFiles(RawData.SourceFiles, MeshData.SourceFiles))
+            {
+                MeshData.SaveBinary(CachePath);
+                UE_LOG("[MeshCache] Saved: {}", ObjPathText);
+            }
+            else
+            {
+                UE_LOG("[MeshCache] Save skipped: source state unavailable ({})", ObjPathText);
+            }
+        }
+        catch (const std::exception& Exception)
+        {
+            UE_LOG("[MeshCache] Save failed: {} ({})", ObjPathText, Exception.what());
+        }
+    }
+
+    // GPU 메시의 식별 경로도 이번 요청에서 확정한 원본 경로로 통일한다.
+    MeshData.PathFileName = ObjPathText;
+
+    // 생성 중 실패하면 임시 객체를 정리하고, 완성된 객체만 캐시에 등록한다.
+    std::unique_ptr<UStaticMesh> NewMesh(
+        static_cast<UStaticMesh*>(FObjectFactory::ConstructEngineObject(UStaticMesh::GetClass())));
+    NewMesh->BuildFromMeshData(MeshData);
+    if (!NewMesh->GetMeshResource())
+    {
+        throw std::runtime_error("Failed to create static mesh GPU resource: " + ObjPathText);
+    }
+
+    StaticMeshCache.Add(MeshKey, NewMesh.get());
+    return NewMesh.release();
 }
 
 void GResourceManager::RegisterShader(const FName& Name, const WCHAR* FilePath,
