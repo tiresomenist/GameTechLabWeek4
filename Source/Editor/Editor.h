@@ -65,6 +65,10 @@ private:
 	bool bPrevLDown = false;
 	bool bPrevRDown = false;
 
+	bool bShowStatUnit = false;
+	bool bShowStatMemory = false;
+	bool bShowStatFPS = false;
+
 	void InitializeGizmos();
 	void InitializeWindows();
 	void InitializeGrids();
@@ -72,6 +76,10 @@ private:
 	void ReleaseGizmos();
 	void ReleaseWindows();
 	void ReleaseGrids();
+
+	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
+	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
+	float DrawStatMemory(ImDrawList* DrawList, float X, float Y);
 
 public:
 	virtual ~FEditor() = default;
@@ -169,6 +177,22 @@ public:
 	const TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
 
+	bool IsShowingStatUnit() const { return bShowStatUnit; }
+	void SetShowStatUnit(bool bShow) { bShowStatUnit = bShow; }
+	void ToggleShowStatUnit() { bShowStatUnit = !bShowStatUnit; }
+
+	bool IsShowingStatFPS() const { return bShowStatFPS; }
+	void SetShowStatFPS(bool bShow) { bShowStatFPS = bShow; }
+	void ToggleShowStatFPS() { bShowStatFPS = !bShowStatFPS; }
+
+	bool IsShowingStatMemory() const { return bShowStatMemory; }
+	void SetShowStatMemory(bool bShow) { bShowStatMemory = bShow; }
+	void ToggleShowStatMemory() { bShowStatMemory = !bShowStatMemory; }
+
+	void HideAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = false; }
+	void ShowAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = true; }
+
+	void DrawStatOverlay();
 	// 씬 렌더링 전에 메뉴와 화면 배치를 구성합니다.
 	virtual void DrawMenu();
 
