@@ -149,7 +149,7 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
     bRotationActive |= ImGui::IsItemActive();
     bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
     ImGui::SameLine();
-    bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.0f, 89.0f, "%.3f", PitchFlags);
+    bRotationChanged |= ImGui::DragFloat("##cameraRY", &CameraRotationDegree.Y, 0.1f, -89.9f, 89.9f, "%.3f", PitchFlags);
     bRotationActive |= ImGui::IsItemActive();
     bRotationFinished |= ImGui::IsItemDeactivatedAfterEdit();
     DrawItemBottomLine(IM_COL32(64, 160, 43, 255), 2.0f);
@@ -165,7 +165,7 @@ void UViewportToolbarWindow::DrawProjectionPopup(UCameraComponent* Camera)
         CameraRotationDegree.X = 0.0f;
 
         // 카메라 Pitch를 도 단위로 제한함
-        CameraRotationDegree.Y = std::clamp(CameraRotationDegree.Y, -89.0f, 89.0f);
+        CameraRotationDegree.Y = std::clamp(CameraRotationDegree.Y, -89.9f, 89.9f);
 
         // 도 단위 입력값을 FRotator Setter로 전달함
         Editor->SetCameraRotationDegree(CameraRotationDegree);
