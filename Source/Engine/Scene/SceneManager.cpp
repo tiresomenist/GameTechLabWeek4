@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <memory>
+#include "Core/Util/File.h"
 
 namespace
 {
@@ -30,7 +31,10 @@ namespace
             (Base.starts_with("COM") || Base.starts_with("LPT")) && Base[3] >= '1' && Base[3] <= '9';
         if (Base == "CON" || Base == "PRN" || Base == "AUX" || Base == "NUL" || Numbered)
             throw std::runtime_error("Reserved scene name");
-        return (std::filesystem::path(SceneDirectory) / (Name + ".json")).generic_string();
+        const std::filesystem::path ScenePath = File::PathFromUtf8(SceneDirectory) / File::PathFromUtf8(Name + ".json");
+
+        return File::PathToUtf8(ScenePath);
+
     }
 }
 
@@ -123,7 +127,7 @@ void GSceneManager::InternalLoadScene()
         }
         else if (!NextSceneFile.empty())
         {
-            const std::filesystem::path Path(GetScenePath(NextSceneFile));
+            const std::filesystem::path Path = File::PathFromUtf8(GetScenePath(NextSceneFile));
             Reader = FJsonReader::FromFile(Path);
         }
         else
@@ -140,33 +144,38 @@ void GSceneManager::InternalLoadScene()
         return;
     }
 
-    // 기본 검사를 통과한 뒤 기존 씬을 정리한다.
-    if (CurrentScene)
-    {
-        CurrentScene->EndPlay();
-        delete CurrentScene;
-        CurrentScene = nullptr;
-    }
+
+    const uint32 PreviousNextUUID = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
+    std::unique_ptr<UScene> Candidate;
 
     // 새 씬의 객체를 복원하고 완료된 씬의 플레이를 시작한다.
     try
     {
-        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
-        CurrentScene = NextScene->SceneConstructor();
-        if (CurrentScene == nullptr)
-            throw std::runtime_error("Failed to create scene.");
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, (std::max)(PreviousNextUUID, NextUUID));
+        Candidate.reset(NextScene->SceneConstructor());
+        if (!Candidate){ throw std::runtime_error("Failed to create scene."); }
 
-        CurrentScene->Serialize(*Reader);
-        CurrentScene->BeginPlay();
+        Candidate->Serialize(*Reader);
+        Candidate->BeginPlay();
     }
     catch (const std::exception& Error)
     {
         // 복원 중 실패한 씬을 남기지 않고 정리한다.
-        delete CurrentScene;
-        CurrentScene = nullptr;
-        UE_LOG("[SceneManager] Scene restoration failed: {}", Error.what());
+        if(Candidate){ Candidate->EndPlay(); }
+        Candidate.reset();
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, PreviousNextUUID);
+        UE_LOG("[SceneManager] Scene Create Fail : {}", Error.what());
+        ClearNextScene();
+        return;
     }
 
+    // 다음 씬이 생성된 후에 기존 씬을 정리한다.
+    if (CurrentScene)
+    {
+        CurrentScene->EndPlay();
+        delete CurrentScene;
+    }
+    CurrentScene = Candidate.release();
     ClearNextScene();
 }
 

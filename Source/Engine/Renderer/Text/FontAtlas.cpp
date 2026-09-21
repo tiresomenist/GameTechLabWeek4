@@ -6,6 +6,7 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "ImGui/imstb_truetype.h"
+#include "Core/Util/File.h"
 
 namespace
 {
@@ -17,7 +18,8 @@ namespace
 bool FFontAtlas::Build(ID3D11Device* Device, const FString& TTFPath, float PixelHeight)
 {
     // 1. TTF 파일을 통째로 메모리에 읽는다.
-    std::ifstream File(TTFPath, std::ios::binary | std::ios::ate);
+    const std::filesystem::path FontPath = File::PathFromUtf8(TTFPath);
+    std::ifstream File(FontPath, std::ios::binary | std::ios::ate);
     if (!File.is_open())
         return false;
 

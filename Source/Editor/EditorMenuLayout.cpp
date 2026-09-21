@@ -6,6 +6,7 @@
 #include "Editor/Window/EditorWindow.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_internal.h"
+#include "ImGui/imgui_stdlib.h"
 
 void FEditorMenuLayout::Initialize(FEditor* InEditor)
 {

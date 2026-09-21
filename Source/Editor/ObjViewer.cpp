@@ -389,7 +389,7 @@ void FObjViewer::LoadPreviewMesh(const std::filesystem::path& FilePath)
     FString NewName(Utf8Name.begin(), Utf8Name.end());
 
     // 기존 로더가 사용하는 문자열 경로와 캐시 키를 그대로 사용합니다.
-    const FString PathText = NewPath.string();
+    const FString PathText = File::PathToUtf8(NewPath);
     const FName MeshKey(PathText);
     UStaticMesh* Mesh = GResourceManager::GetInstance()->GetOrLoadStaticMesh(MeshKey);
     if (!Mesh)

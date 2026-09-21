@@ -504,8 +504,8 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
 					if (TexturePath)
 					{
-						const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-						MeshComp->SetOverrideMaterial(FString(RelativePath.generic_string().c_str()), SlotIdx);
+						const std::filesystem::path RelativePath =std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+						MeshComp->SetOverrideMaterial(File::PathToUtf8(RelativePath), SlotIdx);
 					}
 				}
 				ImGui::SameLine();
