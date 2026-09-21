@@ -6,6 +6,7 @@
 #include "Editor/Window/EditorWindow.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_internal.h"
+#include "ImGui/imgui_stdlib.h"
 
 void FEditorMenuLayout::Initialize(FEditor* InEditor)
 {
@@ -27,7 +28,7 @@ void FEditorMenuLayout::Draw()
 
 		// TODO: 다이얼로그 창으로 변경
 		ImGui::PushItemWidth(100.0f);
-		ImGui::InputText("Scene Name", SceneName.data(), SceneName.capacity() + 1);
+		ImGui::InputText("Scene Name", &SceneName);
 		ImGui::PopItemWidth();
 
 		if (ImGui::MenuItem("Save Scene"))
@@ -102,7 +103,7 @@ void FEditorMenuLayout::LoadScene()
 	}
 
 	// 이후 Save Scene이 같은 이름으로 저장되도록 이름 칸도 갱신
-	SceneName = ScenePath->stem().string();
+	SceneName = File::PathToUtf8(ScenePath->stem());
 	Editor->LoadSceneFromPath(*ScenePath);
 }
 

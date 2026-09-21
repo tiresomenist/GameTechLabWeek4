@@ -1,86 +1,78 @@
 workspace "GameTechLabWeek4"
-	configurations { "Debug", "Release" }
+    configurations { "Debug", "Release" }
+    startproject "GameTechlabWeek4"
 
-project "GameTechlabWeek4"
-	kind "WindowedApp"
-	language "C++"
-	cppdialect "C++20"
-	characterset "Unicode"
-	pchheader "pch.h"
-	pchsource "Source/pch.cpp"
+local ProjectRoot = path.getabsolute(".")
 
-	targetdir "bin/%{cfg.buildcfg}"
+-- 실행 프로젝트를 생성하고 공통 빌드 설정을 적용합니다.
+local function ConfigureApplication(ProjectName, OutputDirectory)
+    -- 프로젝트별 실행 파일과 중간 산출물 경로를 설정합니다.
+    project(ProjectName)
+        kind "WindowedApp"
+        language "C++"
+        cppdialect "C++20"
+        characterset "Unicode"
+        targetname(ProjectName)
+        targetdir(OutputDirectory)
+        objdir "obj/%{prj.name}/%{cfg.buildcfg}"
+        debugdir(ProjectRoot)
 
-	-- include는 Source 기준 경로로 쓴다. 같은 폴더의 헤더만 파일 이름으로 쓴다.
-	-- ex. #include "Engine/Renderer/FRenderer.h", #include "Core/Math/FVector.h"
-	-- 의존 방향: Core <- Engine <- Editor
-	includedirs { "./Source/" }
+        -- 기존 소스와 사전 컴파일 헤더를 공통으로 사용합니다.
+        pchheader "pch.h"
+        pchsource "Source/pch.cpp"
+        includedirs { "./Source/" }
+        externalincludedirs { "./ThirdParty/" }
 
-	-- 외부 라이브러리: #include "ImGui/imgui.h", #include "nlohmann/json.hpp"
-	externalincludedirs { "./ThirdParty/" }
+        files {
+            "**.h", "**.cpp", "**.hpp", "**.c",
+            "**.rc", "**.ico", "Assets/**", "Scenes/**"
+        }
+        removefiles { "tests/**", "obj/**", "bin/**" }
 
-	files {
-		"**.h",
-		"**.cpp",
-		"**.hpp",
-		"**.c",
-		"**.rc",
-		"**.ico",
-		"Assets/**",
-		"Scenes/**"
-	}
+        -- 런타임에 사용하는 셰이더와 OBJ 모델은 콘텐츠로 취급합니다.
+        filter "files:**.hlsl"
+            buildaction "None"
+        filter "files:Assets/**.obj"
+            buildaction "None"
+        filter {}
 
-	-- 셰이더는 FRenderer에서 여러 진입점으로 런타임 컴파일한다.
-	-- Visual Studio가 기본 진입점(main)으로 미리 컴파일하지 않도록 콘텐츠로만 취급한다.
-	filter "files:**.hlsl"
-		buildaction "None"
+        -- ImGui 소스는 기존 방식대로 프로젝트 PCH를 사용하지 않습니다.
+        filter "files:**/ImGui/**.cpp"
+            enablepch "Off"
+        filter {}
 
-	filter {}
+        -- 기존 병렬 컴파일, 호출 규약, 인코딩 설정을 유지합니다.
+        multiprocessorcompile "On"
+        filter "toolset:msc*"
+            callingconvention "Cdecl"
+            buildoptions { "/utf-8" }
+        filter {}
 
-	-- 외부 라이브러리 소스는 자체 include 순서를 유지합니다.
-	filter "files:**/ImGui/**.cpp"
-		enablepch "Off"
+        -- Debug 구성에서는 디버깅 심벌을 생성합니다.
+        filter "configurations:Debug"
+            defines { "DEBUG" }
+            symbols "On"
 
-	filter {}
+        -- 기존 Release 최적화 정책을 유지합니다.
+        filter "configurations:Release"
+            defines { "NDEBUG" }
+            optimize "Off"
+            functionlevellinking "Off"
+            intrinsics "Off"
+            stringpooling "Off"
+            linktimeoptimization "Off"
 
-	-- 멀티 프로세싱 컴파일
-	-- 한번에 여러 cpp 파일 컴파일로 컴파일 속도 향상
-	multiprocessorcompile "On"
+        filter { "configurations:Release", "toolset:msc*" }
+            linkoptions { "/OPT:NOREF", "/OPT:NOICF" }
+        filter {}
 
-	filter "toolset:msc*"
-		-- 호출 규약이 팀원마다 다른(?) 기이한 버그 때문에 추가
-		callingconvention "Cdecl"
+        -- 모든 빌드 구성에 공통 라이브러리를 연결합니다.
+        links { "d3d11", "d3dcompiler", "dxgi", "user32" }
+end
 
-		-- 한글 인코딩 문제를 UTF-8로 강제하여 해결
-        buildoptions { "/utf-8" }
-	
-	filter "configurations:Debug"
-		defines { "DEBUG" }
-		symbols "On"
-		
-	filter "configurations:Release"
-		defines { "NDEBUG" }
-		-- Release 빌드에서도 컴파일러/링커 최적화를 사용하지 않는다.
-		-- 최적화된 바이너리가 일부 안티바이러스에서 오진되는 문제를 피하기 위함이다.
-		optimize "Off"
-		functionlevellinking "Off"
-		intrinsics "Off"
-		stringpooling "Off"
-		linktimeoptimization "Off"
+-- 기존 에디터 프로젝트의 이름과 출력 위치를 유지합니다.
+ConfigureApplication("GameTechlabWeek4", "bin/%{cfg.buildcfg}")
 
-	filter { "configurations:Release", "toolset:msc*" }
-		linkoptions { "/OPT:NOREF", "/OPT:NOICF" }
-
-	-- 필터를 해제하여 아래 설정을 모든 구성에 적용한다.
-	filter {}	
-
-	-- 동적 링킹
-	links {
-		"d3d11",			-- DirectX11 
-		"d3dcompiler",		-- DirectX11
-		"dxgi",				-- DirectX11
-		"user32"			-- Win32
-	}
-
-	-- Standalone test entry points are not part of the editor application.
-	removefiles { "tests/**","obj/**", "bin/**" }
+-- Viewer 실행 파일을 별도로 생성하고 전용 빌드 정의를 추가합니다.
+ConfigureApplication("ObjViewer", "bin/ObjViewer/%{cfg.buildcfg}")
+defines { "OBJVIEWER_APP" }

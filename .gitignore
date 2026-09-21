@@ -424,3 +424,6 @@ imgui.ini
 
 editor.ini
 AGENTS.md
+
+
+!Assets/**/*.obj

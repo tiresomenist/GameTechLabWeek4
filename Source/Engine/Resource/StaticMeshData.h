@@ -6,6 +6,9 @@
 #include "Core/Container/Array.h"
 #include "Core/Math/Vector.h"
 #include "Engine/Renderer/VertexSimple.h"
+#include "Engine/Resource/MeshSection.h"
+
+class FArchive;
 
 // Cooked 메시가 사용하는 CPU 재질 데이터.
 // 셰이더·SRV 등 GPU 리소스는 포함하지 않는다.
@@ -26,22 +29,6 @@ struct FStaticMeshObjectInfo
     FString Name;
 };
 
-// TODO:: 해당 구조체 StaticMesh, StaticMeshComponent에서도 참조하므로 위치 바꾸는게 좋아보임
-struct FMeshSection
-{
-    // Indices 배열의 시작 위치. 바이트 단위가 아니다.
-    uint32 FirstIndex = 0;
-
-    // 삼각형 수가 아닌 인덱스 수.
-    uint32 IndexCount = 0;
-
-    // Materials 배열의 인덱스.
-    uint32 MaterialIndex = 0;
-
-    //객체 인덱스
-    int32 ObjectIndex = -1;
-
-};
 
 struct FStaticMeshData
 {
@@ -58,4 +45,12 @@ struct FStaticMeshData
     // 메시 로컬 좌표 기준.
     FVector BoundsMin{};
     FVector BoundsMax{};
+
+    // Archive의 모드에 따라 모든 CPU 메시 데이터를 저장하거나 복원한다.
+    void Serialize(FArchive& Archive);
+    // CPU 메시 데이터를 검사한 뒤 바이너리 파일로 저장한다.
+    void SaveBinary(const std::filesystem::path& Path);
+    // 바이너리 파일을 읽고 검증된 CPU 메시 데이터를 반환한다.
+    static FStaticMeshData LoadBinary(const std::filesystem::path& Path);
+
 };

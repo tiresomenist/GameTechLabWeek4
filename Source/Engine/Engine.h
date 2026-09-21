@@ -8,6 +8,14 @@
 
 class FConsole;
 class FEditor;
+class FObjViewer;
+
+
+enum class EApplicationMode
+{
+	Editor,
+	ObjViewer
+};
 
 struct FUnitData
 {
@@ -36,7 +44,7 @@ class GEngine
 public:
 	static GEngine* GetInstance();
 
-	void Initialize(HWND InHwnd);
+	void Initialize(HWND InHwnd, EApplicationMode Mode);
 
 	void Tick();
 
@@ -53,6 +61,7 @@ public:
 	const FEngineStats& GetEngineStats() const { return EngineStats; };
 
 private:
+	EApplicationMode ApplicationMode = EApplicationMode::Editor;
 	float LastTickTime = 0;
 	float StartTime = 0;
 

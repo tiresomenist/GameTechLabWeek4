@@ -9,6 +9,7 @@
 #include "Engine/Log.h"
 
 #include "Editor/Editor.h"
+#include "Editor/ObjViewer.h"
 #include "Engine/Scene/SceneManager.h"
 #include "Engine/Console.h"
 
@@ -38,8 +39,9 @@ GEngine* GEngine::GetInstance()
 }
 
 // 엔진을 초기 상태로 초기화합니다.
-void GEngine::Initialize(HWND InHwnd)
+void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 {
+    ApplicationMode = Mode;
     try
     {
         // 콘솔 초기화
@@ -64,30 +66,37 @@ void GEngine::Initialize(HWND InHwnd)
         /*
         * 태양계 스폰 시 사용할 텍스처 미리 불러오기
         */
-        ResourceManager.GetOrLoadTexture("Assets/Textures/sun.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/mercury.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/venus.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/earth.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/moon.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/mars.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/jupiter.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/makemake.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/ceres.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/saturn.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/uranus.png");
-        ResourceManager.GetOrLoadTexture("Assets/Textures/neptune.png");
-        
+        if (ApplicationMode == EApplicationMode::Editor)
+        {
+            ResourceManager.GetOrLoadTexture("Assets/Textures/sun.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/mercury.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/venus.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/earth.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/moon.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/mars.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/jupiter.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/makemake.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/ceres.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/saturn.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/uranus.png");
+            ResourceManager.GetOrLoadTexture("Assets/Textures/neptune.png");
+        }
         
 
         // 렌더러 초기화
         Renderer.Create(InHwnd, &Device, ClientWidth, ClientHeight);
-
-        // 씬 매니저 초기화
-        GSceneManager* SceneManager = GSceneManager::GetInstance();
-        SceneManager->Initialize();
-
-        // 에디터 초기화
-        Editor = new FEditor();
+        if (ApplicationMode == EApplicationMode::Editor)
+        {
+            //씬매니저 초기화
+            GSceneManager::GetInstance()->Initialize();
+            Editor = new FEditor();
+        }
+        else if(Mode == EApplicationMode::ObjViewer)
+        {
+            Editor = new FObjViewer();
+        }
+        
+        // 가상함수로 객체별 이니셜라이즈
         Editor->Initialize();
 
         StartTime = GetTime();
@@ -113,9 +122,10 @@ void GEngine::Tick()
 		UE_LOG("[경고] 프레임 업데이트 시간이 100ms를 초과했습니다. 걸린 시간: {:.1f} ms", DeltaTime * 1000);
 	}
 
-	// 게임 로직을 수행합니다.
-	GSceneManager* SceneManager = GSceneManager::GetInstance();
-	SceneManager->Tick(DeltaTime);
+    if (ApplicationMode == EApplicationMode::Editor)
+    {
+        GSceneManager::GetInstance()->Tick(DeltaTime);
+    }
 
 	Editor->Tick(DeltaTime);
 
@@ -141,8 +151,11 @@ void GEngine::Destroy()
 	Editor = nullptr;
 
 	// 씬 매니저 정리
-	GSceneManager* SceneManager = GSceneManager::GetInstance();
-	SceneManager->Release();
+    if (ApplicationMode == EApplicationMode::Editor)
+    {
+        GSceneManager::GetInstance()->Release();
+    }
+
 
 	// GObjectStatics 정리
 	GObjectStatics::Release();

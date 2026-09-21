@@ -783,8 +783,9 @@ namespace
         Vertex.g = Color.Y;
         Vertex.b = Color.Z;
         Vertex.a = Color.W;
+        // 좌표계를 맞춰준다.
         Vertex.u = UV.X;
-        Vertex.v = UV.Y;
+        Vertex.v = 1.0f - UV.Y;
         return Vertex;
     }
 }

@@ -69,8 +69,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     WCHAR WindowClass[] = L"JungleWindowClass";
 
     // 윈도우 타이틀바에 표시될 이름
+#if defined(OBJVIEWER_APP)
+    constexpr EApplicationMode ApplicationMode = EApplicationMode::ObjViewer;
+    WCHAR Title[] = L"PEPE Viewer";
+#else
+    constexpr EApplicationMode ApplicationMode = EApplicationMode::Editor;
     WCHAR Title[] = L"PEPE Engine";
-
+#endif
     // 각종 메시지를 처리할 함수인 WndProc의 함수 포인터를 WindowClass 구조체에 넣는다.
     WNDCLASSW wndclass = { 0, WndProc, 0, 0, 0, 0, 0, 0, 0, WindowClass };
     wndclass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
@@ -92,7 +97,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!hWnd) return EXIT_FAILURE;
     try
     {
-        Engine->Initialize(hWnd);
+        Engine->Initialize(hWnd, ApplicationMode);
 
         // Main Loop (Quit Message가 들어오기 전까지 아래 Loop를 무한히 실행하게 됨)
         bool bIsExit = false;

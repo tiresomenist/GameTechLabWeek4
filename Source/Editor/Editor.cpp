@@ -346,8 +346,8 @@ void FEditor::Tick(float DeltaTime)
 	// 뷰포트 선택
 	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
-		float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
-		float y = bRFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+		const float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
+		const float y = bLFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
 			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
@@ -939,3 +939,45 @@ float FEditor::DrawStatUnit(ImDrawList* DrawList, float X, float Y)
 
 		return Y + 6.0f;
 	}
+// 기존 에디터 메뉴와 도킹 레이아웃을 구성합니다.
+void FEditor::DrawMenu()
+{
+	// 현재 사용 중인 메뉴 레이아웃을 그대로 실행합니다.
+	MenuLayout.Draw();
+}
+
+// 기존 에디터에 등록된 창들을 구성합니다.
+void FEditor::DrawWindows(float DeltaTime)
+{
+	// 기존 렌더러와 동일한 순서로 창을 처리합니다.
+	for (UEditorWindow* Window : Windows)
+	{
+		Window->Render(DeltaTime);
+	}
+}
+
+// 일반 에디터는 전체 출력 영역을 씬 뷰포트로 사용합니다.
+D3D11_VIEWPORT FEditor::GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const
+{
+	// 기존 전체 화면 렌더링 영역을 유지합니다.
+	return FullViewport;
+}
+
+// 일반 에디터는 기존 조작용 기즈모를 표시합니다.
+bool FEditor::ShouldDrawEditorGizmos() const
+{
+	// 기존 렌더러에서 사용하던 기본값을 유지합니다.
+	return true;
+}
+
+// 일반 에디터는 기존 4분할 뷰포트의 렌더링 정보를 반환합니다.
+TArray<FRenderView> FEditor::BuildRenderViews(const D3D11_VIEWPORT& FullViewport) const
+{
+	// 각 뷰포트가 보유한 카메라, 출력 영역, 표시 설정을 그대로 전달합니다.
+	TArray<FRenderView> Views;
+	for (const FViewportClient& Viewport : Viewports)
+	{
+		Views.Add(Viewport.GetRenderView());
+	}
+	return Views;
+}
