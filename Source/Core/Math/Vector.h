@@ -6,6 +6,41 @@
 #include "Core/Core.h"
 struct FVector4; // 전방 선언
 
+struct FVector2
+{
+	float X;
+	float Y;
+
+	static const FVector2 Zero;
+	static const FVector2 One;
+
+	FVector2(float _x = 0.0f, float _y = 0.0f) : X(_x), Y(_y) {}
+
+	FVector2 operator+(const FVector2& rhs) const;
+	FVector2 operator-(const FVector2& rhs) const;
+	FVector2 operator*(float scalar) const;
+	FVector2 operator/(float scalar) const;
+	FVector2 operator*(const FVector2& rhs) const;
+
+	FVector2& operator+=(const FVector2& rhs);
+	FVector2& operator-=(const FVector2& rhs);
+	FVector2& operator*=(float scalar);
+	FVector2& operator/=(float scalar);
+
+	float Dot(const FVector2& rhs) const;
+	bool Equals(const FVector2& other, float Epsilon = EPSILON) const;
+
+	float Length() const;
+	float LengthSquared() const;
+	float Distance(const FVector2& rhs) const;
+
+	FVector2 GetNormalized() const;
+	void Normalize();
+
+	float& operator[](int32 Index);
+	const float& operator[](int32 Index) const;
+};
+
 struct FVector
 {
 	//거의 동일한 값 비교, 디비전 바이 제로 처리 안됨
