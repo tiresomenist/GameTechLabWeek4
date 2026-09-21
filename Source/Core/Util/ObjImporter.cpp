@@ -807,6 +807,7 @@ namespace
     }
 }
 
+// Import 결과를 렌더링용 정점·인덱스·섹션과 CPU 재질 데이터로 변환한다.
 FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
 {
     // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
@@ -826,15 +827,11 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
     }
 
     // 기존 MaterialIndex도 유지되도록 순서대로 복사.
+    Result.Materials.Reserve(Info.Materials.Num());
     for (const FObjMaterialInfo& Source : Info.Materials)
     {
-        FStaticMeshMaterial Material;
-        Material.Name = Source.Name;
-        Material.DiffuseColor = Source.DiffuseColor;
-        Material.Opacity = Source.Opacity;
-        Material.DiffuseTexturePath = Source.DiffuseTexturePath;
-
-        Result.Materials.Add(std::move(Material));
+        // 기반 구조체를 값으로 복사하므로 문자열과 경로도 결과가 직접 소유한다.
+        Result.Materials.Add(static_cast<const FStaticMeshMaterial&>(Source));
     }
     std::unordered_map<FVertexKey, uint32, FVertexKeyHash> VertexLookup;
     Result.Indices.Reserve(static_cast<size_t>(Info.Triangles.Num()) * 3);
