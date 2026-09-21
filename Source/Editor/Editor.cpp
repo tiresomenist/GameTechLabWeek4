@@ -331,8 +331,8 @@ void FEditor::InitializeGizmos()
 
 void FEditor::InitializeWindows()
 {
-	RegisterWindow(UConsoleWindow::GetClass(), "Console");
 	RegisterWindow(UAssetBrowserWindow::GetClass(), "Asset Browser");
+	RegisterWindow(UConsoleWindow::GetClass(), "Console");
 	RegisterWindow(UDebugWindow::GetClass(), "Debug");
 	RegisterWindow(UPropertyWindow::GetClass(), "Properties");
 	RegisterWindow(UPlaceActorWindow::GetClass(), "Place Actors");

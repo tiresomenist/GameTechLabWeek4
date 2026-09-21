@@ -150,8 +150,8 @@ void FEditorMenuLayout::BuildDefaultLayout(bool bReset)
 		ConsoleNode->LocalFlags |= ImGuiDockNodeFlags_NoCloseButton;
 		ConsoleNode->UpdateMergedFlags();
 	}
-	ImGui::DockBuilderDockWindow("Console", ConsoleID);
 	ImGui::DockBuilderDockWindow("Asset Browser", ConsoleID);
+	ImGui::DockBuilderDockWindow("Console", ConsoleID);
 	ImGui::DockBuilderDockWindow("Debug", ConsoleID);
 
 	if (ImGuiDockNode* SceneNode = ImGui::DockBuilderGetNode(SceneID))
