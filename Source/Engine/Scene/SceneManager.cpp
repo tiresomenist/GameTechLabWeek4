@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <memory>
+#include "Core/Util/File.h"
 
 namespace
 {
@@ -30,7 +31,10 @@ namespace
             (Base.starts_with("COM") || Base.starts_with("LPT")) && Base[3] >= '1' && Base[3] <= '9';
         if (Base == "CON" || Base == "PRN" || Base == "AUX" || Base == "NUL" || Numbered)
             throw std::runtime_error("Reserved scene name");
-        return (std::filesystem::path(SceneDirectory) / (Name + ".json")).generic_string();
+        const std::filesystem::path ScenePath = File::PathFromUtf8(SceneDirectory) / File::PathFromUtf8(Name + ".json");
+
+        return File::PathToUtf8(ScenePath);
+
     }
 }
 
@@ -123,7 +127,7 @@ void GSceneManager::InternalLoadScene()
         }
         else if (!NextSceneFile.empty())
         {
-            const std::filesystem::path Path(GetScenePath(NextSceneFile));
+            const std::filesystem::path Path = File::PathFromUtf8(GetScenePath(NextSceneFile));
             Reader = FJsonReader::FromFile(Path);
         }
         else
@@ -151,8 +155,8 @@ void GSceneManager::InternalLoadScene()
         Candidate.reset(NextScene->SceneConstructor());
         if (!Candidate){ throw std::runtime_error("Failed to create scene."); }
 
-        CurrentScene->Serialize(*Reader);
-        CurrentScene->BeginPlay();
+        Candidate->Serialize(*Reader);
+        Candidate->BeginPlay();
     }
     catch (const std::exception& Error)
     {
