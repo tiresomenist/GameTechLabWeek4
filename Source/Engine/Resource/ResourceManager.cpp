@@ -861,6 +861,13 @@ void GResourceManager::RegisterDefaultRenderResources()
 
     RegisterSampler(FName("LinearClamp"), SamplerDesc);
 
+    // 필터와 LOD 설정을 공유하고 주소 지정 방식만 Wrap으로 변경한다.
+    D3D11_SAMPLER_DESC WrapSamplerDesc = SamplerDesc;
+    WrapSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    RegisterSampler(FName("LinearWrap"), WrapSamplerDesc);
+
     D3D11_SAMPLER_DESC FontSamplerDesc{};
     FontSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     FontSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
