@@ -2,6 +2,7 @@
 #include "StaticMesh.h"
 #include "ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
+#include "Core/Util/File.h"
 
 UStaticMesh::~UStaticMesh()
 {
@@ -19,7 +20,7 @@ void UStaticMesh::BuildFromMeshData(const FStaticMeshData& MeshData)
     for (const FStaticMeshMaterial CPUMaterial : MeshData.Materials)
     {
         ID3D11ShaderResourceView* SRV = nullptr;
-        FString TexturePath = CPUMaterial.DiffuseTexturePath.generic_string();
+        FString TexturePath = File::PathToUtf8(CPUMaterial.DiffuseTexturePath);
         if (!CPUMaterial.DiffuseTexturePath.empty())
         {
             if (FTextureResource* Tex = RM->GetOrLoadTexture(TexturePath))
