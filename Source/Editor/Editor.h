@@ -21,6 +21,7 @@
 #include "Core/Name/Name.h"
 #include "Engine/Renderer/ViewRenderer.h"
 #include "Engine/Renderer/ViewportClient.h"
+#include "Editor/UI/Splitter.h"
 #include <d3d11.h>
 
 class USceneComponent;
@@ -57,6 +58,9 @@ private:
 	TArray<FViewportClient> Viewports;
 	uint32 CurrEditedViewportIndex = 0;
 
+	// 스플리터
+	SSplitter* RootSplitter = nullptr;
+
 	//예외처리용 초기화 여부
 	bool bInitialized = false;
 	bool bCanSaveEditorSettings = false;
@@ -77,6 +81,7 @@ private:
 	void ReleaseGizmos();
 	void ReleaseWindows();
 	void ReleaseGrids();
+	void ReleaseRootSplitter();
 
 	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
 	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
@@ -176,8 +181,12 @@ public:
 	// 뷰포트 사이즈 설정용 함수
 	void OnResize(uint32 Width, uint32 Height, uint32 Left = 0, uint32 Top = 0);
 
-	const TArray<FViewportClient>& GetViewports();
+	TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
+
+
+	// 스플리터
+	SSplitter* GetSplitter() const { return RootSplitter; }
 
 	bool IsShowingStatUnit() const { return bShowStatUnit; }
 	void SetShowStatUnit(bool bShow) { bShowStatUnit = bShow; }
@@ -195,6 +204,7 @@ public:
 	void ShowAllStats() { bShowStatFPS = bShowStatUnit = bShowStatMemory = true; }
 
 	void DrawStatOverlay();
+
 	// 씬 렌더링 전에 메뉴와 화면 배치를 구성합니다.
 	virtual void DrawMenu();
 
