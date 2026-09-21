@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include "Core/Util/File.h"
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -375,10 +377,10 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
         return *StaticMesh;
     }
     FString FilePath = MeshKey.ToString();
-    if (!std::filesystem::exists(FilePath))
+    if (!std::filesystem::exists(File::PathFromUtf8(FilePath)))
     {
         FString ModelPath = "Assets/Models/" + FilePath + ".obj";
-        if (std::filesystem::exists(ModelPath))
+        if (std::filesystem::exists(File::PathFromUtf8(ModelPath)))
         {
             FilePath = ModelPath;
         }
@@ -387,7 +389,7 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
             return nullptr;
         }
     }
-    FObjInfo RawData = FObjImporter::Import(FilePath);
+    FObjInfo RawData = FObjImporter::Import(File::PathFromUtf8(FilePath));
     FStaticMeshData StaticMeshData = FObjImporter::Cook(RawData);
 
     UStaticMesh* NewStaticMesh = static_cast<UStaticMesh*> (
