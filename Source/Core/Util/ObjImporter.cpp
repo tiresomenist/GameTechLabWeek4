@@ -337,7 +337,44 @@ namespace
         }
         Info.SourceFiles.Add(AbsolutePath);
     }
+    
+    // 다음 토큰 전체가 실수 형식일 때만 선택 성분으로 읽는다.
+    bool TryTakeTextureFloat(FStringView& Text, const std::filesystem::path& Path,
+        size_t LineNumber, float& OutValue)
+    {
+        // 파일명이나 다음 옵션이면 원본 읽기 위치를 유지한다.
+        FStringView Remaining = Text;
+        const FStringView Token = TakeToken(Remaining);
+        FStringView Probe = Token;
+        if (!Probe.empty() && Probe.front() == '+') Probe.remove_prefix(1);
+        if (Probe.empty()) return false;
 
+        // 숫자 일부로 시작하는 파일명은 전체 숫자로 취급하지 않는다.
+        float Ignored = 0.0f;
+        const char* Begin = Probe.data();
+        const char* End = Begin + Probe.size();
+        const auto Parsed = std::from_chars(Begin, End, Ignored);
+        if (Parsed.ptr != End ||
+            (Parsed.ec != std::errc{} && Parsed.ec != std::errc::result_out_of_range))
+            return false;
+
+        // 범위 초과와 NaN·무한대 검사는 기존 숫자 파서에 맡긴다.
+        OutValue = ReadNumber<float>(Token, Path, LineNumber);
+        Text = Remaining;
+        return true;
+    }
+
+    // 필수 u와 선택 v·w를 읽고 생략된 성분은 지정된 기본값으로 유지한다.
+    FVector TakeTextureVector(FStringView& Text, const std::filesystem::path& Path,
+        size_t LineNumber, FVector Defaults)
+    {
+        // 첫 성분은 반드시 필요하며, 이후 성분은 숫자가 있을 때만 소비한다.
+        Defaults.X = TakeFloat(Text, Path, LineNumber);
+        if (TryTakeTextureFloat(Text, Path, LineNumber, Defaults.Y))
+            TryTakeTextureFloat(Text, Path, LineNumber, Defaults.Z);
+        return Defaults;
+    }
+    
     // 텍스처 선언의 옵션과 파일 경로를 읽어 지정된 맵에 저장한다.
     void ReadTextureMap(FStringView Line, const std::filesystem::path& Path,
         size_t LineNumber, std::filesystem::path& OutPath,
@@ -357,6 +394,16 @@ namespace
                 if (Value == "on") Options.bClamp = true;
                 else if (Value == "off") Options.bClamp = false;
                 else ParseError(Path, LineNumber, "Expected on or off after -clamp");
+            }
+            else if (Option == "-o")
+            {
+                // 이동량의 생략된 성분은 0으로 채운다.
+                Options.Offset = TakeTextureVector(Line, Path, LineNumber, FVector{});
+            }
+            else if (Option == "-s")
+            {
+                // 배율의 생략된 성분은 1로 채운다.
+                Options.Scale = TakeTextureVector(Line, Path, LineNumber, FVector{ 1.0f, 1.0f, 1.0f });
             }
             else if (Option == "-bm")
             {

@@ -19,8 +19,9 @@ namespace
     // 버전 7부터 범프·노멀·변위 텍스처 경로를 저장한다.
     // 버전 8부터 각 텍스처 맵의 Clamp 옵션을 저장한다.
     // 버전 9부터 텍스처 옵션에 범프 배율을 저장한다.
+    // 버전 10부터 각 텍스처 맵의 좌표 이동과 배율을 저장한다.
 
-    constexpr uint32 MeshVersion = 9;
+    constexpr uint32 MeshVersion = 10;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -111,6 +112,9 @@ namespace
 
         Archive.Field("Clamp", Options.bClamp);
         Archive.Field("BumpMultiplier", Options.BumpMultiplier);
+        SerializeVector(Archive, "Offset", Options.Offset);
+        SerializeVector(Archive, "Scale", Options.Scale);
+
         Archive.EndObject();
     }
     // CPU 머티리얼의 수치와 용도별 텍스처 경로를 저장하거나 복원한다.
@@ -269,7 +273,9 @@ namespace
 bool FStaticMeshTextureOptions::HasValidNumericValues() const
 {
     // 원본 배율은 유지하면서 연산에 사용할 수 없는 값만 거부한다.
-    return std::isfinite(BumpMultiplier);
+    return std::isfinite(BumpMultiplier)
+        && IsFiniteVector(Offset)
+        && IsFiniteVector(Scale);
 }
 // 머티리얼 색상과 수치가 유한하며 기본적인 의미 범위를 만족하는지 검사한다.
 bool FStaticMeshMaterial::HasValidNumericValues() const
@@ -308,7 +314,7 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 149, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 365, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);
