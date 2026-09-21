@@ -5,7 +5,12 @@ class SSplitter :
     public SWindow
 {
 public:
-    //virtual void UpdateLayout();
+
+    virtual ~SSplitter() 
+    {
+        delete SideLT;
+        delete SideRB;
+    }
 
     SWindow* SideLT;    // Left or Top
     SWindow* SideRB;    // Right or Bottom

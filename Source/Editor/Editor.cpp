@@ -448,8 +448,6 @@ void FEditor::Tick(float DeltaTime)
 		GizmoController->ChangeMod();
 	}
 
-	
-
 	bPrevLDown = bLDown;
 	bPrevRDown = bRDown;
 }
@@ -485,6 +483,7 @@ void FEditor::Release()
 	ReleaseGizmos();
 	ReleaseWindows();
 	ReleaseGrids();
+	ReleaseRootSplitter();
 }
 
 void FEditor::ReleaseGizmos()
@@ -514,6 +513,12 @@ void FEditor::ReleaseGrids()
 		delete Grid;
 	}
 	Grids.Empty();
+}
+
+void FEditor::ReleaseRootSplitter()
+{
+	if (RootSplitter) delete RootSplitter;
+	RootSplitter = nullptr;
 }
 
 void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)

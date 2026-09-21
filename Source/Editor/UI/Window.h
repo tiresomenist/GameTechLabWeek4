@@ -7,6 +7,8 @@
 class SWindow
 {
 public:
+	virtual ~SWindow() = default;
+
 	bool IsHover(const FPoint& coord) const;
 	virtual void UpdateLayout(const FRect& InRect);
 

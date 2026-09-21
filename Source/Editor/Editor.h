@@ -75,6 +75,7 @@ private:
 	void ReleaseGizmos();
 	void ReleaseWindows();
 	void ReleaseGrids();
+	void ReleaseRootSplitter();
 
 public:
 
