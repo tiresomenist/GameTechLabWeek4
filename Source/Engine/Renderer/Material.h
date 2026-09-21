@@ -2,6 +2,7 @@
 
 #include <d3d11.h>
 #include "Core/Core.h"
+#include "Core/Container/String.h"
 
 struct FShaderResource;
 

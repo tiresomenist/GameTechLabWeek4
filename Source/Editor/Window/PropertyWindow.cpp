@@ -475,21 +475,48 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
 		ImGui::SetNextItemWidth(150.0f);
 		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
-		std::string CurrentTexPath = MeshComp->GetMaterialPath().c_str();
-		ImGui::SetNextItemWidth(150.0f);
-		if (ImGui::InputText("Texture Path", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue)) MeshComp->SetOverrideMaterial(FString(CurrentTexPath.c_str()));
-		ImGui::SameLine();
-		if (ImGui::Button("Browse..."))
+		UStaticMesh* Mesh = MeshComp->GetStaticMesh();
+		uint32 NumSlots = Mesh ? static_cast<uint32>(Mesh->GetDefaultMeshMaterials().Num()) : 0;
+
+		if (NumSlots == 0)
 		{
-			const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
-			const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
-			if (TexturePath)
-			{
-				const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-				MeshComp->SetOverrideMaterial(FString(RelativePath.generic_string().c_str()));
-			}
+			ImGui::TextDisabled("No material slots available.");
 		}
-		ImGui::TextDisabled("Type texture path and press Enter.");
+		else
+		{
+			ImGui::SeparatorText("Material Slots");
+			for (uint32 SlotIdx = 0; SlotIdx < NumSlots; ++SlotIdx)
+			{
+				ImGui::PushID(static_cast<int>(SlotIdx));
+				std::string CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
+
+				ImGui::Text("Slot [%u]", SlotIdx);
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(150.0f);
+				if (ImGui::InputText("##TexturePath", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
+				{
+					MeshComp->SetOverrideMaterial(FString(CurrentTexPath.c_str()), SlotIdx);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Browse..."))
+				{
+					const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
+					const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
+					if (TexturePath)
+					{
+						const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+						MeshComp->SetOverrideMaterial(FString(RelativePath.generic_string().c_str()), SlotIdx);
+					}
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Reset"))
+				{
+					MeshComp->SetOverrideMaterial("", SlotIdx);
+				}
+				ImGui::PopID();
+			}
+			ImGui::TextDisabled("Press Enter to apply path, or Reset to default.");
+		}
 	}
 
 	if (InspectedComponent->IsA(USpotLightComponent::GetClass()) &&

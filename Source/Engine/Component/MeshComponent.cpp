@@ -47,12 +47,11 @@ const FString& UMeshComponent::GetMaterialPath(uint32 MaterialSlot) const
 {
 	static const FString EmptyString = "";
 	const FMaterial* Mat = GetMaterial(MaterialSlot);
-	if (!Mat)
+	if (Mat)
 	{
-		return OverrideMaterialList[MaterialSlot]->TexturePath;
+		return Mat->TexturePath;
 	}
-	else
-		return EmptyString;
+	return EmptyString;
 }
 const FMaterial* UMeshComponent::GetMaterial(uint32 MaterialSlot) const
 {
@@ -62,4 +61,9 @@ const FMaterial* UMeshComponent::GetMaterial(uint32 MaterialSlot) const
 	}
 	else
 		return nullptr;
+}
+
+void UMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected)
+{
+	return;
 }

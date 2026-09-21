@@ -20,8 +20,8 @@ public:
     const FName& GetStaticMeshKey() const { return MeshKey; }
     //const FString& GetMaterialPath() const { return MaterialPath; }
     //const FMaterial* GetMaterial(uint32 MaterialSlot) { return MaterialList[MaterialSlot]; }
-    virtual const FString& GetMaterialPath(uint32 MaterialSlot) const override;
-    virtual const FMaterial* GetMaterial(uint32 MaterialSlot) const override;
+    virtual const FString& GetMaterialPath(uint32 MaterialSlot = 0) const override;
+    virtual const FMaterial* GetMaterial(uint32 MaterialSlot = 0) const override;
 
     UStaticMesh* GetStaticMesh() const;
 
@@ -33,5 +33,4 @@ public:
 
 private:
     FName MeshKey;
-    TArray<FMaterial*> MaterialList;
 };

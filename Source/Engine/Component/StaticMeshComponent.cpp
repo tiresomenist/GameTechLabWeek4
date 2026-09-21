@@ -12,7 +12,7 @@ void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 		UStaticMesh* Mesh = nullptr;
 		if (Mesh = GResourceManager::GetInstance()->GetOrLoadStaticMesh(MeshKey))
 		{
-			MaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
+			OverrideMaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
 		}
 	}
 }

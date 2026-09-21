@@ -82,6 +82,7 @@ inline FResolvedSceneType ResolveSceneType(const FName& TypeName)
         TypeName == MeshNames.Triangle ||
         TypeName == MeshNames.Pepe ||
         TypeName == MeshNames.Octopus ||
+        TypeName == MeshNames.Test1 ||
         TypeName == MeshNames.ArrowRed ||
         TypeName == MeshNames.ArrowGreen ||
         TypeName == MeshNames.ArrowBlue;

@@ -22,7 +22,8 @@ namespace MeshSelection
             { Names.Plane,    "Plane" },
             { Names.Triangle,"Triangle" },
             { Names.Pepe,     "Pepe" },
-            { Names.Octopus,  "Octopus" }
+            { Names.Octopus,  "Octopus" },
+            { Names.Test1,    "test1" }
         };
 
         return Entries;

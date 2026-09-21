@@ -16,8 +16,8 @@ public:
     void SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot);
     void SetOverrideMaterial(const FString& InMaterialPath, uint32 MaterialSlot = 0);
 
-    virtual const FString& GetMaterialPath(uint32 MaterialSlot) const;
-    virtual const FMaterial* GetMaterial(uint32 MaterialSlot) const;
+    virtual const FString& GetMaterialPath(uint32 MaterialSlot = 0) const;
+    virtual const FMaterial* GetMaterial(uint32 MaterialSlot = 0) const;
     
     virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
 

@@ -10,6 +10,7 @@ struct FMeshNames
     const FName Triangle{ "Triangle" };
     const FName Pepe{ "Pepe" };
     const FName Octopus{ "Octopus" };
+    const FName Test1{ "test1" };
 
     const FName Flame{ "Flame" };
     const FName SpotLightIcon{ "SpotLightIcon" };
