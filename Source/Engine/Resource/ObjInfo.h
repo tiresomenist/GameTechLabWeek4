@@ -28,15 +28,15 @@ struct FObjTriangle
     // Objects 배열의 인덱스.
     int32 ObjectIndex = -1;
 
-    // -1이면 재질 미지정.
+    // -1이면 머티리얼 미지정.
     int32 MaterialIndex = -1;
 
     // 0이면 smoothing off.
     uint32 SmoothingGroup = 0;
 };
 
-// MTL에서 읽은 CPU 재질 정보.
-// 공통 CPU 재질 데이터에 MTL 파싱 중 필요한 정의 여부를 추가한다.
+// MTL에서 읽은 CPU 머티리얼 정보.
+// 공통 CPU 머티리얼 데이터에 MTL 파싱 중 필요한 정의 여부를 추가한다.
 struct FObjMaterialInfo : FStaticMeshMaterial
 {
     //그외필드는 FStaticMeshMaterial 확인할것.

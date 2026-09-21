@@ -16,7 +16,8 @@ namespace
     // 버전 3부터 추가된 MTL 색상·정반사 지수·굴절률·조명 모델을 저장한다.
     // 버전 4부터 Ka·Ks·Ke·Ns·Ni·illum의 실제 파싱 결과를 저장한다.
     // 버전 5부터 MTL의 불투명도 텍스처 경로를 저장한다.
-    constexpr uint32 MeshVersion = 5;
+    // 버전 7부터 범프·노멀·변위 텍스처 경로를 저장한다.
+    constexpr uint32 MeshVersion = 7;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -88,7 +89,7 @@ namespace
         Archive.Field("V", Vertex.v);
     }
 
-    // 섹션의 인덱스 범위와 재질 및 객체 참조를 처리한다.
+    // 섹션의 인덱스 범위와 머티리얼 및 객체 참조를 처리한다.
     void SerializeSection(FArchive& Archive, FMeshSection& Section)
     {
         // 현재 Cook이 생성하는 섹션 필드를 같은 순서로 유지한다.
@@ -98,10 +99,10 @@ namespace
         Archive.Field("ObjectIndex", Section.ObjectIndex);
     }
 
-    // CPU 재질의 이름, 색상, 불투명도, 텍스처 경로를 처리한다.
+    // CPU 머티리얼의 수치와 용도별 텍스처 경로를 저장하거나 복원한다.
     void SerializeMaterial(FArchive& Archive, FStaticMeshMaterial& Material)
     {
-        // 기존 재질 필드는 원래 순서대로 처리한다.
+        // 기존 머티리얼 필드는 원래 순서대로 처리한다.
         Archive.Field("Name", Material.Name);
         SerializeVector(Archive, "DiffuseColor", Material.DiffuseColor);
         Archive.Field("Opacity", Material.Opacity);
@@ -117,6 +118,14 @@ namespace
 
         // 이미지 대신 UTF-8 경로를 보존하며 기존 경로 직렬화를 재사용한다.
         SerializePath(Archive, "OpacityTexturePath", Material.OpacityTexturePath);
+        SerializePath(Archive, "AmbientTexturePath", Material.AmbientTexturePath);
+        SerializePath(Archive, "SpecularTexturePath", Material.SpecularTexturePath);
+        SerializePath(Archive, "EmissiveTexturePath", Material.EmissiveTexturePath);
+        SerializePath(Archive, "SpecularExponentTexturePath", Material.SpecularExponentTexturePath);
+        SerializePath(Archive, "BumpTexturePath", Material.BumpTexturePath);
+        SerializePath(Archive, "NormalTexturePath", Material.NormalTexturePath);
+        SerializePath(Archive, "DisplacementTexturePath", Material.DisplacementTexturePath);
+
 
     }
 
@@ -226,7 +235,7 @@ namespace
         if (ExpectedFirstIndex != IndexCount)
             throw std::runtime_error("Mesh sections do not cover all indices.");
 
-        // 재질 수치는 검사하지만 텍스처 파일을 실제로 로드하지는 않는다.
+        // 머티리얼 수치는 검사하지만 텍스처 파일을 실제로 로드하지는 않는다.
         for (const FStaticMeshMaterial& Material : Data.Materials)
         {
             if (!Material.HasValidNumericValues())
@@ -235,7 +244,7 @@ namespace
     }
 }
 
-// 재질의 색상과 수치가 유한하며 기본적인 의미 범위를 만족하는지 검사한다.
+// 머티리얼 색상과 수치가 유한하며 기본적인 의미 범위를 만족하는지 검사한다.
 bool FStaticMeshMaterial::HasValidNumericValues() const
 {
     // 색상은 기존 벡터 검사를 재사용하고, 원본 보존을 위해 0~1로 제한하지 않는다.
@@ -260,7 +269,7 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 76, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 104, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);
