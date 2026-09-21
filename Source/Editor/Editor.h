@@ -171,7 +171,7 @@ public:
 	// 뷰포트 사이즈 설정용 함수
 	void OnResize(uint32 Width, uint32 Height, uint32 Left = 0, uint32 Top = 0);
 
-	const TArray<FViewportClient>& GetViewports();
+	TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
 
 	// 스플리터

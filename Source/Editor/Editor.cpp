@@ -732,7 +732,7 @@ void FEditor::OnResize(uint32 Width, uint32 Height, uint32 Left, uint32 Top)
 	}
 }
 
-const TArray<FViewportClient>& FEditor::GetViewports()
+TArray<FViewportClient>& FEditor::GetViewports()
 {
 	return Viewports;
 }
