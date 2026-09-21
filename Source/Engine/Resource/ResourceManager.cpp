@@ -531,7 +531,7 @@ FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV)
 FMaterial GResourceManager::CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV, const FString& InTexturePath) const
 {
     static const FName ShaderName("Mesh.StaticMesh");
-    static const FName SamplerName("LinearClamp");
+    static const FName SamplerName("LinearWrap");
 
     FMaterial Material{};
     Material.SRV = SRV;
@@ -714,6 +714,17 @@ void GResourceManager::RegisterDefaultRenderResources()
     SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
     RegisterSampler(FName("LinearClamp"), SamplerDesc);
+
+    D3D11_SAMPLER_DESC WrapSamplerDesc{};
+    WrapSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    WrapSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    WrapSamplerDesc.MinLOD = 0.0f;
+    WrapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    RegisterSampler(FName("LinearWrap"), WrapSamplerDesc);
 
     D3D11_SAMPLER_DESC FontSamplerDesc{};
     FontSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
