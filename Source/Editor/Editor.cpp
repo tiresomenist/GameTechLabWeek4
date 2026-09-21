@@ -364,6 +364,7 @@ void FEditor::Tick(float DeltaTime)
 	ImVec2 MousePos = IO.MousePos;
 	FPoint MouseCoord{ MousePos.x, MousePos.y };
 	
+	bool bIsLeftClick = Input.ConsumeLeftClick();
 
 	if (RootSplitter)
 	{
@@ -371,7 +372,7 @@ void FEditor::Tick(float DeltaTime)
 	}
 
 	// 스플리터 클릭시 클릭소모
-	if (Input.ConsumeLeftClick() && !IO.WantCaptureMouse)
+	if (!IO.WantCaptureMouse && bIsLeftClick)
 	{
 		if (RootSplitter && RootSplitter->OnMouseDown(MouseCoord))
 		{
@@ -390,7 +391,7 @@ void FEditor::Tick(float DeltaTime)
 	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
 		float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
-		float y = bRFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
+		float y = bLFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
 		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
 			if (Viewports[i].IsMouseInside(x, y) && CurrEditedViewportIndex != i)
@@ -403,7 +404,7 @@ void FEditor::Tick(float DeltaTime)
 		}
 	}
 
-	if (Input.ConsumeLeftClick() &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
+	if (bIsLeftClick &&!bWasDragging &&!bWantToCaptureMouse &&!Input.GetKey(GInputManager::EI_RMOUSE))
 	{
 		D3D11_VIEWPORT currViewport = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
 		int32 SelectedGizmo = GizmoPicker->Pick(ObjectAxisGizmo, currViewport);
