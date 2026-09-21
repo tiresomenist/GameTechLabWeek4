@@ -173,3 +173,8 @@ void FJsonWriter::SaveToFile(FStringView Path) const
     // 기존 임시 파일 작성 후 교체 저장 방식을 재사용한다.
     File::WriteText(Path, ToString());
 }
+
+void FJsonWriter::SaveToFilePath(const std::filesystem::path& Path) const
+{
+    File::WriteTextToPath(Path, ToString());
+}

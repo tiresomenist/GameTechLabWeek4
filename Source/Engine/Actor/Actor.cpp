@@ -4,6 +4,7 @@
 #include "Engine/Object/ClassType.h"
 #include "Engine/Object/ObjectFactory.h"
 #include "Engine/Component/SceneComponent.h"
+#include "Core/Serialization/Archive.h"
 
 UActorComponent* AActor::CreateComponent(FClassType* Type, uint32 UUID)
 {
@@ -189,6 +190,19 @@ void AActor::EndPlay()
         Component->EndPlay();
     }
     bHasBegunPlay = false;
+}
+
+void AActor::Serialize(FArchive& Archive)
+{
+	Super::Serialize(Archive);
+
+    bool bVisibleValue = bVisible;
+	Archive.OptionalField("bVisible", bVisibleValue);
+
+    if (Archive.IsLoading())
+    {
+		bVisible = bVisibleValue;
+    }
 }
 
 void AActor::ReleaseComponents()

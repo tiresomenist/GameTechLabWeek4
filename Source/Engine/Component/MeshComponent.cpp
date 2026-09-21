@@ -5,12 +5,6 @@
 #include "Engine\Resource\TextureResource.h"
 #include "MeshComponent.h"
 
-void UMeshComponent::Serialize(FArchive& Archive)
-{
-	Super::Serialize(Archive);
-	Archive.OptionalField("bIsVisible", bIsVisible);
-}
-
 void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
 	if (MaterialSlot >= static_cast<uint32>(OverrideMaterialList.Num()))
