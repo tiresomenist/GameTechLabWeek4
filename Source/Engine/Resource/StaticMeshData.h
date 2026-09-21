@@ -10,6 +10,14 @@
 
 class FArchive;
 
+
+struct FStaticMeshTextureOptions
+{
+    // -clamp on이면 true, off 또는 미지정이면 false로 보관한다.
+    // mtl 파일에선 clamp에 대해서만 on/off를 정함. 즉 미러나 보더 등의 다른 샘플러 상태는 여기서는 고려하지않음
+    bool bClamp = false;
+};
+
 // Cooked 메시가 사용하는 CPU 머티리얼 데이터.
 // 셰이더·SRV 등 GPU 리소스는 포함하지 않는다.
 // TODO:: 해당 구조체 FMaterial을 직렬화 해서 신정보에 저장할 때 필요할 수도 있음
@@ -29,6 +37,17 @@ struct FStaticMeshMaterial
     std::filesystem::path BumpTexturePath;
     std::filesystem::path NormalTexturePath;
     std::filesystem::path DisplacementTexturePath;
+
+    // 각 텍스처 맵은 서로 독립적인 옵션을 가진다.
+    FStaticMeshTextureOptions DiffuseTextureOptions;
+    FStaticMeshTextureOptions OpacityTextureOptions;
+    FStaticMeshTextureOptions AmbientTextureOptions;
+    FStaticMeshTextureOptions SpecularTextureOptions;
+    FStaticMeshTextureOptions EmissiveTextureOptions;
+    FStaticMeshTextureOptions SpecularExponentTextureOptions;
+    FStaticMeshTextureOptions BumpTextureOptions;
+    FStaticMeshTextureOptions NormalTextureOptions;
+    FStaticMeshTextureOptions DisplacementTextureOptions;
 
     // MTL의 Ka·Ks·Ke 값을 각각 보관한다.
     FVector AmbientColor{};

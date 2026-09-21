@@ -17,7 +17,9 @@ namespace
     // 버전 4부터 Ka·Ks·Ke·Ns·Ni·illum의 실제 파싱 결과를 저장한다.
     // 버전 5부터 MTL의 불투명도 텍스처 경로를 저장한다.
     // 버전 7부터 범프·노멀·변위 텍스처 경로를 저장한다.
-    constexpr uint32 MeshVersion = 7;
+    // 버전 8부터 각 텍스처 맵의 Clamp 옵션을 저장한다.
+
+    constexpr uint32 MeshVersion = 8;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -98,7 +100,17 @@ namespace
         Archive.Field("MaterialIndex", Section.MaterialIndex);
         Archive.Field("ObjectIndex", Section.ObjectIndex);
     }
+    // 텍스처 맵 하나의 옵션을 저장하거나 복원한다.
+    void SerializeTextureOptions(FArchive& Archive, const char* Name,
+        FStaticMeshTextureOptions& Options)
+    {
+        // 맵별 옵션을 이름이 있는 객체로 묶고 필수 필드로 처리한다.
+        if (!Archive.BeginObject(Name))
+            throw std::runtime_error("Missing mesh texture options.");
 
+        Archive.Field("Clamp", Options.bClamp);
+        Archive.EndObject();
+    }
     // CPU 머티리얼의 수치와 용도별 텍스처 경로를 저장하거나 복원한다.
     void SerializeMaterial(FArchive& Archive, FStaticMeshMaterial& Material)
     {
@@ -126,7 +138,16 @@ namespace
         SerializePath(Archive, "NormalTexturePath", Material.NormalTexturePath);
         SerializePath(Archive, "DisplacementTexturePath", Material.DisplacementTexturePath);
 
-
+        SerializeTextureOptions(Archive, "DiffuseTextureOptions", Material.DiffuseTextureOptions);
+        SerializeTextureOptions(Archive, "OpacityTextureOptions", Material.OpacityTextureOptions);
+        SerializeTextureOptions(Archive, "AmbientTextureOptions", Material.AmbientTextureOptions);
+        SerializeTextureOptions(Archive, "SpecularTextureOptions", Material.SpecularTextureOptions);
+        SerializeTextureOptions(Archive, "EmissiveTextureOptions", Material.EmissiveTextureOptions);
+        SerializeTextureOptions(Archive, "SpecularExponentTextureOptions", Material.SpecularExponentTextureOptions);
+        SerializeTextureOptions(Archive, "BumpTextureOptions", Material.BumpTextureOptions);
+        SerializeTextureOptions(Archive, "NormalTextureOptions", Material.NormalTextureOptions);
+        SerializeTextureOptions(Archive, "DisplacementTextureOptions", Material.DisplacementTextureOptions);
+    
     }
 
     // 메시 객체의 이름을 저장하거나 복원한다.
@@ -269,7 +290,7 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 104, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 113, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);
