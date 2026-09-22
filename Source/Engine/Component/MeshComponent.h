@@ -19,6 +19,10 @@ public:
 
     virtual const FString& GetMaterialPath(uint32 MaterialSlot = 0) const;
     virtual const FMaterial* GetMaterial(uint32 MaterialSlot = 0) const;
+
+    FMaterial* GetOrCreateOverrideMaterial(uint32 Slot);
+    void ResetOverrideMaterial(uint32 Slot);
+    bool HasOverrideMaterial(uint32 SlotIdx);
     
     virtual void CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected = false) override;
 
@@ -43,7 +47,7 @@ public:
     void ResetUVOffset() { UVOffset = FVector2::Zero; }
 
 protected:
-    TArray<FMaterial*> OverrideMaterialList;
+    TArray<FMaterial*> OverrideMaterials;
     bool bEnableUVScroll = true;
     FVector2 UVScale{ 1.0f, 1.0f };
     FVector2 UVOffset{ 0.0f, 0.0f };

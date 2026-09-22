@@ -506,20 +506,84 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 			for (uint32 SlotIdx = 0; SlotIdx < NumSlots; ++SlotIdx)
 			{
 				ImGui::PushID(static_cast<int>(SlotIdx));
+				const FMaterial* CurrentMat = MeshComp->GetMaterial(SlotIdx);
+				if (!CurrentMat)
+				{
+					ImGui::Text("Slot [%u] (Empty)", SlotIdx);
+					ImGui::PopID();
+					continue;
+				}
+
+				FVector4 Color = CurrentMat->DiffuseColor;
+				float AlphaCutoff = CurrentMat->AlphaCutoff;
+				FVector2 ScrollSpeed = CurrentMat->ScrollSpeed;
+				FVector2 UVScale = CurrentMat->UVScale;
+				std::string TexPath = CurrentMat->TexturePath.c_str();
+				bool bEnableUVScroll = CurrentMat->bEnableUVScroll;
+
 				FString CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
 
 				ImGui::Text("Slot [%u]", SlotIdx);
-				ImGui::SameLine();
-				
+
+				bool bModified = false;
+				bModified |= ImGui::ColorEdit4("Diffuse", &Color.X);
+				bModified |= ImGui::SliderFloat("Alpha Cutoff", &AlphaCutoff, 0.0f, 1.0f);
+				bModified |= ImGui::Checkbox("Enable UV Scroll", &bEnableUVScroll);
+				bModified |= ImGui::DragFloat2("UV Scale", &UVScale.X, 0.01f);
+				bModified |= ImGui::DragFloat2("Scroll Speed", &ScrollSpeed.X, 0.01f);
+
+				if (bModified)
+				{
+					FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
+					Mat->DiffuseColor = Color;
+					Mat->AlphaCutoff = AlphaCutoff;
+					Mat->bEnableUVScroll = bEnableUVScroll;
+					Mat->UVScale = UVScale;
+					Mat->ScrollSpeed = ScrollSpeed;
+				}
+
+				static const char* SamplerOptions[] = {
+					"LinearWrap",
+					"LinearClamp",
+					"LinearMirror",
+					"PointWrap",
+					"PointClamp",
+					"PointMirror",
+				};
+
+				FString CurrentSamplerName = CurrentMat->SamplerName.ToString();
+				ImGui::SetNextItemWidth(150.0f);
+				if (ImGui::BeginCombo("Sampler", CurrentSamplerName.c_str()))
+				{
+					for (int i = 0; i < IM_ARRAYSIZE(SamplerOptions); ++i)
+					{
+						const bool bIsSelected = (CurrentSamplerName == SamplerOptions[i]);
+						if (ImGui::Selectable(SamplerOptions[i], bIsSelected))
+						{
+							FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
+							Mat->SetSampler(FName(SamplerOptions[i]));
+						}
+						if (bIsSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}
+
 				FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(CurrentTexPath);
 				ImGui::Image(ImTextureRef(Texture->GetSRV()), ImVec2(64.0f, 64.0f));
+
+				bool bTextureChanged = false;
+				FString NewTexturePath;
+
 				if (ImGui::BeginDragDropTarget())
 				{
 					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("TEXTURE"))
 					{
-						FString TexturePath = static_cast<const char*>(Payload->Data);
-						MeshComp->SetOverrideMaterial(TexturePath, SlotIdx);
-						CurrentTexPath = TexturePath;
+						NewTexturePath = static_cast<const char*>(Payload->Data);
+						CurrentTexPath = NewTexturePath;
+						bTextureChanged = true;
 					}
 					ImGui::EndDragDropTarget();
 				}
@@ -527,7 +591,8 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				ImGui::SetNextItemWidth(150.0f);
 				if (ImGui::InputText("##TexturePath", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
 				{
-					MeshComp->SetOverrideMaterial(CurrentTexPath, SlotIdx);
+					NewTexturePath = CurrentTexPath;
+					bTextureChanged = true;
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Browse..."))
@@ -536,50 +601,26 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
 					if (TexturePath)
 					{
-						const std::filesystem::path RelativePath =std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-						MeshComp->SetOverrideMaterial(File::PathToUtf8(RelativePath), SlotIdx);
+						const std::filesystem::path RelativePath = std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+						NewTexturePath = File::PathToUtf8(RelativePath);
+						bTextureChanged = true;
 					}
 				}
+
+				if (bTextureChanged)
+				{
+					FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
+					Mat->SetTexture(NewTexturePath);
+				}
+
 				ImGui::SameLine();
 				if (ImGui::Button("Reset"))
 				{
-					MeshComp->SetOverrideMaterial("", SlotIdx);
+					MeshComp->ResetOverrideMaterial(SlotIdx);
 				}
 				ImGui::PopID();
+				ImGui::Separator();
 			}
-			ImGui::TextDisabled("Press Enter to apply path, or Reset to default.");
-		}
-	}
-
-	if (InspectedComponent->IsA(UMeshComponent::GetClass()) &&
-		ImGui::CollapsingHeader("UV & Scroll", ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		auto* MeshComp = static_cast<UMeshComponent*>(InspectedComponent);
-
-		bool bScroll = MeshComp->IsUVScrollEnabled();
-		if (ImGui::Checkbox("Enable UV Scroll", &bScroll))
-		{
-			MeshComp->SetUVScrollEnabled(bScroll);
-		}
-
-		FVector2 Scale = MeshComp->GetUVScale();
-		if (ImGui::DragFloat2("UV Scale", &Scale.X, 0.05f, 0.01f, 50.0f, "%.2f"))
-		{
-			MeshComp->SetUVScale(Scale);
-		}
-
-		FVector2 Speed = MeshComp->GetScrollSpeed();
-		if (ImGui::DragFloat2("Scroll Speed", &Speed.X, 0.01f, -10.0f, 10.0f, "%.3f"))
-		{
-			MeshComp->SetScrollSpeed(Speed);
-		}
-
-		const FVector2& Offset = MeshComp->GetUVOffset();
-		ImGui::Text("Current Offset: (%.3f, %.3f)", Offset.X, Offset.Y);
-		ImGui::SameLine();
-		if (ImGui::Button("Reset Offset"))
-		{
-			MeshComp->ResetUVOffset();
 		}
 	}
 

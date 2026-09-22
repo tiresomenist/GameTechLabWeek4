@@ -14,29 +14,34 @@ void UMeshComponent::Serialize(FArchive& Archive)
 void UMeshComponent::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (bEnableUVScroll)
+	for (FMaterial* Mat : OverrideMaterials)
 	{
-		if (ScrollSpeed.X != 0.0f || ScrollSpeed.Y != 0.0f)
+		if (Mat &&Mat->bEnableUVScroll)
 		{
-			UVOffset += ScrollSpeed * DeltaTime;
-
-			UVOffset.X -= std::floor(UVOffset.X);
-			UVOffset.Y -= std::floor(UVOffset.Y);
+			if (Mat->ScrollSpeed.X != 0.0f || Mat->ScrollSpeed.Y != 0.0f)
+			{
+				Mat->UVOffset += Mat ->ScrollSpeed * DeltaTime;
+				if (Mat->SamplerName == FName("LinearWrap") || Mat->SamplerName == FName("PointWrap"))
+				{
+					Mat->UVOffset.X -= std::floor(Mat->UVOffset.X);
+					Mat->UVOffset.Y -= std::floor(Mat->UVOffset.Y);
+				}
+			}
 		}
 	}
 }
 
 void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
-	if (MaterialSlot >= static_cast<uint32>(OverrideMaterialList.Num()))
+	if (MaterialSlot >= static_cast<uint32>(OverrideMaterials.Num()))
 	{
-		OverrideMaterialList.resize(MaterialSlot + 1);
+		OverrideMaterials.resize(MaterialSlot + 1);
 	}
-	if (OverrideMaterialList[MaterialSlot] != InMaterial)
+	if (OverrideMaterials[MaterialSlot] != InMaterial)
 	{
-		delete OverrideMaterialList[MaterialSlot];
+		delete OverrideMaterials[MaterialSlot];
 	}
-	OverrideMaterialList[MaterialSlot] = InMaterial;
+	OverrideMaterials[MaterialSlot] = InMaterial;
 }
 
 void UMeshComponent::SetOverrideMaterial(const FString& InMaterialPath, uint32 MaterialSlot)
@@ -73,9 +78,9 @@ const FString& UMeshComponent::GetMaterialPath(uint32 MaterialSlot) const
 }
 const FMaterial* UMeshComponent::GetMaterial(uint32 MaterialSlot) const
 {
-	if (MaterialSlot < static_cast<uint32>(OverrideMaterialList.Num()))
+	if (MaterialSlot < static_cast<uint32>(OverrideMaterials.Num()))
 	{
-		return OverrideMaterialList[MaterialSlot];
+		return OverrideMaterials[MaterialSlot];
 	}
 	else
 		return nullptr;
@@ -84,4 +89,35 @@ const FMaterial* UMeshComponent::GetMaterial(uint32 MaterialSlot) const
 void UMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected)
 {
 	return;
+}
+
+FMaterial* UMeshComponent::GetOrCreateOverrideMaterial(uint32 Slot)
+{
+	if (Slot >= static_cast<uint32>(OverrideMaterials.Num()))
+	{
+		OverrideMaterials.resize(Slot + 1);
+	}
+
+	if (!OverrideMaterials[Slot])
+	{
+		const FMaterial* BaseMat = GetMaterial(Slot);
+		OverrideMaterials[Slot] = BaseMat ? new FMaterial(*BaseMat) : new FMaterial();
+	}
+	return OverrideMaterials[Slot];
+}
+
+void UMeshComponent::ResetOverrideMaterial(uint32 Slot)
+{
+	if (Slot < static_cast<uint32>(OverrideMaterials.Num()))
+	{
+		delete OverrideMaterials[Slot];
+		OverrideMaterials[Slot] = nullptr;
+	}
+}
+
+bool UMeshComponent::HasOverrideMaterial(uint32 SlotIdx)
+{
+	if (SlotIdx >= static_cast<uint32>(OverrideMaterials.Num()))
+		return false;
+	return OverrideMaterials[SlotIdx] != nullptr;
 }
