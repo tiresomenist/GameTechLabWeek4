@@ -609,7 +609,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 	{
 		auto* TextComp = static_cast<UTextComponent*>(InspectedComponent);
 		FString Text = TextComp->GetText();
-		if (ImGui::InputText("Text", &Text)) TextComp->SetText(Text);
+		if (ImGui::InputText("Text##Content", &Text)) TextComp->SetText(Text);
 	}
 }
 
