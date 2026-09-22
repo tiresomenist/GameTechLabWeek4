@@ -853,6 +853,7 @@ void GResourceManager::RegisterDefaultRenderResources()
     RegisterShader(FName("Mesh.Texture"),L"Assets/Shaders/TextureShader.hlsl","mainVS","mainPS",TextureLayout);
     RegisterShader(FName("Editor.Text"), L"Assets/Shaders/TextShader.hlsl","mainVS_Text","mainPS_Text",TextureLayout);
     RegisterShader(FName("Mesh.StaticMesh"), L"Assets/Shaders/StaticMeshShader.hlsl", "mainVS", "mainPS", StaticMeshLayout);
+
     D3D11_SAMPLER_DESC SamplerDesc{};
     SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -875,6 +876,13 @@ void GResourceManager::RegisterDefaultRenderResources()
 
     RegisterSampler(FName("LinearWrap"), WrapSamplerDesc);
 
+    //  Linear Mirror (거울 대칭 반복)
+    D3D11_SAMPLER_DESC MirrorDesc = WrapSamplerDesc;
+    MirrorDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+    MirrorDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+    MirrorDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+    RegisterSampler(FName("LinearMirror"), MirrorDesc);
+
     D3D11_SAMPLER_DESC FontSamplerDesc{};
     FontSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     FontSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -885,6 +893,29 @@ void GResourceManager::RegisterDefaultRenderResources()
     FontSamplerDesc.MaxLOD = 0.0f;
 
     RegisterSampler(FName("Font.LinearClamp"), FontSamplerDesc);
+
+    // Point Clamp (도트/픽셀 외곽 고정)
+    D3D11_SAMPLER_DESC PointClampDesc{};
+    PointClampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    PointClampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    PointClampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    PointClampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    PointClampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    RegisterSampler(FName("PointClamp"), PointClampDesc);
+
+    // Point Wrap (도트/픽셀 반복)
+    D3D11_SAMPLER_DESC PointWrapDesc = PointClampDesc;
+    PointWrapDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    PointWrapDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    PointWrapDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    RegisterSampler(FName("PointWrap"), PointWrapDesc);
+
+    // Point Mirror
+    D3D11_SAMPLER_DESC PointMirrorDesc = PointClampDesc;
+    PointMirrorDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+    PointMirrorDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+    PointMirrorDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+    RegisterSampler(FName("PointMirror"), PointMirrorDesc);
 
     D3D11_BUFFER_DESC Desc{};
     Desc.ByteWidth = sizeof(FTextureDrawConstants);

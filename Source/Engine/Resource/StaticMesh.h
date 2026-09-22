@@ -17,17 +17,13 @@ public:
 	void BuildFromMeshData(const FStaticMeshData& MeshData);
 	virtual ~UStaticMesh() ;
 
-	// 신 직렬화 역 직렬화 시 사용
-	// TODO:: 신 직렬화 역 직렬화 시 사용
-	// meshkey 저장 및 슬롯 별 커스텀 된 머테리얼도 저장하기
-	// FMaterial 구조체 고정 및 StaticMesh 정의 완료 후 마지막에 작업
 	virtual void Serialize(FArchive& Archive) override {};
 
 
 	FMeshResource* GetMeshResource() const { return MeshResource; }
 	void SetMeshResource(FMeshResource* InResource) { MeshResource = InResource;}
 
-	// TODO:: StaticMesh가 가지고 있는것 -> 해당 StaticMesh의 기본 FMaterial
+	// StaticMesh가 가지고 있는것 -> 해당 StaticMesh의 Default FMaterial
 	const TArray<FMaterial*>& GetDefaultMeshMaterials() const { return Materials; }
 	const FMaterial* GetMaterial(uint32 SlotIndex) const
 	{
@@ -36,10 +32,8 @@ public:
 			return nullptr;
 		}
 		return Materials[SlotIndex];
-		// TODO:: 자식 StaticMeshComponent에서 Super::GetMaterial로 자신이 가지고 있는 StaticMesh에서 다시한번 실행
 	}
-	// TODO:: 로드된 FMaterial 객체들을 관리하는 ResourceManger에서 FMaterial을 스마트 포인터로 관리하는지 확인
-	// material에 자신의 경로를 저장
+
 	void SetMaterial(uint32 SlotIndex, FMaterial* InMaterial)
 	{
 		if (SlotIndex >= Materials.Num())
@@ -80,8 +74,6 @@ private:
 
 	FMeshResource* MeshResource = nullptr;
 
-	// TODO:: StaticMeshData의 FStaticMeshMaterial은 머테리얼을 FMaterial로 가지고 있는 상태가 아님 
-	// -> StaticMesh 로 바꿀때 기본 머테리얼들을 FMaterial로 바꿔줘야 함
 	TArray<FMaterial*> Materials;
 	TArray<FMeshSection> Sections;
 

@@ -22,13 +22,12 @@ void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 	}
 
 	// 필요한 배열 용량을 먼저 확보하여 할당 실패 시 기존 재질을 보존한다.
-	OverrideMaterialList.Reserve(NewSlotCount);
+	OverrideMaterials.Reserve(NewSlotCount);
 
 	// 이전 재질을 해제하고 새 메시의 슬롯을 nullptr로 초기화한다.
 	ClearOverrideMaterials();
-	OverrideMaterialList.SetNum(NewSlotCount);
+	OverrideMaterials.SetNum(NewSlotCount);
 	MeshKey = InMeshKey;
-
 }
 
 void UStaticMeshComponent::SetStaticMesh(const FString& FilePath)
@@ -43,51 +42,74 @@ void UStaticMeshComponent::SetStaticMesh(const FString& FilePath)
 
 void UStaticMeshComponent::Serialize(FArchive& Archive)
 {
-    Super::Serialize(Archive);
-	// 로딩모드이거나 메시키가 없으면 None으로 처리
-	FString MeshKeyValue = Archive.IsLoading() || MeshKey.IsNone()
+	Super::Serialize(Archive);
+
+	FString MeshKeyValue = (Archive.IsLoading() || MeshKey.IsNone())
 		? FString{} : MeshKey.ToString();
 	Archive.OptionalField("MeshKey", MeshKeyValue);
 
-	TArray<FString> OverrideMaterialPaths;
+	if (Archive.IsLoading() && !MeshKeyValue.empty())
+	{
+		SetStaticMesh(FName(MeshKeyValue));
+	}
 
 	if (Archive.IsSaving())
 	{
-		OverrideMaterialPaths.SetNum(OverrideMaterialList.Num());
-
-		for (uint32 Slot = 0; Slot < OverrideMaterialList.Num(); ++Slot)
+		uint32 OverrideCount = 0;
+		for (uint32 i = 0; i < OverrideMaterials.Num(); ++i)
 		{
-			const FMaterial* Material = OverrideMaterialList[Slot];
-			if (Material != nullptr)
+			if (OverrideMaterials[i] != nullptr)
 			{
-				OverrideMaterialPaths[Slot] = Material->TexturePath;
+				++OverrideCount;
 			}
 		}
-	}
 
-	Archive.Field("OverrideMaterialPaths", OverrideMaterialPaths);
-
-	if (Archive.IsLoading())
-	{
-		SetStaticMesh(FName(MeshKeyValue));
-
-		for (uint32 Slot = 0; Slot < OverrideMaterialPaths.Num(); ++Slot)
+		if (Archive.BeginMap("OverrideMaterials", OverrideCount))
 		{
-			if (!OverrideMaterialPaths[Slot].empty())
+			uint32 EntryIdx = 0;
+			for (uint32 Slot = 0; Slot < OverrideMaterials.Num(); ++Slot)
 			{
-				SetOverrideMaterial(OverrideMaterialPaths[Slot], Slot);
+				if (OverrideMaterials[Slot] != nullptr)
+				{
+					FString Key = std::to_string(Slot);
+					Archive.BeginMapEntry(EntryIdx++, Key);
+
+					OverrideMaterials[Slot]->Serialize(Archive);
+
+					Archive.EndMapEntry();
+				}
 			}
+			Archive.EndMap();
+		}
+	}
+	else if (Archive.IsLoading())
+	{
+		uint32 OverrideCount = 0;
+		if (Archive.BeginMap("OverrideMaterials", OverrideCount))
+		{
+			for (uint32 EntryIdx = 0; EntryIdx < OverrideCount; ++EntryIdx)
+			{
+				FString Key;
+				Archive.BeginMapEntry(EntryIdx, Key);
+
+				uint32 Slot = static_cast<uint32>(std::stoul(Key.c_str()));
+
+				FMaterial* Mat = GetOrCreateOverrideMaterial(Slot);
+				if (Mat)
+				{
+					Mat->Serialize(Archive);
+				}
+
+				Archive.EndMapEntry();
+			}
+			Archive.EndMap();
 		}
 	}
 }
 
-
-// TODO:: renderdata 받을 때 meshresource가 아니라 StaticMesh에서 데이터 뽑아서 받도록 해야 함
 void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& ComponentRenderData, bool bSelected)
 {
 	if (MeshKey.IsNone()) return;
-	//FClassType* ClassType = GetInstanceClass();
-	// TODO:: ResourceManager에서 MeshKey 값으로 StaticMesh를 가져올 수 있어야 함
 	GResourceManager* RM = GResourceManager::GetInstance();
 	UStaticMesh* Mesh = RM->GetStaticMesh(MeshKey);
 	if (!Mesh) return;
@@ -111,14 +133,12 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 		OutData.Min = MeshResource->GetBoundsMin();
 		OutData.Max = MeshResource->GetBoundsMax();
 
-		OutData.UVTransform.Scale = UVScale;
-		OutData.UVTransform.Offset = UVOffset;
 
 		const FMaterial* SectionMaterial = nullptr;
-		if ((Section.MaterialIndex < static_cast<uint32>(OverrideMaterialList.Num()) && OverrideMaterialList[Section.MaterialIndex]))
+		if ((Section.MaterialIndex < static_cast<uint32>(OverrideMaterials.Num()) && OverrideMaterials[Section.MaterialIndex]))
 		{
 			// override 머테리얼 가져오기
-			SectionMaterial = OverrideMaterialList[Section.MaterialIndex];
+			SectionMaterial = OverrideMaterials[Section.MaterialIndex];
 		}
 		else
 		{
@@ -129,7 +149,10 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 		{
 			OutData.Material = *SectionMaterial;
 
+			OutData.UVTransform.Scale = OutData.Material.UVScale;
+			OutData.UVTransform.Offset = OutData.Material.UVOffset;
 		}
+
 		ComponentRenderData.Add(OutData);
 	}
 
