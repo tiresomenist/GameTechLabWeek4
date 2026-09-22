@@ -18,6 +18,7 @@ public:
 		EI_LMOUSE,
 		EI_RMOUSE,
 		EI_SPACE,
+		EI_WHEEL,
 		KEY_COUNT
 	};
 
@@ -52,7 +53,13 @@ public:
 	int32 GetLeftCursorPixelX()const;
 	int32 GetLeftCursorPixelY()const;
 
+	// 마우스 휠
+	float ComsumeMouseWheelDelta();
+	void SetMouseWheelDelta(float InDelta);
+
 private:
+	float MouseWheelDelta;
+
 	int32 RightDragDeltaX = 0;
 	int32 RightDragDeltaY = 0;
 	int32 LeftDragDeltaX = 0;

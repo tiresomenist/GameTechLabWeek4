@@ -46,7 +46,6 @@ public:
 
     virtual bool OnMouseUp(const FPoint& Coord) override
     {
-        bIsLineHovered = false;
         if (bIsDragging)
         {
             bIsDragging = false;
@@ -145,16 +144,13 @@ public:
             return false;
         }
 
-        if (bIsLineHovered)
+        if (bIsLineHovered || bIsDragging)
         {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
         }
-        else
-        {
-            bIsLineHovered = IsSplitLineHover(Coord);
-        }
-
-        if (bIsLineHovered && bIsDragging)
+        
+        bIsLineHovered = IsSplitLineHover(Coord);
+        if (bIsDragging)
         {
             float NewRatio = (Coord.X - Rect.X) / Rect.Width;
             SplitRatio = std::clamp(NewRatio, MinRatio, MaxRatio);
@@ -178,8 +174,6 @@ class SSplitterV : public SSplitter
 public:
     virtual void UpdateLayout(const FRect& InRect) override
     {
-        
-
         Rect = InRect;
 
         float HalfThick = SplitterThickness * 0.5f;
@@ -212,16 +206,13 @@ public:
             return false;
         }
 
-        if (bIsLineHovered)
+        if (bIsLineHovered || bIsDragging)
         {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
         }
-        else
-        {
-            bIsLineHovered = IsSplitLineHover(Coord);
-        }
-
-        if (bIsLineHovered && bIsDragging)
+        
+        bIsLineHovered = IsSplitLineHover(Coord);
+        if (bIsDragging)
         {
             float NewRatio = (Coord.Y - Rect.Y) / Rect.Height;
             SplitRatio = std::clamp(NewRatio, MinRatio, MaxRatio);

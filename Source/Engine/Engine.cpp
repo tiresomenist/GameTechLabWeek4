@@ -76,6 +76,8 @@ bool GEngine::Initialize(HWND InHwnd, EApplicationMode Mode, const std::function
         */
         if (ApplicationMode == EApplicationMode::Editor)
         {
+            ResourceManager.GetOrLoadStaticMesh("Assets/Models/Sphere.obj");
+
             ResourceManager.GetOrLoadTexture("Assets/Textures/sun.png");
             ResourceManager.GetOrLoadTexture("Assets/Textures/mercury.png");
             ResourceManager.GetOrLoadTexture("Assets/Textures/venus.png");
