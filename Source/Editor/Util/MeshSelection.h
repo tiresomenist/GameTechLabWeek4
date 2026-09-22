@@ -18,7 +18,7 @@ namespace MeshSelection
         // 목록에 없는 메시도 현재 이름을 표시함
 
         FString FallbackLabel;
-        std::filesystem::path SelectedPath{ SelectedKey.ToString() };
+        std::filesystem::path SelectedPath = File::PathFromUtf8(SelectedKey.ToString());
         if (std::filesystem::exists(SelectedPath))
         {
 			FallbackLabel = File::PathToUtf8(SelectedPath.stem().filename());
@@ -37,8 +37,10 @@ namespace MeshSelection
             {
                 const FString MeshName = Mesh->GetMeshKey().ToString();
 				const char* MeshPath = MeshName.c_str();
-                const std::filesystem::path MeshFilePath = std::filesystem::path(MeshPath);
+                const std::filesystem::path MeshFilePath = File::PathFromUtf8(MeshPath);
 				const FString DisplayName = File::PathToUtf8(MeshFilePath.stem().filename());
+
+                ImGui::PushID(MeshName.c_str());
 
 				const bool bSelected = SelectedKey == Mesh->GetMeshKey();
 				if (ImGui::Selectable(DisplayName.c_str(), bSelected))
@@ -53,6 +55,7 @@ namespace MeshSelection
 				{
 					ImGui::SetItemDefaultFocus();
 				}
+                ImGui::PopID();
             }
 
             ImGui::EndCombo();

@@ -32,11 +32,12 @@ public:
 	bool IsShowingWorldAxis() const { return ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::WorldAxis); }
 	void SetShowWorldAxis(bool bShow) { ViewSettings.ShowFlags.SetEnabled(EEngineShowFlag::WorldAxis, bShow); }
 
+	void SetViewSettings(const FViewSettings& InVS) { ViewSettings = InVS; }
 
 	FRenderView GetRenderView() const;
 	UCameraComponent* GetCamera() const;
 	EViewportType GetViewportType() const { return ViewportType; }
-	const FViewSettings& GetViewSetting() const { return ViewSettings; }
+	const FViewSettings& GetViewSettings() const { return ViewSettings; }
 	const D3D11_VIEWPORT& GetViewportInfo() const { return ViewportInfo; }
 
 	bool IsMouseInside(float ScreenX, float ScreenY) const;

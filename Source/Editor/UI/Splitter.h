@@ -15,8 +15,11 @@ public:
     SWindow* SideLT;    // Left or Top
     SWindow* SideRB;    // Right or Bottom
     
+    SWindow* GetLTSide() { return SideLT; }
+    SWindow* GetRBSide() { return SideRB; }
+
     // 스플릿 라인의 영역 rect 얻는 함수
-    virtual FRect GetSplitLineRect() const = 0;
+    virtual FRect GetSplitLineRect() const { return FRect{ }; };
 
     bool IsSplitLineHover(const FPoint& Coord) const
     {
@@ -84,9 +87,10 @@ public:
     void SetMaximizeWindow(FViewportClient* InVC)
     {
         MaximizeWindow = InVC;
-
-
     }
+
+    float GetSplitRatio() const { return SplitRatio; }
+    void SetSplitRatio(float InRatio) { SplitRatio = InRatio; }
 
 protected:
     float SplitRatio = 0.5f;        // LT:RB의 분할 비율

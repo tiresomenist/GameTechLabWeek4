@@ -61,7 +61,7 @@ FRenderView FViewportClient::GetRenderView() const
 	result.Camera = Camera;
 	result.ViewSettings = ViewSettings;
 	result.Viewport = ViewportInfo;
-
+	result.ViewType = ViewportType;
 	return result;
 }
 
