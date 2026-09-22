@@ -413,7 +413,7 @@ void FEditor::Tick(float DeltaTime)
 
 
 	// 뷰포트 선택
-	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed))
+	if (!bWasDragging && !bWantToCaptureMouse && (bLFirstPressed || bRFirstPressed) && CurrMaxViewIdx == -1)
 	{	// 드래깅 중, ui 조작 중에는 새로운 뷰포트 선택X
 		const float x = bLFirstPressed ? Input.GetLeftCursorPixelX() : Input.GetRightCursorPixelX();
 		const float y = bLFirstPressed ? Input.GetLeftCursorPixelY() : Input.GetRightCursorPixelY();
