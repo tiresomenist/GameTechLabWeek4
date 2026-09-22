@@ -17,11 +17,8 @@ void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 		}
 
 		// 기존 슬롯 조정 정책을 유지하되, 경로 확정보다 먼저 수행한다.
-		OverrideMaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
+		OverrideMaterials.SetNum(Mesh->GetDefaultMeshMaterials().Num());
 	}
-
-	// 필요한 준비가 끝난 경우에만 새 경로를 확정한다.
-	MeshKey = InMeshKey;
 
 	// 필요한 준비가 끝난 경우에만 새 경로를 확정한다.
 	MeshKey = InMeshKey;

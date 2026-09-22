@@ -55,8 +55,15 @@ bool UPropertyWindow::TryApplyTexture(UMeshComponent& MeshComp, const FString& T
 {
 	try
 	{
-		// 기존 로딩·재질 교체 로직을 재사용한다. 빈 경로는 기본 재질 복원 요청이다.
-		MeshComp.SetOverrideMaterial(TexturePath, SlotIdx);
+		if (TexturePath.empty())
+		{
+			MeshComp.ResetOverrideMaterial(SlotIdx);
+			LastTextureError.clear();
+			return true;
+		}
+
+		FMaterial* Mat = MeshComp.GetOrCreateOverrideMaterial(SlotIdx);
+		Mat->SetTexture(TexturePath);
 		LastTextureError.clear();
 		return true;
 	}
@@ -688,25 +695,6 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 			if (!LastTextureError.empty())
 			{
 				ImGui::TextWrapped("Last texture operation failed: %s", LastTextureError.c_str());
-			}
-		}
-	}
-
-	if (InspectedComponent->IsA(USpotLightComponent::GetClass()) &&
-		ImGui::CollapsingHeader("SpotLight", ImGuiTreeNodeFlags_DefaultOpen))
-				if (bTextureChanged)
-				{
-					FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
-					Mat->SetTexture(NewTexturePath);
-				}
-
-				ImGui::SameLine();
-				if (ImGui::Button("Reset"))
-				{
-					MeshComp->ResetOverrideMaterial(SlotIdx);
-				}
-				ImGui::PopID();
-				ImGui::Separator();
 			}
 		}
 	}
