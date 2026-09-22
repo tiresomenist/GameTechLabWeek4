@@ -88,7 +88,10 @@ private:
 	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
 	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
 	float DrawStatMemory(ImDrawList* DrawList, float X, float Y);
+	void ApplyPendingSceneCamera();
 
+	// 등록된 Property·Outliner 창에서 진행 중인 이름 편집을 취소한다.
+	void CancelWindowRenames();
 public:
 	virtual ~FEditor() = default;
 

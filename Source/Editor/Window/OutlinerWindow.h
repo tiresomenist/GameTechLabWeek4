@@ -11,6 +11,7 @@ class UOutlinerWindow : public UEditorWindow
 
 public:
 	virtual void Render(float DeltaTime) override;
+	void FinishRename(bool bApply);
 
 private:
 	void DrawActorTree(AActor* Actor);
@@ -18,7 +19,6 @@ private:
 	void DrawRenameInput(AActor* Actor, const ImVec2& Position, float Width);
 
 	void RequestRename(AActor* Actor);
-	void FinishRename(bool bApply);
 
 	bool CanReparent(AActor* Source, AActor* Target) const;
 

@@ -7,6 +7,15 @@
 struct FSceneType;
 class UScene;
 
+// 가장 최근 씬 로드 요청의 처리 상태를 나타낸다.
+enum class ESceneLoadResult
+{
+	None,
+	Pending,
+	Succeeded,
+	Failed
+};
+
 // Singleton
 class GSceneManager
 {
@@ -26,6 +35,9 @@ public:
 
 	UScene* GetScene() { return CurrentScene; };
 
+	// 가장 최근 씬 로드 요청의 결과를 변경하지 않고 조회한다.
+	ESceneLoadResult GetLastLoadResult() const { return LastLoadResult; }
+
 private:
 
 	void InternalLoadScene();
@@ -41,5 +53,7 @@ private:
 	~GSceneManager() = default;
 	GSceneManager(const GSceneManager&) = delete;
 	GSceneManager& operator=(const GSceneManager&) = delete;
+
+	ESceneLoadResult LastLoadResult = ESceneLoadResult::None;
 };
 
