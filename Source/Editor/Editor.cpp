@@ -789,6 +789,30 @@ TArray<FViewportClient>& FEditor::GetViewports()
 	return Viewports;
 }
 
+void FEditor::ToggleMaxView(uint32 InIdx)
+{
+	if (CurrMaxViewIdx == InIdx)
+	{
+		CurrMaxViewIdx = -1;
+		RootSplitter->SetMaximizeWindow(nullptr);
+	}
+	else
+	{
+		CurrMaxViewIdx = InIdx;
+		RootSplitter->SetMaximizeWindow(&Viewports[CurrMaxViewIdx]);
+
+		CurrEditedViewportIndex = InIdx;
+		EditorCamera = Viewports[InIdx].GetCamera();
+		CameraController.SetCamera(EditorCamera);
+		CameraController.SetViewportClient(&Viewports[InIdx]);
+
+	}
+
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
+}
+
+
 void FEditor::RegisterGrid(FClassType* Type)
 {
 	UObject* Object = FObjectFactory::ConstructEditorObject(Type);
@@ -1079,6 +1103,12 @@ TArray<FRenderView> FEditor::BuildRenderViews(const D3D11_VIEWPORT& FullViewport
 {
 	// 각 뷰포트가 보유한 카메라, 출력 영역, 표시 설정을 그대로 전달합니다.
 	TArray<FRenderView> Views;
+	if (CurrMaxViewIdx != -1)
+	{
+		Views.Add(Viewports[CurrMaxViewIdx].GetRenderView());
+		return Views;
+	}
+
 	for (const FViewportClient& Viewport : Viewports)
 	{
 		Views.Add(Viewport.GetRenderView());

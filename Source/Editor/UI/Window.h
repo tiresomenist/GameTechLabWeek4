@@ -22,5 +22,7 @@ public:
 protected:
 	FRect Rect;
 	FViewportClient* ViewportClient = nullptr;
+
+	FViewportClient* MaximizeWindow = nullptr;
 };
 
