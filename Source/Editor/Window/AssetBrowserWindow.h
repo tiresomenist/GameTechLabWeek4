@@ -2,6 +2,8 @@
 
 #include "EditorWindow.h"
 #include <filesystem>
+#include <functional>
+#include <utility>
 
 class FTextureResource;
 
@@ -38,7 +40,17 @@ public:
 	virtual void InitializeWindow(FEditor* InEditor, const FString& InName) override;
 	virtual void Render(float DeltaTime) override;
 
+    // 폴더 탐색은 유지하고 파일 목록을 OBJ로 제한합니다.
+    void SetObjOnly(bool bInObjOnly);
+    // 모델을 여는 동작은 창을 사용하는 쪽에 위임합니다.
+    void SetOnObjActivated(std::function<void(const std::filesystem::path&)> Callback)
+    {
+        OnObjActivated = std::move(Callback);
+    }
+
 private:
+    bool bObjOnly = false;
+    std::function<void(const std::filesystem::path&)> OnObjActivated;
 	void MoveTo(const std::filesystem::path& Path);
 	
 	void DrawDirectoryTreeNode(const FDirectoryEntry& Entry, bool bRoot = false);

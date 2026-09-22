@@ -7,6 +7,15 @@
 #include "Engine/Resource/TextureResource.h"
 #include <exception>
 #include <stdexcept>
+#include <cwchar>
+
+// 표시 모드가 바뀌면 현재 폴더의 파일 목록을 다시 구성합니다.
+void UAssetBrowserWindow::SetObjOnly(bool bInObjOnly)
+{
+    if (bObjOnly == bInObjOnly) return;
+    bObjOnly = bInObjOnly;
+    RefreshCurrentContents();
+}
 
 void UAssetBrowserWindow::InitializeWindow(FEditor* InEditor, const FString& InName)
 {
@@ -155,6 +164,10 @@ void UAssetBrowserWindow::DrawContentView()
 				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 				ImGui::ImageButton("StaticMesh", ImTextureRef(StaticMeshTexture->GetSRV()), ImVec2(Size, Size));
 				ImGui::PopStyleColor();
+				// Viewer는 여기서 로딩하지 않고 다음 Tick에 처리할 경로만 받습니다.
+				if (OnObjActivated && ImGui::IsItemHovered()
+					&& ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+					OnObjActivated(Entry.Path);
 				if (ImGui::BeginDragDropSource())
 				{
 					ImGui::SetDragDropPayload("STATIC_MESH", Path.c_str(), Path.size() + 1);
@@ -263,6 +276,14 @@ void UAssetBrowserWindow::RefreshCurrentContents()
 		};
 		if (Entry.is_regular_file())
 		{
+			// Viewer에서만 확장자 대소문자에 관계없이 OBJ 파일을 표시합니다.
+			if (bObjOnly)
+			{
+				if (_wcsicmp(Entry.path().extension().c_str(), L".obj") != 0) continue;
+				AssetEntry.Type = EAssetType::StaticMesh;
+				FileEntries.Add(AssetEntry);
+				continue;
+			}
 			const FString Extension = File::PathToUtf8(Entry.path().extension());
 			if (Extension == ".obj")
 			{
@@ -284,6 +305,7 @@ void UAssetBrowserWindow::RefreshCurrentContents()
 		}
 		else
 		{
+			if (bObjOnly) continue;
 			FileEntries.Add(AssetEntry);
 		}
 	}
