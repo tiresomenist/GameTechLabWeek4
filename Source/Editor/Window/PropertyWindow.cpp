@@ -518,8 +518,10 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				float AlphaCutoff = CurrentMat->AlphaCutoff;
 				FVector2 ScrollSpeed = CurrentMat->ScrollSpeed;
 				FVector2 UVScale = CurrentMat->UVScale;
+				FVector2 UVOffset = CurrentMat->UVOffset;
 				std::string TexPath = CurrentMat->TexturePath.c_str();
 				bool bEnableUVScroll = CurrentMat->bEnableUVScroll;
+
 
 				FString CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
 
@@ -528,8 +530,9 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				bool bModified = false;
 				bModified |= ImGui::ColorEdit4("Diffuse", &Color.X);
 				bModified |= ImGui::SliderFloat("Alpha Cutoff", &AlphaCutoff, 0.0f, 1.0f);
-				bModified |= ImGui::Checkbox("Enable UV Scroll", &bEnableUVScroll);
 				bModified |= ImGui::DragFloat2("UV Scale", &UVScale.X, 0.01f);
+				bModified |= ImGui::DragFloat2("UV Offset", &UVOffset.X, 0.01f);
+				bModified |= ImGui::Checkbox("Enable UV Scroll", &bEnableUVScroll);
 				bModified |= ImGui::DragFloat2("Scroll Speed", &ScrollSpeed.X, 0.01f);
 
 				if (bModified)
@@ -538,6 +541,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					Mat->DiffuseColor = Color;
 					Mat->AlphaCutoff = AlphaCutoff;
 					Mat->bEnableUVScroll = bEnableUVScroll;
+					Mat->UVOffset = UVOffset;
 					Mat->UVScale = UVScale;
 					Mat->ScrollSpeed = ScrollSpeed;
 				}
