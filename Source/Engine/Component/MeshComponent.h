@@ -7,6 +7,8 @@ class UMeshComponent : public UPrimitiveComponent
     UCLASS(UMeshComponent, "MeshComponent", UPrimitiveComponent)
 
 public:
+    ~UMeshComponent() override;
+
     //virtual FMeshResource* GetMeshResource() const override;
     virtual void Serialize(FArchive& Archive) override;
     virtual void Tick(float DeltaTime) override;
@@ -47,6 +49,8 @@ public:
     void ResetUVOffset() { UVOffset = FVector2::Zero; }
 
 protected:
+    void ClearOverrideMaterials();
+
     TArray<FMaterial*> OverrideMaterials;
     bool bEnableUVScroll = true;
     FVector2 UVScale{ 1.0f, 1.0f };
