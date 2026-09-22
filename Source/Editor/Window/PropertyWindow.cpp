@@ -101,7 +101,7 @@ void UPropertyWindow::InitializeWindow(FEditor* InEditor, const FString& Name)
 	AddableComponentClasses.Add(USpotLightComponent::GetClass());
 	SelectedAddComponentClass = *AddableComponentClasses.begin();
 
-	SelectedMeshKey = MeshSelection::GetEntries()[0].Key;
+	SelectedMeshKey = MeshSelection::GetDefaultKey();
 }
 
 void UPropertyWindow::GetSelectedValue()
@@ -529,6 +529,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		ImGui::SetNextItemWidth(150.0f);
 		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey))
 		{
+			auto temp = NewMeshKey.ToString();
 			// 실패하면 컴포넌트의 기존 모델 연결을 유지한다.
 			TryApplyStaticMesh(*MeshComp, NewMeshKey);
 		}
