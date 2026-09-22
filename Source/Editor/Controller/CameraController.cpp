@@ -29,6 +29,8 @@ void FCameraController::Tick(float DeltaTime)
     int32 DeltaX = 0, DeltaY = 0;
     Input.ConsumeRightDragDelta(DeltaX, DeltaY);
 
+    float DeltaWheel = Input.ComsumeMouseWheelDelta();
+
     if (EViewportType::Perspective == ViewType)
     {
         Camera->ConstrainEditorRotation();
@@ -64,7 +66,14 @@ void FCameraController::Tick(float DeltaTime)
         {
             float WorldUintsPerPixel = Camera->GetOrthoHeight() / ViewportClient->GetRenderView().Viewport.Height;
             FVector PanOffset = Camera->GetRight() * -1 * (DeltaX * WorldUintsPerPixel) + Camera->GetUp() * (DeltaY * WorldUintsPerPixel);
+            
             Camera->SetRelativeLocation(Camera->GetRelativeLocation() + PanOffset);
+        }
+        
+        if (abs(DeltaWheel) > 0.01f)
+        {
+            float NewOrthoHeight = Camera->GetOrthoHeight() - DeltaWheel;
+            Camera->SetOrthoHeight(NewOrthoHeight);
         }
     }
 }

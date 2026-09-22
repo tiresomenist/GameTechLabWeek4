@@ -66,7 +66,8 @@ LRESULT HandleInput(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		message == WM_LBUTTONUP ||
 		message == WM_RBUTTONDOWN ||
 		message == WM_RBUTTONUP ||
-		message == WM_MOUSEMOVE
+		message == WM_MOUSEMOVE ||
+		message == WM_MOUSEWHEEL
 		)
 	{
 		const bool bContinuingDrag =
@@ -128,6 +129,13 @@ LRESULT HandleInput(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (Input.GetKey(GInputManager::EI_LMOUSE)) {
 				Input.UpdateLeftDrag(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			}
+			break;
+		case WM_MOUSEWHEEL:
+			// 마우스 휠
+
+			short zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+			float NewDelta = zDelta / static_cast<float>(WHEEL_DELTA);
+			Input.SetMouseWheelDelta(NewDelta);
 			break;
 		}
 

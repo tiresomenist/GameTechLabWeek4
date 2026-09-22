@@ -180,3 +180,15 @@ int32 GInputManager::GetLeftCursorPixelY() const
 {
 	return LeftCursorPixelY;
 }
+
+float GInputManager::ComsumeMouseWheelDelta()
+{
+	float temp = MouseWheelDelta;
+	MouseWheelDelta = 0.0f;
+	return temp;
+}
+
+void GInputManager::SetMouseWheelDelta(float InDelta)
+{
+	MouseWheelDelta = InDelta;
+}
