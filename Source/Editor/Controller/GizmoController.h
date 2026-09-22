@@ -47,13 +47,15 @@ private:
 	// CalculateAxis()에서 축별로 계산
 	TArray<FVector> WorldDirections;	//오브젝트 움직일 월드방향
 	TArray<FVector> ScreenDirections; // 마우스 변위와 내적할 화면 방향
-	TArray<float> UnitsPerPixel = {};
 
 	EGizmoMode Mode = EGizmoMode::Translate; //0-Location,1-Rotation, 2-Scale
-	
 
 	// 드래그 시작 시 선택 축의 값을 고정.
 	FVector DragWorldDirection;
 	FVector DragScreenDirection;
-	float DragUnitsPerPixel = 0.0f;
+
+	FVector DragPlaneOrigin;
+	FVector DragPlaneNormal;
+	FVector DragCursorOffset;
+	FVector DragPivotPixel;
 };
