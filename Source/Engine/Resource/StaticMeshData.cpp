@@ -11,7 +11,17 @@
 namespace
 {
     constexpr uint32 MeshMagic = 0x4853454Du; // little-endian으로 "MESH"
-    constexpr uint32 MeshVersion = 1;
+
+    // 버전 2부터 메시 본문 뒤에 원본 파일 상태 목록을 저장한다.
+    // 버전 3부터 추가된 MTL 색상·정반사 지수·굴절률·조명 모델을 저장한다.
+    // 버전 4부터 Ka·Ks·Ke·Ns·Ni·illum의 실제 파싱 결과를 저장한다.
+    // 버전 5부터 MTL의 불투명도 텍스처 경로를 저장한다.
+    // 버전 7부터 범프·노멀·변위 텍스처 경로를 저장한다.
+    // 버전 8부터 각 텍스처 맵의 Clamp 옵션을 저장한다.
+    // 버전 9부터 텍스처 옵션에 범프 배율을 저장한다.
+    // 버전 10부터 각 텍스처 맵의 좌표 이동과 배율을 저장한다.
+    // 버전 11부터 오목다각형 폴리곤을 지원한다.
+    constexpr uint32 MeshVersion = 11;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -57,7 +67,14 @@ namespace
             Value = std::filesystem::path(Utf8);
         }
     }
-
+    // 원본 파일 하나의 경로·크기·수정 시각을 저장하거나 복원한다.
+    void SerializeSourceFile(FArchive& Archive, FStaticMeshSourceFile& Source)
+    {
+        // 경로는 기존 UTF-8 직렬화를 재사용하고, 상태값은 같은 순서로 처리한다.
+        SerializePath(Archive, "FilePath", Source.FilePath);
+        Archive.Field("FileSize", Source.FileSize);
+        Archive.Field("LastWriteTime", Source.LastWriteTime);
+    }
     // 정점의 위치, 법선, 색상, UV를 정해진 순서로 처리한다.
     void SerializeVertex(FArchive& Archive, FVertexPNCT& Vertex)
     {
@@ -76,7 +93,7 @@ namespace
         Archive.Field("V", Vertex.v);
     }
 
-    // 섹션의 인덱스 범위와 재질 및 객체 참조를 처리한다.
+    // 섹션의 인덱스 범위와 머티리얼 및 객체 참조를 처리한다.
     void SerializeSection(FArchive& Archive, FMeshSection& Section)
     {
         // 현재 Cook이 생성하는 섹션 필드를 같은 순서로 유지한다.
@@ -85,15 +102,58 @@ namespace
         Archive.Field("MaterialIndex", Section.MaterialIndex);
         Archive.Field("ObjectIndex", Section.ObjectIndex);
     }
+    // 텍스처 맵 하나의 옵션을 저장하거나 복원한다.
+    void SerializeTextureOptions(FArchive& Archive, const char* Name,
+        FStaticMeshTextureOptions& Options)
+    {
+        // 맵별 옵션을 이름이 있는 객체로 묶고 필수 필드로 처리한다.
+        if (!Archive.BeginObject(Name))
+            throw std::runtime_error("Missing mesh texture options.");
 
-    // CPU 재질의 이름, 색상, 불투명도, 텍스처 경로를 처리한다.
+        Archive.Field("Clamp", Options.bClamp);
+        Archive.Field("BumpMultiplier", Options.BumpMultiplier);
+        SerializeVector(Archive, "Offset", Options.Offset);
+        SerializeVector(Archive, "Scale", Options.Scale);
+
+        Archive.EndObject();
+    }
+    // CPU 머티리얼의 수치와 용도별 텍스처 경로를 저장하거나 복원한다.
     void SerializeMaterial(FArchive& Archive, FStaticMeshMaterial& Material)
     {
-        // GPU 텍스처 대신 원본 텍스처를 찾을 경로만 기록한다.
+        // 기존 머티리얼 필드는 원래 순서대로 처리한다.
         Archive.Field("Name", Material.Name);
         SerializeVector(Archive, "DiffuseColor", Material.DiffuseColor);
         Archive.Field("Opacity", Material.Opacity);
         SerializePath(Archive, "DiffuseTexturePath", Material.DiffuseTexturePath);
+
+        // 추가 수치도 읽기와 쓰기에서 동일한 순서를 사용한다.
+        SerializeVector(Archive, "AmbientColor", Material.AmbientColor);
+        SerializeVector(Archive, "SpecularColor", Material.SpecularColor);
+        SerializeVector(Archive, "EmissiveColor", Material.EmissiveColor);
+        Archive.Field("SpecularExponent", Material.SpecularExponent);
+        Archive.Field("RefractionIndex", Material.RefractionIndex);
+        Archive.Field("IlluminationModel", Material.IlluminationModel);
+
+        // 이미지 대신 UTF-8 경로를 보존하며 기존 경로 직렬화를 재사용한다.
+        SerializePath(Archive, "OpacityTexturePath", Material.OpacityTexturePath);
+        SerializePath(Archive, "AmbientTexturePath", Material.AmbientTexturePath);
+        SerializePath(Archive, "SpecularTexturePath", Material.SpecularTexturePath);
+        SerializePath(Archive, "EmissiveTexturePath", Material.EmissiveTexturePath);
+        SerializePath(Archive, "SpecularExponentTexturePath", Material.SpecularExponentTexturePath);
+        SerializePath(Archive, "BumpTexturePath", Material.BumpTexturePath);
+        SerializePath(Archive, "NormalTexturePath", Material.NormalTexturePath);
+        SerializePath(Archive, "DisplacementTexturePath", Material.DisplacementTexturePath);
+
+        SerializeTextureOptions(Archive, "DiffuseTextureOptions", Material.DiffuseTextureOptions);
+        SerializeTextureOptions(Archive, "OpacityTextureOptions", Material.OpacityTextureOptions);
+        SerializeTextureOptions(Archive, "AmbientTextureOptions", Material.AmbientTextureOptions);
+        SerializeTextureOptions(Archive, "SpecularTextureOptions", Material.SpecularTextureOptions);
+        SerializeTextureOptions(Archive, "EmissiveTextureOptions", Material.EmissiveTextureOptions);
+        SerializeTextureOptions(Archive, "SpecularExponentTextureOptions", Material.SpecularExponentTextureOptions);
+        SerializeTextureOptions(Archive, "BumpTextureOptions", Material.BumpTextureOptions);
+        SerializeTextureOptions(Archive, "NormalTextureOptions", Material.NormalTextureOptions);
+        SerializeTextureOptions(Archive, "DisplacementTextureOptions", Material.DisplacementTextureOptions);
+    
     }
 
     // 메시 객체의 이름을 저장하거나 복원한다.
@@ -202,13 +262,48 @@ namespace
         if (ExpectedFirstIndex != IndexCount)
             throw std::runtime_error("Mesh sections do not cover all indices.");
 
-        // 재질 수치는 검사하지만 텍스처 파일을 실제로 로드하지는 않는다.
+        // 머티리얼 수치는 검사하지만 텍스처 파일을 실제로 로드하지는 않는다.
         for (const FStaticMeshMaterial& Material : Data.Materials)
         {
-            if (!IsFiniteVector(Material.DiffuseColor) || !std::isfinite(Material.Opacity))
-                throw std::runtime_error("Non-finite mesh material value.");
+            if (!Material.HasValidNumericValues())
+                throw std::runtime_error("Invalid mesh material numeric values.");
         }
     }
+}
+bool FStaticMeshTextureOptions::HasValidNumericValues() const
+{
+    // 원본 배율은 유지하면서 연산에 사용할 수 없는 값만 거부한다.
+    return std::isfinite(BumpMultiplier)
+        && IsFiniteVector(Offset)
+        && IsFiniteVector(Scale);
+}
+// 머티리얼 색상과 수치가 유한하며 기본적인 의미 범위를 만족하는지 검사한다.
+bool FStaticMeshMaterial::HasValidNumericValues() const
+{
+    // 색상은 기존 벡터 검사를 재사용하고, 원본 보존을 위해 0~1로 제한하지 않는다.
+    if (!IsFiniteVector(DiffuseColor) || !IsFiniteVector(AmbientColor) ||
+        !IsFiniteVector(SpecularColor) || !IsFiniteVector(EmissiveColor))
+    {
+        return false;
+    }
+
+    // 모든 맵의 옵션을 검사해 바이너리 복원 경로에도 같은 기준을 적용한다.
+    if (!DiffuseTextureOptions.HasValidNumericValues()
+        || !OpacityTextureOptions.HasValidNumericValues()
+        || !AmbientTextureOptions.HasValidNumericValues()
+        || !SpecularTextureOptions.HasValidNumericValues()
+        || !EmissiveTextureOptions.HasValidNumericValues()
+        || !SpecularExponentTextureOptions.HasValidNumericValues()
+        || !BumpTextureOptions.HasValidNumericValues()
+        || !NormalTextureOptions.HasValidNumericValues()
+        || !DisplacementTextureOptions.HasValidNumericValues())
+        return false;
+
+    // 불투명도는 0~1, 지수는 음수 금지, 굴절률은 양수로 검사한다.
+    return std::isfinite(Opacity) && Opacity >= 0.0f && Opacity <= 1.0f
+        && std::isfinite(SpecularExponent) && SpecularExponent >= 0.0f
+        && std::isfinite(RefractionIndex) && RefractionIndex > 0.0f
+        && IlluminationModel >= 0;
 }
 
 // Archive의 모드에 따라 모든 CPU 메시 데이터를 저장하거나 복원한다.
@@ -219,10 +314,12 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Vertices", Vertices, 48, SerializeVertex);
     Archive.Field("Indices", Indices);
     SerializeStructArray(Archive, "Sections", Sections, 16, SerializeSection);
-    SerializeStructArray(Archive, "Materials", Materials, 24, SerializeMaterial);
+    SerializeStructArray(Archive, "Materials", Materials, 365, SerializeMaterial);
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);
+    SerializeStructArray(Archive, "SourceFiles", SourceFiles, 12, SerializeSourceFile);
+
 }
 
 // CPU 메시 데이터를 검사한 뒤 바이너리 파일로 저장한다.

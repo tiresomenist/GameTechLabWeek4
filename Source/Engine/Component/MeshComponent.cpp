@@ -52,7 +52,12 @@ void UMeshComponent::SetOverrideMaterial(const FString& InMaterialPath, uint32 M
 	{
 		if (Tex->GetSRV())
 		{
-			FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(Tex->GetSRV(), InMaterialPath);
+			const FMaterial* CurrentMaterial = GetMaterial(MaterialSlot);
+			FMaterial GPUMaterial = CurrentMaterial ? *CurrentMaterial : RM->CreateStaticMeshMaterial(Tex->GetSRV(), InMaterialPath);
+
+			//FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(Tex->GetSRV(), InMaterialPath);
+			GPUMaterial.SRV = Tex->GetSRV();
+			GPUMaterial.TexturePath = InMaterialPath;
 			SetOverrideMaterial(new FMaterial(GPUMaterial), MaterialSlot);
 		}
 	}

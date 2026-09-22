@@ -73,7 +73,7 @@ namespace
     }
 
     // 경로 토큰 하나를 복사 없이 읽고 Text를 전진시킨다. 큰따옴표로 묶인 경로의 형식도 검사한다.
-    FStringView TakePathToken(FStringView& Text,const std::filesystem::path& Path,size_t LineNumber)
+    FStringView TakePathToken(FStringView& Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         Text = Trim(Text);
         if (Text.empty() || Text.front() != '"')
@@ -132,7 +132,7 @@ namespace
             }
 
             //한줄 읽음
-            FStringView Line(Begin,static_cast<size_t>(Cursor - Begin));
+            FStringView Line(Begin, static_cast<size_t>(Cursor - Begin));
 
             //다음줄이 있으면 커서를 다음줄로 이동
             if (Cursor < End)
@@ -159,7 +159,7 @@ namespace
             // 줄이음은 지원하지 않음
             if (Line.back() == '\\')
             {
-                ParseError(Path, LineNumber,"Line continuation is not supported");
+                ParseError(Path, LineNumber, "Line continuation is not supported");
             }
             // 예외처리 후, 등록한 ProcessLine 함수 호출
             ProcessLine(Line, LineNumber);
@@ -214,7 +214,7 @@ namespace
     }
 
     // float 읽어오기
-    float TakeFloat( FStringView& Text,const std::filesystem::path& Path, size_t LineNumber)
+    float TakeFloat(FStringView& Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         return ReadNumber<float>(TakeToken(Text), Path, LineNumber);
     }
@@ -230,7 +230,7 @@ namespace
     }
 
     // 필요한 값을 읽은 뒤 남은 내용이 공백뿐인지 검사하는 함수
-    void RequireEnd(FStringView Text,const std::filesystem::path& Path,size_t LineNumber)
+    void RequireEnd(FStringView Text, const std::filesystem::path& Path, size_t LineNumber)
     {
         if (!Trim(Text).empty())
         {
@@ -243,7 +243,7 @@ namespace
     {
         const int32 ObjIndex = ReadNumber<int32>(Token, Path, LineNumber);
 
-        const int64 Index = ObjIndex > 0 ? static_cast<int64>(ObjIndex) - 1: static_cast<int64>(Count) + ObjIndex;
+        const int64 Index = ObjIndex > 0 ? static_cast<int64>(ObjIndex) - 1 : static_cast<int64>(Count) + ObjIndex;
 
         if (ObjIndex == 0 || Index < 0 || Index >= Count)
         {
@@ -260,7 +260,7 @@ namespace
         FObjVertexIndex Result;
         const size_t Slash1 = Token.find('/');
 
-        Result.PositionIndex = ResolveIndex(Token.substr(0, Slash1),Info.Positions.Num(), Path, LineNumber);
+        Result.PositionIndex = ResolveIndex(Token.substr(0, Slash1), Info.Positions.Num(), Path, LineNumber);
 
         if (Slash1 == FStringView::npos)
         {
@@ -288,12 +288,12 @@ namespace
             Result.UVIndex = ResolveIndex(UVToken, Info.TexCoords.Num(), Path, LineNumber);
         }
 
-        Result.NormalIndex = ResolveIndex(Token.substr(Slash2 + 1),Info.Normals.Num(), Path, LineNumber);
+        Result.NormalIndex = ResolveIndex(Token.substr(Slash2 + 1), Info.Normals.Num(), Path, LineNumber);
 
         return Result; // v//vn 또는 v/vt/vn
     }
 
-    // 재질의 이름으로 마테리얼을 맵에 등록하거나 키값을 가져와서, 검색용 인덱스를 뱉는 함수
+    // 머티리얼의 이름으로 머티리얼을 맵에 등록하거나 키값을 가져와서, 검색용 인덱스를 뱉는 함수
     int32 GetOrAddMaterial(FObjInfo& Info, TMap<FString, int32>& MaterialLookup, FStringView Name)
     {
         FString Key(Name);
@@ -316,20 +316,134 @@ namespace
     }
 
     //파일 경로를 연결하는 함수
-    std::filesystem::path ResolvePath(const std::filesystem::path& Parent,FStringView Name)
+    std::filesystem::path ResolvePath(const std::filesystem::path& Parent, FStringView Name)
     {
         const std::filesystem::path Relative = std::filesystem::u8path(Name.begin(), Name.end());
 
         return (Parent / Relative).lexically_normal();
     }
 
-    // MTL 파일을 읽어 재질 이름,Diffuse 색상,불투명도,텍스처 경로를 채움
+    // 실제로 읽은 원본 파일의 절대 경로를 중복 없이 기록한다.
+    void AddSourceFile(FObjInfo& Info, const std::filesystem::path& Path)
+    {
+        // 상대 경로와 불필요한 "."·".."를 정리해 변경 검사 기준을 통일한다.
+        const std::filesystem::path AbsolutePath =
+            std::filesystem::absolute(Path).lexically_normal();
+
+        // 같은 경로가 반복 선언돼도 원본 목록에는 한 번만 추가한다.
+        for (const std::filesystem::path& ExistingPath : Info.SourceFiles)
+        {
+            if (ExistingPath == AbsolutePath) return;
+        }
+        Info.SourceFiles.Add(AbsolutePath);
+    }
+    
+    // 다음 토큰 전체가 실수 형식일 때만 선택 성분으로 읽는다.
+    bool TryTakeTextureFloat(FStringView& Text, const std::filesystem::path& Path,
+        size_t LineNumber, float& OutValue)
+    {
+        // 파일명이나 다음 옵션이면 원본 읽기 위치를 유지한다.
+        FStringView Remaining = Text;
+        const FStringView Token = TakeToken(Remaining);
+        FStringView Probe = Token;
+        if (!Probe.empty() && Probe.front() == '+') Probe.remove_prefix(1);
+        if (Probe.empty()) return false;
+
+        // 숫자 일부로 시작하는 파일명은 전체 숫자로 취급하지 않는다.
+        float Ignored = 0.0f;
+        const char* Begin = Probe.data();
+        const char* End = Begin + Probe.size();
+        const auto Parsed = std::from_chars(Begin, End, Ignored);
+        if (Parsed.ptr != End ||
+            (Parsed.ec != std::errc{} && Parsed.ec != std::errc::result_out_of_range))
+            return false;
+
+        // 범위 초과와 NaN·무한대 검사는 기존 숫자 파서에 맡긴다.
+        OutValue = ReadNumber<float>(Token, Path, LineNumber);
+        Text = Remaining;
+        return true;
+    }
+
+    // 필수 u와 선택 v·w를 읽고 생략된 성분은 지정된 기본값으로 유지한다.
+    FVector TakeTextureVector(FStringView& Text, const std::filesystem::path& Path,
+        size_t LineNumber, FVector Defaults)
+    {
+        // 첫 성분은 반드시 필요하며, 이후 성분은 숫자가 있을 때만 소비한다.
+        Defaults.X = TakeFloat(Text, Path, LineNumber);
+        if (TryTakeTextureFloat(Text, Path, LineNumber, Defaults.Y))
+            TryTakeTextureFloat(Text, Path, LineNumber, Defaults.Z);
+        return Defaults;
+    }
+    
+    // 텍스처 선언의 옵션과 파일 경로를 읽어 지정된 맵에 저장한다.
+    void ReadTextureMap(FStringView Line, const std::filesystem::path& Path,
+        size_t LineNumber, std::filesystem::path& OutPath,
+        FStaticMeshTextureOptions& OutOptions, bool bIsBumpMap)
+    {
+        // 같은 맵을 다시 선언하면 이전 옵션을 상속하지 않고 기본값부터 읽는다.
+        FStaticMeshTextureOptions Options{};
+        Line = Trim(Line);
+
+        // 파일명 앞에 있는 옵션을 순서대로 읽는다.
+        while (!Line.empty() && Line.front() == '-')
+        {
+            const FStringView Option = TakeToken(Line);
+            if (Option == "-clamp")
+            {
+                const FStringView Value = TakeToken(Line);
+                if (Value == "on") Options.bClamp = true;
+                else if (Value == "off") Options.bClamp = false;
+                else ParseError(Path, LineNumber, "Expected on or off after -clamp");
+            }
+            else if (Option == "-o")
+            {
+                // 이동량의 생략된 성분은 0으로 채운다.
+                Options.Offset = TakeTextureVector(Line, Path, LineNumber, FVector{});
+            }
+            else if (Option == "-s")
+            {
+                // 배율의 생략된 성분은 1로 채운다.
+                Options.Scale = TakeTextureVector(Line, Path, LineNumber, FVector{ 1.0f, 1.0f, 1.0f });
+            }
+            else if (Option == "-bm")
+            {
+                // 범프 전용 옵션이며 숫자 형식과 유한값 검사는 기존 함수를 재사용한다.
+                if (!bIsBumpMap)
+                    ParseError(Path, LineNumber, "-bm is only supported for bump maps.");
+                Options.BumpMultiplier = TakeFloat(Line, Path, LineNumber);
+            }
+            else
+            {
+                ParseError(Path, LineNumber, "Unsupported texture map option: " + FString(Option));
+            }
+            Line = Trim(Line);
+        }
+
+        // 옵션 뒤의 나머지를 경로로 읽으며 기존 공백·따옴표 처리를 유지한다.
+        FStringView TextureName = Trim(Line);
+        if (TextureName.empty())
+            ParseError(Path, LineNumber, "Missing texture map path");
+
+        if (TextureName.front() == '"')
+        {
+            FStringView Remaining = TextureName;
+            TextureName = TakePathToken(Remaining, Path, LineNumber);
+            RequireEnd(Remaining, Path, LineNumber);
+        }
+
+        // 선언 전체를 읽은 뒤 경로와 옵션을 함께 갱신한다.
+        OutPath = ResolvePath(Path.parent_path(), TextureName);
+        OutOptions = Options;
+    }
+
+    // MTL의 머티리얼 수치와 용도별 텍스처 경로를 읽어 CPU 데이터에 보관한다.
     void ReadMtl(const std::filesystem::path& Path, FObjInfo& Info, TMap<FString, int32>& MaterialLookup)
     {
         const FString Text = File::ReadTextFromPath(Path);
+        AddSourceFile(Info, Path);
         int32 CurrentMaterial = -1;
 
-        ForEachLine(Text, Path,[&](FStringView Line, size_t LineNumber)
+        ForEachLine(Text, Path, [&](FStringView Line, size_t LineNumber)
             {
                 const FStringView Prefix = TakeToken(Line);
 
@@ -342,77 +456,313 @@ namespace
                         ParseError(Path, LineNumber, "Missing material name");
                     }
 
-                    CurrentMaterial = GetOrAddMaterial(Info, MaterialLookup,Name);
+                    CurrentMaterial = GetOrAddMaterial(Info, MaterialLookup, Name);
 
                     FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
 
                     // 같은 이름을 재정의하면 나중 정의 사용.
-                    Material.DiffuseColor = { 1.0f, 1.0f, 1.0f };
-                    Material.Opacity = 1.0f;
-                    Material.DiffuseTexturePath.clear();
+                    Material = FObjMaterialInfo{};
+                    Material.Name = FString(Name);
                     Material.bDefined = true;
+                    return;
                 }
-                else if (Prefix == "Kd" || Prefix == "map_Kd" || Prefix == "d" || Prefix == "Tr")
+                const bool bColor = Prefix == "Ka" || Prefix == "Kd"
+                    || Prefix == "Ks" || Prefix == "Ke";
+                const bool bScalar = Prefix == "Ns" || Prefix == "Ni"
+                    || Prefix == "d" || Prefix == "Tr";
+
+                // 범프 맵의 여러 표기를 하나의 종류로 취급한다.
+                const bool bBumpTexture = Prefix == "bump"
+                    || Prefix == "map_bump" || Prefix == "map_Bump";
+
+                // 지원하는 맵은 모두 기존 텍스처 경로 처리 분기로 전달한다.
+                const bool bTexture = Prefix == "map_Kd" || Prefix == "map_d"
+                    || Prefix == "map_Ka" || Prefix == "map_Ks"
+                    || Prefix == "map_Ke" || Prefix == "map_Ns"
+                    || bBumpTexture || Prefix == "norm" || Prefix == "disp";
+
+                // 아직 지원하지 않는 지시문은 기존처럼 건너뛴다.
+                if (!bColor && !bScalar && Prefix != "illum" && !bTexture)
+                    return;
+                if (CurrentMaterial < 0)
+                    ParseError(Path, LineNumber, "Material property appears before newmtl");
+
+                FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
+
+                if (bColor)
                 {
-                    if (CurrentMaterial < 0)
-                    {
-                        ParseError(Path, LineNumber,"Material property appears before newmtl");
-                    }
+                    // 지시문에 대응하는 필드만 선택하고 RGB 읽기 로직은 공유한다.
+                    FVector* Color = &Material.DiffuseColor;
+                    if (Prefix == "Ka") Color = &Material.AmbientColor;
+                    else if (Prefix == "Ks") Color = &Material.SpecularColor;
+                    else if (Prefix == "Ke") Color = &Material.EmissiveColor;
 
-                    FObjMaterialInfo& Material = Info.Materials[CurrentMaterial];
+                    *Color = TakeVector3(Line, Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
+                }
+                else if (bScalar)
+                {
+                    // Tr은 투명도이므로 기존 정책대로 불투명도 1-Tr로 변환한다.
+                    const float Value = TakeFloat(Line, Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
 
-                    if (Prefix == "Kd")
-                    {
-                        Material.DiffuseColor = TakeVector3(Line, Path, LineNumber);
-
-                        RequireEnd(Line, Path, LineNumber);
-                    }
-                    else if (Prefix == "map_Kd")
-                    {
-                        FStringView TextureName = Trim(Line);
-
-                        if (TextureName.empty())
+                    if (Prefix == "Ns") Material.SpecularExponent = Value;
+                    else if (Prefix == "Ni") Material.RefractionIndex = Value;
+                    else Material.Opacity = Prefix == "Tr" ? 1.0f - Value : Value;
+                }
+                else if (Prefix == "illum")
+                {
+                    // 조명 모델은 실수가 아닌 정수 번호로 보관한다.
+                    Material.IlluminationModel =
+                        ReadNumber<int32>(TakeToken(Line), Path, LineNumber);
+                    RequireEnd(Line, Path, LineNumber);
+                }
+                else
+                {
+                    // 선택한 맵의 경로와 옵션에 공통 파싱 함수를 적용한다.
+                    auto ReadMap = [&](std::filesystem::path& TexturePath,
+                        FStaticMeshTextureOptions& TextureOptions)
                         {
-                            ParseError(Path, LineNumber,"Missing diffuse texture path");
-                        }
-
-                        if (TextureName.front() == '-')
-                        {
-                            ParseError(Path, LineNumber,"map_Kd options are not supported");
-                        }
-
-                        if (TextureName.front() == '"')
-                        {
-                            FStringView Remaining = TextureName;
-
-                            TextureName = TakePathToken(Remaining, Path, LineNumber);
-
-                            RequireEnd(Remaining, Path, LineNumber);
-                        }
-
-                        // 텍스처 경로는 MTL 파일 위치 기준.
-                        Material.DiffuseTexturePath = ResolvePath(Path.parent_path(), TextureName);
-                    }
-                    else
-                    {
-                        const float Value = TakeFloat(Line, Path, LineNumber);
-
-                        RequireEnd(Line, Path, LineNumber);
-
-                        if (Value < 0.0f || Value > 1.0f)
-                        {
-                            ParseError(Path, LineNumber,"Opacity must be between 0 and 1");
-                        }
-
-                        Material.Opacity = Prefix == "Tr" ? 1.0f - Value : Value;
-                    }
+                            ReadTextureMap(Line, Path, LineNumber, TexturePath, TextureOptions, bBumpTexture);
+                        };
+                    // 지시문에 대응하는 경로와 옵션을 반드시 같은 쌍으로 전달한다.
+                    if (Prefix == "map_Kd")
+                        ReadMap(Material.DiffuseTexturePath, Material.DiffuseTextureOptions);
+                    else if (Prefix == "map_d")
+                        ReadMap(Material.OpacityTexturePath, Material.OpacityTextureOptions);
+                    else if (Prefix == "map_Ka")
+                        ReadMap(Material.AmbientTexturePath, Material.AmbientTextureOptions);
+                    else if (Prefix == "map_Ks")
+                        ReadMap(Material.SpecularTexturePath, Material.SpecularTextureOptions);
+                    else if (Prefix == "map_Ke")
+                        ReadMap(Material.EmissiveTexturePath, Material.EmissiveTextureOptions);
+                    else if (Prefix == "map_Ns")
+                        ReadMap(Material.SpecularExponentTexturePath, Material.SpecularExponentTextureOptions);
+                    else if (bBumpTexture)
+                        ReadMap(Material.BumpTexturePath, Material.BumpTextureOptions);
+                    else if (Prefix == "norm")
+                        ReadMap(Material.NormalTexturePath, Material.NormalTextureOptions);
+                    else if (Prefix == "disp")
+                        ReadMap(Material.DisplacementTexturePath, Material.DisplacementTextureOptions);
                 }
 
-                // Ka/Ks/Ns/illum 등은 현재 사용하지 않는다.
+                // 바이너리 복원과 동일한 수치 검사로 잘못된 머티리얼을 Import에서 거부한다.
+                if (!Material.HasValidNumericValues())
+                    ParseError(Path, LineNumber, "Invalid material numeric values");
             });
     }
+    // 투영 전에는 정규화된 3D 좌표, 투영 후에는 XY 평면 좌표를 보관한다.
+    struct FEarPoint
+    {
+        double X = 0.0, Y = 0.0, Z = 0.0;
+    };
+
+    // 2D 삼각형의 방향과 두 배 부호 면적을 계산한다.
+    double EarCross(const FEarPoint& A, const FEarPoint& B, const FEarPoint& C)
+    {
+        return (B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X);
+    }
+
+    // 두 선분이 교차하거나 접촉하는지 허용 오차를 포함해 검사한다.
+    bool EarSegmentsIntersect(const FEarPoint& A, const FEarPoint& B,
+        const FEarPoint& C, const FEarPoint& D, double Epsilon)
+    {
+        // 범위가 분리된 선분은 교차할 수 없다.
+        if (std::max(A.X, B.X) < std::min(C.X, D.X) - Epsilon
+            || std::max(C.X, D.X) < std::min(A.X, B.X) - Epsilon
+            || std::max(A.Y, B.Y) < std::min(C.Y, D.Y) - Epsilon
+            || std::max(C.Y, D.Y) < std::min(A.Y, B.Y) - Epsilon)
+            return false;
+
+        const double ABC = EarCross(A, B, C), ABD = EarCross(A, B, D);
+        const double CDA = EarCross(C, D, A), CDB = EarCross(C, D, B);
+        return !((ABC > Epsilon && ABD > Epsilon) || (ABC < -Epsilon && ABD < -Epsilon)
+            || (CDA > Epsilon && CDB > Epsilon) || (CDA < -Epsilon && CDB < -Epsilon));
+    }
+
+    // 단순 평면 다각형을 Ear Clipping으로 나누고 원본 코너와 면 속성을 보존한다.
+    TArray<FObjTriangle> TriangulateFace(const FObjInfo& Info,
+        const TArray<FObjVertexIndex>& Corners, const FObjTriangle& FaceInfo,
+        const std::filesystem::path& Path, size_t LineNumber)
+    {
+        const int32 Count = Corners.Num();
+        if (Count < 3) ParseError(Path, LineNumber, "A face requires at least three corners");
+
+        TArray<FObjTriangle> Triangles;
+        Triangles.Reserve(static_cast<size_t>(Count - 2));
+
+        // 출력은 원본 코너를 복사하므로 UV·법선 및 면 속성이 유지된다.
+        auto AddTriangle = [&](int32 A, int32 B, int32 C)
+            {
+                FObjTriangle Triangle = FaceInfo;
+                Triangle.Corners[0] = Corners[A];
+                Triangle.Corners[1] = Corners[B];
+                Triangle.Corners[2] = Corners[C];
+                Triangles.Add(Triangle);
+            };
+
+        // 이미 삼각형인 면은 기존 퇴화 필터와 출력 순서를 유지한다.
+        if (Count == 3)
+        {
+            const FVector& A = Info.Positions[Corners[0].PositionIndex];
+            const FVector& B = Info.Positions[Corners[1].PositionIndex];
+            const FVector& C = Info.Positions[Corners[2].PositionIndex];
+            if ((B - A).Cross(C - A).LengthSquared() > EPSILON * EPSILON)
+                AddTriangle(0, 1, 2);
+            return Triangles;
+        }
+
+        // 큰 절대 좌표와 모델 크기의 영향을 줄이기 위해 원점 이동 후 정규화한다.
+        const FVector& Origin = Info.Positions[Corners[0].PositionIndex];
+        TArray<FEarPoint> Points;
+        Points.Reserve(static_cast<size_t>(Count));
+        double Scale = 0.0;
+        for (const FObjVertexIndex& Corner : Corners)
+        {
+            const FVector& P = Info.Positions[Corner.PositionIndex];
+            FEarPoint Q{ double(P.X) - Origin.X, double(P.Y) - Origin.Y, double(P.Z) - Origin.Z };
+            Scale = std::max(Scale, std::max({ std::abs(Q.X), std::abs(Q.Y), std::abs(Q.Z) }));
+            Points.Add(Q);
+        }
+        if (Scale == 0.0) return {};
+        for (FEarPoint& P : Points) { P.X /= Scale; P.Y /= Scale; P.Z /= Scale; }
+
+        // 경계 전체의 면적 벡터로 투영 방향과 기준 평면을 구한다.
+        constexpr double Epsilon = 1e-12;
+        constexpr double PlaneTolerance = 1e-5;
+        FEarPoint Normal;
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const FEarPoint& A = Points[I];
+            const FEarPoint& B = Points[(I + 1) % Count];
+            Normal.X += A.Y * B.Z - A.Z * B.Y;
+            Normal.Y += A.Z * B.X - A.X * B.Z;
+            Normal.Z += A.X * B.Y - A.Y * B.X;
+        }
+        const double Length = std::sqrt(Normal.X * Normal.X + Normal.Y * Normal.Y + Normal.Z * Normal.Z);
+        if (Length <= Epsilon)
+        {
+            FEarPoint Axis;
+            double AxisLengthSquared = 0.0;
+            for (const FEarPoint& P : Points)
+            {
+                const double CandidateLength = P.X * P.X + P.Y * P.Y + P.Z * P.Z;
+                if (CandidateLength > AxisLengthSquared)
+                {
+                    Axis = P;
+                    AxisLengthSquared = CandidateLength;
+                }
+            }
+
+            // 첫 점에서 가장 먼 점으로 향하는 직선 밖의 점이 있으면 퇴화로 단정하지 않는다.
+            for (const FEarPoint& P : Points)
+            {
+                const double CX = Axis.Y * P.Z - Axis.Z * P.Y;
+                const double CY = Axis.Z * P.X - Axis.X * P.Z;
+                const double CZ = Axis.X * P.Y - Axis.Y * P.X;
+                if (CX * CX + CY * CY + CZ * CZ > Epsilon * Epsilon * AxisLengthSquared)
+                    ParseError(Path, LineNumber, "Polygon has no stable plane");
+            }
+            return {};
+        }
+        Normal.X /= Length; Normal.Y /= Length; Normal.Z /= Length;
+
+        const double NX = std::abs(Normal.X), NY = std::abs(Normal.Y), NZ = std::abs(Normal.Z);
+        const int32 DropAxis = NX >= NY && NX >= NZ ? 0 : (NY >= NZ ? 1 : 2);
+        for (FEarPoint& P : Points)
+        {
+            if (std::abs(P.X * Normal.X + P.Y * Normal.Y + P.Z * Normal.Z) > PlaneTolerance)
+                ParseError(Path, LineNumber, "Non-planar polygon is not supported");
+
+            if (DropAxis == 0) P = { P.Y, P.Z, 0.0 };
+            else if (DropAxis == 1) P = { P.X, P.Z, 0.0 };
+            else P.Z = 0.0;
+        }
+
+        // 중복·겹친 간선이 있는 면은 제외하고, 정상 경계의 진행 방향을 구한다.
+        double Area = 0.0;
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const FEarPoint& A = Points[(I + Count - 1) % Count];
+            const FEarPoint& B = Points[I];
+            const FEarPoint& C = Points[(I + 1) % Count];
+            const double DX = C.X - B.X, DY = C.Y - B.Y;
+
+            // 길이 없는 간선이나 이전 간선을 되짚는 경계는 면 전체를 제외한다.
+            if (DX * DX + DY * DY <= Epsilon * Epsilon
+                || (std::abs(EarCross(A, B, C)) <= Epsilon
+                    && (B.X - A.X) * DX + (B.Y - A.Y) * DY < 0.0))
+                return {};
+
+            Area += B.X * C.Y - B.Y * C.X;
+        }
+        if (std::abs(Area) <= Epsilon) return {};
+        const double Winding = Area > 0.0 ? 1.0 : -1.0;
+
+        // 이웃하지 않는 경계의 교차·접촉은 복구하지 않고 오류로 처리한다.
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const int32 NextI = (I + 1) % Count;
+            for (int32 J = I + 1; J < Count; ++J)
+            {
+                const int32 NextJ = (J + 1) % Count;
+                if (NextI == J || NextJ == I) continue;
+                if (EarSegmentsIntersect(Points[I], Points[NextI], Points[J], Points[NextJ], Epsilon))
+                    ParseError(Path, LineNumber, "Polygon boundary intersects or touches itself");
+            }
+        }
+
+        // 원본 코너 배열은 유지하고 아직 제거하지 않은 코너 번호만 관리한다.
+        TArray<int32> Remaining;
+        Remaining.Reserve(static_cast<size_t>(Count));
+        for (int32 I = 0; I < Count; ++I) Remaining.Add(I);
+        while (Remaining.Num() > 3)
+        {
+            bool bClipped = false;
+            const int32 Num = Remaining.Num();
+            for (int32 I = 0; I < Num; ++I)
+            {
+                const int32 A = Remaining[(I + Num - 1) % Num];
+                const int32 B = Remaining[I];
+                const int32 C = Remaining[(I + 1) % Num];
+                if (Winding * EarCross(Points[A], Points[B], Points[C]) <= Epsilon) continue;
+
+                // 삼각형 내부나 경계에 다른 꼭짓점이 있으면 귀로 선택하지 않는다.
+                bool bBlocked = false;
+                for (int32 P : Remaining)
+                {
+                    if (P == A || P == B || P == C) continue;
+                    if (Winding * EarCross(Points[A], Points[B], Points[P]) >= -Epsilon
+                        && Winding * EarCross(Points[B], Points[C], Points[P]) >= -Epsilon
+                        && Winding * EarCross(Points[C], Points[A], Points[P]) >= -Epsilon)
+                    {
+                        bBlocked = true;
+                        break;
+                    }
+                }
+                if (bBlocked) continue;
+
+                AddTriangle(A, B, C);
+                Remaining.RemoveAt(static_cast<size_t>(I));
+                bClipped = true;
+                break;
+            }
+            if (!bClipped) ParseError(Path, LineNumber, "Cannot triangulate polygon");
+        }
+
+        // 마지막 삼각형이 퇴화했다면 해당 면에서 만든 중간 결과까지 모두 제외한다.
+        const double FinalArea = Winding * EarCross(
+            Points[Remaining[0]], Points[Remaining[1]], Points[Remaining[2]]);
+        if (FinalArea < -Epsilon)
+            ParseError(Path, LineNumber, "Invalid final triangle winding");
+        if (FinalArea <= Epsilon) return {};
+
+        AddTriangle(Remaining[0], Remaining[1], Remaining[2]);
+        return Triangles;
+    }
+
 }
-// OBJ와 참조 MTL을 읽고 면을 부채꼴로 삼각분할하여 FObjInfo를 반환하는 함수
+// OBJ와 참조 MTL을 읽고 면을 EarClipping로 삼각분할하여 FObjInfo를 반환하는 함수
 FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
 {
     //리턴값
@@ -424,6 +774,7 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
 
     //파일 전체 txt
     const FString Text = File::ReadTextFromPath(Path);
+    AddSourceFile(Info, Path);
 
     // 현재 객체/머티리얼/스무딩 그룹.
     int32 CurrentObject = -1;
@@ -516,12 +867,18 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
             //각 꼭짓점의 참조를 읽는 부분
             else if (Prefix == "f")
             {
-                // 별도 다각형 배열 없이 3개의 꼭짓점만 유지.
-                const FObjVertexIndex First = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                FObjVertexIndex Previous = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                FObjVertexIndex Current = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                
-                // o 선언 전에 나온 면은 이름 없는 기본 객체에 소속시킨다.
+                // 한 면의 꼭짓점을 원본 순서대로 모으고 기존 인덱스 검증을 재사용한다.
+                TArray<FObjVertexIndex> Corners;
+                while (true)
+                {
+                    const FStringView Token = TakeToken(Line);
+                    if (Token.empty()) break;
+                    Corners.Add(ReadCorner(Token, Info, Path, LineNumber));
+                }
+                if (Corners.Num() < 3)
+                    ParseError(Path, LineNumber, "A face requires at least three corners");
+
+                // o 선언 전의 면은 기존처럼 이름 없는 기본 객체에 소속시킨다.
                 if (CurrentObject < 0)
                 {
                     FObjObjectInfo Object;
@@ -529,36 +886,14 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
                     Info.Objects.Add(std::move(Object));
                 }
 
-                //현재는 볼록다각형까지만 처리가능, 오목다각형은 처리불가능
-                while (true)
-                {
-                    const FVector& P0 = Info.Positions[First.PositionIndex];
-                    const FVector& P1 = Info.Positions[Previous.PositionIndex];
-                    const FVector& P2 = Info.Positions[Current.PositionIndex];
-
-                    // 두 개 이상의 정점 인덱스가 같거나, 세 정점이 일직선/중복되어 면적이 0인 퇴화 삼각형 필터링
-                    const bool bDegenerate = (First.PositionIndex == Previous.PositionIndex) ||
-                                             (Previous.PositionIndex == Current.PositionIndex) ||
-                                             (Current.PositionIndex == First.PositionIndex) ||
-                                             ((P1 - P0).Cross(P2 - P0).LengthSquared() <= EPSILON * EPSILON);
-
-                    if (!bDegenerate)
-                    {
-                        FObjTriangle Triangle;
-                        Triangle.Corners[0] = First;
-                        Triangle.Corners[1] = Previous;
-                        Triangle.Corners[2] = Current;
-                        Triangle.ObjectIndex = CurrentObject;
-                        Triangle.MaterialIndex = CurrentMaterial;
-                        Triangle.SmoothingGroup = CurrentSmoothingGroup;
-                        Info.Triangles.Add(Triangle);
-                    }
-
-                    const FStringView Next = TakeToken(Line);
-                    if (Next.empty()) { break; }
-                    Previous = Current;
-                    Current = ReadCorner(Next, Info, Path, LineNumber);
-                }
+                // 면의 공통 속성을 모든 출력 삼각형에 전달한다.
+                FObjTriangle FaceInfo;
+                FaceInfo.ObjectIndex = CurrentObject;
+                FaceInfo.MaterialIndex = CurrentMaterial;
+                FaceInfo.SmoothingGroup = CurrentSmoothingGroup;
+                const TArray<FObjTriangle> FaceTriangles = TriangulateFace(Info, Corners, FaceInfo, Path, LineNumber);
+                for (const FObjTriangle& Triangle : FaceTriangles)
+                    Info.Triangles.Add(Triangle);
             }
             //객체 구분을 읽는 부분
             else if (Prefix == "o")
@@ -790,6 +1125,7 @@ namespace
     }
 }
 
+// Import 결과를 렌더링용 정점·인덱스·섹션과 CPU 머티리얼 데이터로 변환한다.
 FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
 {
     // CPU 정점·인덱스 배열, Section과 Bounds를 구성한다.
@@ -809,15 +1145,11 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
     }
 
     // 기존 MaterialIndex도 유지되도록 순서대로 복사.
+    Result.Materials.Reserve(Info.Materials.Num());
     for (const FObjMaterialInfo& Source : Info.Materials)
     {
-        FStaticMeshMaterial Material;
-        Material.Name = Source.Name;
-        Material.DiffuseColor = Source.DiffuseColor;
-        Material.Opacity = Source.Opacity;
-        Material.DiffuseTexturePath = Source.DiffuseTexturePath;
-
-        Result.Materials.Add(std::move(Material));
+        // 기반 구조체를 값으로 복사하므로 문자열과 경로도 결과가 직접 소유한다.
+        Result.Materials.Add(static_cast<const FStaticMeshMaterial&>(Source));
     }
     std::unordered_map<FVertexKey, uint32, FVertexKeyHash> VertexLookup;
     Result.Indices.Reserve(static_cast<size_t>(Info.Triangles.Num()) * 3);
@@ -828,7 +1160,7 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
         int32 MaterialIndex = Triangle.MaterialIndex;
         if (MaterialIndex < 0)
         {
-            // 기존 재질 인덱스는 유지하고, 미지정 재질은 기본 재질 하나를 공유한다.
+            // 기존 머티리얼 인덱스는 유지하고, 미지정 머티리얼은 기본 머티리얼 하나를 공유한다.
             if (DefaultMaterialIndex < 0)
             {
                 DefaultMaterialIndex = Result.Materials.Num();
@@ -837,7 +1169,7 @@ FStaticMeshData FObjImporter::Cook(const FObjInfo& Info)
             MaterialIndex = DefaultMaterialIndex;
         }
 
-        // 입력 순서를 유지하며 연속된 객체·재질 범위를 하나의 Section으로 묶는다.
+        // 입력 순서를 유지하며 연속된 객체·머티리얼 범위를 하나의 Section으로 묶는다.
         if (Result.Sections.IsEmpty()
             || Result.Sections[Result.Sections.Num() - 1].ObjectIndex != Triangle.ObjectIndex
             || Result.Sections[Result.Sections.Num() - 1].MaterialIndex != static_cast<uint32>(MaterialIndex))

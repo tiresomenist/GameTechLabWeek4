@@ -246,7 +246,7 @@ void FObjViewer::DrawWindows(float DeltaTime)
     ImGui::Text("X: %.3f  Y: %.3f  Z: %.3f", OriginalSize.X, OriginalSize.Y, OriginalSize.Z);
     ImGui::Separator();
 
-    // 현재 선택한 섹션의 인덱스 범위와 재질 연결 정보를 표시합니다.
+    // 현재 선택한 섹션의 인덱스 범위와 머티리얼 연결 정보를 표시합니다.
     if (SelectedSectionIndex >= 0 && SelectedSectionIndex < Sections.Num())
     {
         const FMeshSection& Section = Sections[SelectedSectionIndex];
@@ -371,7 +371,7 @@ void FObjViewer::OpenObjDialog()
     }
     catch (const std::exception& Error)
     {
-        // 파싱이나 재질 로딩에 실패해도 Viewer와 기존 모델을 유지합니다.
+        // 파싱이나 머티리얼 로딩에 실패해도 Viewer와 기존 모델을 유지합니다.
         FileSelectionError = "Could not load the OBJ file.";
         UE_LOG("[ObjViewer] OBJ load failed: {}", Error.what());
     }
