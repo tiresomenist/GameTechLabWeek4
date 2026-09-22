@@ -16,6 +16,7 @@
 #include "Core/Math/Rotator.h"
 #include "Core/Util/File.h"
 #include "Engine/Component/Light/SpotLightComponent.h"
+#include "Engine/Resource/TextureResource.h"
 #include "Editor/Util/MeshSelection.h"
 
 namespace
@@ -474,8 +475,24 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 	{
 		auto* MeshComp = static_cast<UStaticMeshComponent*>(InspectedComponent);
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
+
 		ImGui::SetNextItemWidth(150.0f);
-		if (MeshSelection::DrawCombo("Mesh Key", NewMeshKey)) MeshComp->SetStaticMesh(NewMeshKey);
+		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey)) 
+			MeshComp->SetStaticMesh(NewMeshKey);
+
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("STATIC_MESH"))
+			{
+				FString MeshPath = static_cast<const char*>(Payload->Data);
+				MeshComp->SetStaticMesh(MeshPath);
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		ImGui::SameLine();
+		ImGui::TextUnformatted("Mesh Key");
+
 		UStaticMesh* Mesh = MeshComp->GetStaticMesh();
 		uint32 NumSlots = Mesh ? static_cast<uint32>(Mesh->GetDefaultMeshMaterials().Num()) : 0;
 
@@ -489,14 +506,28 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 			for (uint32 SlotIdx = 0; SlotIdx < NumSlots; ++SlotIdx)
 			{
 				ImGui::PushID(static_cast<int>(SlotIdx));
-				std::string CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
+				FString CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
 
 				ImGui::Text("Slot [%u]", SlotIdx);
 				ImGui::SameLine();
+				
+				FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(CurrentTexPath);
+				ImGui::Image(ImTextureRef(Texture->GetSRV()), ImVec2(64.0f, 64.0f));
+				if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("TEXTURE"))
+					{
+						FString TexturePath = static_cast<const char*>(Payload->Data);
+						MeshComp->SetOverrideMaterial(TexturePath, SlotIdx);
+						CurrentTexPath = TexturePath;
+					}
+					ImGui::EndDragDropTarget();
+				}
+
 				ImGui::SetNextItemWidth(150.0f);
 				if (ImGui::InputText("##TexturePath", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
 				{
-					MeshComp->SetOverrideMaterial(FString(CurrentTexPath.c_str()), SlotIdx);
+					MeshComp->SetOverrideMaterial(CurrentTexPath, SlotIdx);
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Browse..."))
