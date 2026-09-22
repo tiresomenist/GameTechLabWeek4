@@ -29,6 +29,8 @@ void FCameraController::Tick(float DeltaTime)
     int32 DeltaX = 0, DeltaY = 0;
     Input.ConsumeRightDragDelta(DeltaX, DeltaY);
 
+    float DeltaWheel = Input.ComsumeMouseWheelDelta();
+
     if (EViewportType::Perspective == ViewType)
     {
         Camera->ConstrainEditorRotation();
@@ -53,7 +55,7 @@ void FCameraController::Tick(float DeltaTime)
         }
 
         //카메라 이동부
-        const float Forward = float(Input.GetKey(GInputManager::EI_W)) - float(Input.GetKey(GInputManager::EI_S));
+        const float Forward = float(Input.GetKey(GInputManager::EI_W)) - float(Input.GetKey(GInputManager::EI_S)) + DeltaWheel;
         const float Right = float(Input.GetKey(GInputManager::EI_D)) - float(Input.GetKey(GInputManager::EI_A));
         const float Up = float(Input.GetKey(GInputManager::EI_E)) - float(Input.GetKey(GInputManager::EI_Q));
         Camera->MoveCamera(Forward, Right, Up, DeltaTime);
@@ -64,7 +66,14 @@ void FCameraController::Tick(float DeltaTime)
         {
             float WorldUintsPerPixel = Camera->GetOrthoHeight() / ViewportClient->GetRenderView().Viewport.Height;
             FVector PanOffset = Camera->GetRight() * -1 * (DeltaX * WorldUintsPerPixel) + Camera->GetUp() * (DeltaY * WorldUintsPerPixel);
+            
             Camera->SetRelativeLocation(Camera->GetRelativeLocation() + PanOffset);
+        }
+        
+        if (abs(DeltaWheel) > 0.01f)
+        {
+            float NewOrthoHeight = Camera->GetOrthoHeight() - DeltaWheel;
+            Camera->SetOrthoHeight(NewOrthoHeight);
         }
     }
 }
