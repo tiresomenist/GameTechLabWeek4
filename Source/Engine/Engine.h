@@ -5,11 +5,12 @@
 #include <chrono>
 
 #include "EngineStats.h"
+#include <functional>
 
 class FConsole;
 class FEditor;
 class FObjViewer;
-
+class GResourceManager;
 
 enum class EApplicationMode
 {
@@ -44,8 +45,8 @@ class GEngine
 public:
 	static GEngine* GetInstance();
 
-	void Initialize(HWND InHwnd, EApplicationMode Mode);
-
+	// 엔진을 초기화하고 리소스 준비 콜백이 취소하면 정리 후 false를 반환한다.
+	bool Initialize(HWND InHwnd, EApplicationMode Mode, const std::function<bool(GResourceManager&)>& PrepareResources = {});
 	void Tick();
 
 	void Destroy();
