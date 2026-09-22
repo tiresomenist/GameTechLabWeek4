@@ -25,13 +25,14 @@ public:
 	int32 GetActiveAxis() const { return bDragging ? ActiveAxis : -1; }
 	void ChangeMod();
 private:
-	bool GetRotationDirection(float NDCX, float NDCY, FVector& OutDirection) const;
-	FVector GizmoPivot;
+	bool GetRotationDirection(float PixelX, float PixelY, FVector& OutDirection) const;
+	FVector RotationPivotPixel;
 	FVector PreviousRotationDirection;
+	float RotationSign = 1.0f;
 	double AccumulatedAngle = 0.0;
 	bool bHasRotationDirection = false;
+
 	USceneComponent* SelectedObject = nullptr;
-	
 	UObjectAxisGizmo* ObjectAxisGizmo = nullptr;
 	
 	FEditor* Editor = nullptr;

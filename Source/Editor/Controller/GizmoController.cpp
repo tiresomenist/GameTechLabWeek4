@@ -96,7 +96,7 @@ void FGizmoController::CalculateAxis()
 
 	uint32 ViewportIndex = Editor->GetCurrentEditViewportIndex();
     if (ViewportIndex >= Editor->GetViewports().Num()) return;
-    FViewportClient ViewportClient = Editor->GetViewports()[ViewportIndex];
+    const FViewportClient& ViewportClient = Editor->GetViewports()[ViewportIndex];
     const auto& Viewport = ViewportClient.GetViewportInfo();
     if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return; //창 크기가 0보다 작으면
 
@@ -176,19 +176,19 @@ bool FGizmoController::BeginDrag(int32 Axis)
 	DragWorldDirection = WorldDirections[Axis];
 
     auto& Input = *GInputManager::GetInstance();
+    const UCameraComponent* Camera = Editor->GetEditorCamera();
+    if (!Camera) return false;
+
+    uint32 ViewportIndex = Editor->GetCurrentEditViewportIndex();
+    if (ViewportIndex >= Editor->GetViewports().Num()) return false;
+    const FViewportClient& ViewportClient = Editor->GetViewports()[ViewportIndex];
+    const auto& Viewport = ViewportClient.GetViewportInfo();
+    if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return false; //창 크기가 0보다 작으면
+
+	const FMatrix ViewProjection = Camera->GetViewMatrix() * Camera->GetProjectionMatrix();
 
 	if (Mode == EGizmoMode::Translate)
 	{
-        const UCameraComponent* Camera = Editor->GetEditorCamera();
-        if (!Camera) return false;
-
-        uint32 ViewportIndex = Editor->GetCurrentEditViewportIndex();
-        if (ViewportIndex >= Editor->GetViewports().Num()) return false;
-        FViewportClient ViewportClient = Editor->GetViewports()[ViewportIndex];
-        const auto& Viewport = ViewportClient.GetViewportInfo();
-        if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return false; //창 크기가 0보다 작으면
-
-		const FMatrix ViewProjection = Camera->GetViewMatrix() * Camera->GetProjectionMatrix();
 
         DragPlaneOrigin = SelectedObject->GetWorldMatrix().GetOrigin();
         
@@ -214,13 +214,28 @@ bool FGizmoController::BeginDrag(int32 Axis)
 	}
 	else if (Mode == EGizmoMode::Rotate)
 	{
-        //객체의 월드 위치
-		GizmoPivot = SelectedObject->GetWorldMatrix().GetOrigin();
-		//누적회전각
-        AccumulatedAngle = 0.0;
-		
-        bHasRotationDirection = GetRotationDirection(Input.GetLeftCursorX(), Input.GetLeftCursorY(), PreviousRotationDirection);
-		if (!bHasRotationDirection) { EndDrag(); return false; }
+		const FVector PivotWorld = SelectedObject->GetWorldMatrix().GetOrigin();
+		if (!WorldToPixel(PivotWorld, ViewProjection, Viewport, RotationPivotPixel))
+		{
+			return false;
+		}
+
+		const FMouseRay PivotRay = GetMouseRay(FVector2(RotationPivotPixel.X, RotationPivotPixel.Y), ViewProjection, Viewport);
+		const float Facing = PivotRay.Direction.Dot(DragWorldDirection);
+		if (!std::isfinite(Facing) || std::fabs(Facing) < 1.0e-6f)
+		{
+			return false;
+		}
+
+		RotationSign = (Facing > 0.0f) ? 1.0f : -1.0f;
+
+		AccumulatedAngle = 0.0;
+		bHasRotationDirection = GetRotationDirection(Input.GetLeftCursorPixelX(), Input.GetLeftCursorPixelY(), PreviousRotationDirection);
+		if (!bHasRotationDirection)
+		{
+            EndDrag();
+			return false;
+		}
 	}
 	bDragging = true;
 	return true;
@@ -261,7 +276,7 @@ void FGizmoController::Tick()
 
     uint32 ViewportIndex = Editor->GetCurrentEditViewportIndex();
     if (ViewportIndex >= Editor->GetViewports().Num()) return;
-    FViewportClient ViewportClient = Editor->GetViewports()[ViewportIndex];
+    const FViewportClient& ViewportClient = Editor->GetViewports()[ViewportIndex];
     const auto& Viewport = ViewportClient.GetViewportInfo();
     if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return; //창 크기가 0보다 작으면
 
@@ -329,19 +344,21 @@ void FGizmoController::Tick()
     case EGizmoMode::Rotate:
     {
         FVector Direction;
-        const float X = 2.0f * (Input.GetLeftCursorPixelX() - Viewport.TopLeftX) / Viewport.Width - 1.0f;
-        const float Y = 1.0f - 2.0f * (Input.GetLeftCursorPixelY() - Viewport.TopLeftY) / Viewport.Height;
-        if (!GetRotationDirection(X, Y, Direction))
+        if (!GetRotationDirection(Input.GetLeftCursorPixelX(), Input.GetLeftCursorPixelY(), Direction))
         {
             bHasRotationDirection = false;
             break;
         }
+
         if (bHasRotationDirection)
         {
-            const float SinAngle = DragWorldDirection.Dot(PreviousRotationDirection.Cross(Direction));
+            const float SinAngle = PreviousRotationDirection.X * Direction.Y - PreviousRotationDirection.Y * Direction.X;
             const float CosAngle = PreviousRotationDirection.Dot(Direction);
-            AccumulatedAngle += std::atan2(SinAngle, CosAngle);
-            const auto DeltaRotation = FQuaternion::FromAxisAngle(DragWorldDirection, float(std::remainder(AccumulatedAngle, 2.0 * PI)));
+
+            AccumulatedAngle += RotationSign * std::atan2(SinAngle, CosAngle);
+			const float Angle = float(std::remainder(AccumulatedAngle, 2.0 * PI));
+
+			const FQuaternion DeltaRotation = FQuaternion::FromAxisAngle(DragWorldDirection, Angle);
             SelectedObject->SetRelativeRotation(DeltaRotation * StartObjectRotation);
         }
         PreviousRotationDirection = Direction;
@@ -371,43 +388,15 @@ void FGizmoController::Tick()
 	if (!Input.GetKey(GInputManager::EI_LMOUSE)) EndDrag();
 }
 
-bool FGizmoController::GetRotationDirection(float NDCX, float NDCY, FVector& OutDirection) const
+bool FGizmoController::GetRotationDirection(float PixelX, float PixelY, FVector& OutDirection) const
 {
-    // 뭔가 잘못되었으면 리턴
-    if (!Editor || !Editor->GetEditorCamera()) return false;    
+    const FVector Direction(PixelX - RotationPivotPixel.X, RotationPivotPixel.Y - PixelY, 0.0f);
+    const float LengthSquared = Direction.LengthSquared();
 
-    uint32 ViewportIndex = Editor->GetCurrentEditViewportIndex();
-    if (ViewportIndex >= Editor->GetViewports().Num()) return false;
-    FViewportClient ViewportClient = Editor->GetViewports()[ViewportIndex];
-    const auto& Viewport = ViewportClient.GetViewportInfo();
-    if (Viewport.Width <= 0.0f || Viewport.Height <= 0.0f) return false; //창 크기가 0보다 작으면
+    constexpr float MinRadiusPixels = 4.0f;
+    if (!std::isfinite(LengthSquared) || LengthSquared < MinRadiusPixels * MinRadiusPixels) return false;
 
-    auto* Camera = Editor->GetEditorCamera();
-    Camera->SetAspectRatio(Viewport.Width / Viewport.Height);
-
-    //VP행렬의 역행렬
-    FMatrix Inverse;
-    if (!(Camera->GetViewMatrix() * Camera->GetProjectionMatrix()).TryInverse(Inverse)) return false;
-    const FVector4 Near = FVector4(NDCX, NDCY, 0, 1) * Inverse;
-    const FVector4 Far = FVector4(NDCX, NDCY, 1, 1) * Inverse;
-    if (!std::isfinite(Near.W) || !std::isfinite(Far.W) || std::fabs(Near.W) < 1.0e-6f || std::fabs(Far.W) < 1.0e-6f) return false;
-    
-    // 클릭->월드 레이로 변환
-    const FVector Origin = FVector(Near) / Near.W;
-    const FVector Direction = (FVector(Far) / Far.W - Origin).GetNormalized();
-    
-    const float Denominator = Direction.Dot(DragWorldDirection);
-    if (!std::isfinite(Denominator) || std::fabs(Denominator) < 1.0e-4f) return false;
-
-    const float T = (GizmoPivot - Origin).Dot(DragWorldDirection) / Denominator;
-    if (!std::isfinite(T) || T < 0.0f) return false;
-
-    const FVector Radial = Origin + Direction * T - GizmoPivot;
-    const float LengthSquared = Radial.LengthSquared();
-
-    if (!std::isfinite(LengthSquared) || LengthSquared < 1.0e-8f) return false;
-
-    OutDirection = Radial / std::sqrt(LengthSquared);
+    OutDirection = Direction / std::sqrt(LengthSquared);
     return true;
 }
 
