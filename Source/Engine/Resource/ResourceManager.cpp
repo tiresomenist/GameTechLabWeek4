@@ -478,6 +478,14 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
     // Import와 캐시 검사가 같은 절대 경로를 기준으로 동작하게 한다.
     ObjPath = std::filesystem::absolute(ObjPath).lexically_normal();
     const FString ObjPathText = File::PathToUtf8(ObjPath);
+    const FName ResolvedMeshKey(ObjPathText);
+
+    // 기본 이름과 상대 경로로 요청해도 같은 원본의 메시를 재사용한다.
+    if (UStaticMesh** Existing = StaticMeshCache.Find(ResolvedMeshKey))
+    {
+        return *Existing;
+    }
+
     const std::filesystem::path CachePath = GetMeshCachePath(ObjPath);
 
     FStaticMeshData MeshData;
@@ -541,7 +549,7 @@ UStaticMesh* GResourceManager::GetOrLoadStaticMesh(const FName& MeshKey)
         throw std::runtime_error("Failed to create static mesh GPU resource: " + ObjPathText);
     }
 
-    StaticMeshCache.Add(MeshKey, NewMesh.get());
+    StaticMeshCache.Add(ResolvedMeshKey, NewMesh.get());
     return NewMesh.release();
 }
 

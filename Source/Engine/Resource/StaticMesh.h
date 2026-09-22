@@ -19,6 +19,7 @@ public:
 
 	virtual void Serialize(FArchive& Archive) override {};
 
+	FName GetMeshKey() const { return MeshKey; }
 
 	FMeshResource* GetMeshResource() const { return MeshResource; }
 	void SetMeshResource(FMeshResource* InResource) { MeshResource = InResource;}
