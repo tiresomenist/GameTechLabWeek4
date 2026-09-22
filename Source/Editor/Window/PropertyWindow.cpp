@@ -18,6 +18,10 @@
 #include "Engine/Component/Light/SpotLightComponent.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Editor/Util/MeshSelection.h"
+#include "Engine/Renderer/Material.h"
+#include <exception>
+#include <filesystem>
+#include "Engine/Log.h"
 
 namespace
 {
@@ -44,6 +48,39 @@ namespace
 		}
 
 		Actor->CreateComponent(UWidgetComponent::GetClass());
+	}
+}
+// 텍스처 변경 실패를 UI에서 처리하여 에디터 실행을 유지한다.
+bool UPropertyWindow::TryApplyTexture(UMeshComponent& MeshComp, const FString& TexturePath, uint32 SlotIdx)
+{
+	try
+	{
+		// 기존 로딩·재질 교체 로직을 재사용한다. 빈 경로는 기본 재질 복원 요청이다.
+		MeshComp.SetOverrideMaterial(TexturePath, SlotIdx);
+		LastTextureError.clear();
+		return true;
+	}
+	catch (const std::exception& Error)
+	{
+		// 파일 로딩 실패를 이번 UI 조작의 실패로 처리한다.
+		LastTextureError = Error.what();
+		return false;
+	}
+}
+
+bool UPropertyWindow::TryApplyStaticMesh(UStaticMeshComponent& MeshComp, const FName& MeshKey)
+{
+	try
+	{
+		// 성공 시에만 메시 연결이 확정되는 기존 함수를 호출한다.
+		MeshComp.SetStaticMesh(MeshKey);
+		return true;
+	}
+	catch (const std::exception& Error)
+	{
+		// 호출자가 생성 취소 등 후속 처리를 결정하도록 실패를 반환한다.
+		UE_LOG("[Property] Static mesh change failed: {}", Error.what());
+		return false;
 	}
 }
 
@@ -344,7 +381,8 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 	{
 		if (UStaticMeshComponent* StaticMesh = FindStaticMeshComponent(Actor))
 		{
-			StaticMesh->SetStaticMesh(SelectedMeshKey);
+			// 기존 컴포넌트는 교체에 실패해도 제거하지 않는다.
+			if (!TryApplyStaticMesh(*StaticMesh, SelectedMeshKey)) return;
 			AddedComponent = StaticMesh;
 		}
 		else
@@ -352,7 +390,13 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 			AddedComponent = Actor->CreateComponent(SelectedAddComponentClass);
 			if (AddedComponent != nullptr)
 			{
-				static_cast<UStaticMeshComponent*>(AddedComponent)->SetStaticMesh(SelectedMeshKey);
+				auto* StaticMesh = static_cast<UStaticMeshComponent*>(AddedComponent);
+				if (!TryApplyStaticMesh(*StaticMesh, SelectedMeshKey))
+				{
+					// 이번 조작에서 만든 컴포넌트만 Actor의 제거 경로로 정리한다.
+					Actor->RemoveComponent(AddedComponent);
+					return;
+				}
 			}
 		}
 	}
@@ -360,7 +404,6 @@ void UPropertyWindow::RenderAddComponentSection(AActor* Actor)
 	{
 		AddedComponent = Actor->CreateComponent(SelectedAddComponentClass);
 	}
-
 	if (AddedComponent != nullptr && AddedComponent->IsA(UPrimitiveComponent::GetClass()))
 	{
 		EnsurePrimitiveWidget(Actor);
@@ -477,15 +520,18 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		FName NewMeshKey = MeshComp->GetStaticMeshKey();
 
 		ImGui::SetNextItemWidth(150.0f);
-		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey)) 
-			MeshComp->SetStaticMesh(NewMeshKey);
+		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey))
+		{
+			// 실패하면 컴포넌트의 기존 모델 연결을 유지한다.
+			TryApplyStaticMesh(*MeshComp, NewMeshKey);
+		}
 
 		if (ImGui::BeginDragDropTarget())
 		{
 			if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("STATIC_MESH"))
 			{
 				FString MeshPath = static_cast<const char*>(Payload->Data);
-				MeshComp->SetStaticMesh(MeshPath);
+				TryApplyStaticMesh(*MeshComp, FName(MeshPath));
 			}
 			ImGui::EndDragDropTarget();
 		}
@@ -511,15 +557,28 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				ImGui::Text("Slot [%u]", SlotIdx);
 				ImGui::SameLine();
 				
-				FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(CurrentTexPath);
-				ImGui::Image(ImTextureRef(Texture->GetSRV()), ImVec2(64.0f, 64.0f));
+				// 실제 렌더링에 사용 중인 재질의 텍스처를 미리보기에도 사용한다.
+				const FMaterial* Material = MeshComp->GetMaterial(SlotIdx);
+				if (Material && Material->SRV)
+				{
+					ImGui::Image(ImTextureRef(Material->SRV), ImVec2(64.0f, 64.0f));
+				}
+				else
+				{
+					// 텍스처가 없어도 드래그 앤 드롭을 받을 UI 항목은 유지한다.
+					ImGui::Button("No texture", ImVec2(64.0f, 64.0f));
+				}
+				
 				if (ImGui::BeginDragDropTarget())
 				{
 					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("TEXTURE"))
 					{
 						FString TexturePath = static_cast<const char*>(Payload->Data);
-						MeshComp->SetOverrideMaterial(TexturePath, SlotIdx);
-						CurrentTexPath = TexturePath;
+						// 교체에 성공한 경우에만 표시 경로를 갱신한다.
+						if (TryApplyTexture(*MeshComp, TexturePath, SlotIdx))
+						{
+							CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx);
+						}
 					}
 					ImGui::EndDragDropTarget();
 				}
@@ -527,27 +586,42 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 				ImGui::SetNextItemWidth(150.0f);
 				if (ImGui::InputText("##TexturePath", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
 				{
-					MeshComp->SetOverrideMaterial(CurrentTexPath, SlotIdx);
+					TryApplyTexture(*MeshComp, CurrentTexPath, SlotIdx);
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Browse..."))
 				{
-					const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
-					const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
-					if (TexturePath)
+					try
 					{
-						const std::filesystem::path RelativePath =std::filesystem::relative(*TexturePath, std::filesystem::current_path());
-						MeshComp->SetOverrideMaterial(File::PathToUtf8(RelativePath), SlotIdx);
+						// 파일 선택을 취소하면 현재 텍스처를 유지한다.
+						const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
+						const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
+						if (TexturePath)
+						{
+							// 상대 경로를 만들 수 없는 다른 드라이브의 파일은 절대 경로로 사용한다.
+							const std::filesystem::path RelativePath =
+								std::filesystem::relative(*TexturePath, std::filesystem::current_path());
+							const std::filesystem::path& LoadPath = RelativePath.empty() ? *TexturePath : RelativePath;
+							TryApplyTexture(*MeshComp, File::PathToUtf8(LoadPath), SlotIdx);
+						}
+					}
+					catch (const std::exception& Error)
+					{
+						// 파일 선택 또는 경로 변환에서 발생한 실패도 UI에서 처리한다.
+						LastTextureError = Error.what();
 					}
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Reset"))
 				{
-					MeshComp->SetOverrideMaterial("", SlotIdx);
+					TryApplyTexture(*MeshComp, FString{}, SlotIdx);
 				}
 				ImGui::PopID();
 			}
-			ImGui::TextDisabled("Press Enter to apply path, or Reset to default.");
+			if (!LastTextureError.empty())
+			{
+				ImGui::TextWrapped("Last texture operation failed: %s", LastTextureError.c_str());
+			}
 		}
 	}
 
@@ -609,7 +683,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 	{
 		auto* TextComp = static_cast<UTextComponent*>(InspectedComponent);
 		FString Text = TextComp->GetText();
-		if (ImGui::InputText("Text", &Text)) TextComp->SetText(Text);
+		if (ImGui::InputText("Text##Content", &Text)) TextComp->SetText(Text);
 	}
 }
 

@@ -44,23 +44,8 @@ void File::WriteText(FStringView Path, FStringView Text)
 
 void File::WriteTextToPath(const std::filesystem::path& Path, FStringView Text)
 {
-	try
-	{
-		std::ofstream Out;
-		Out.exceptions(std::ios::failbit | std::ios::badbit);
-		Out.open(Path, std::ios::binary | std::ios::trunc);
-		Out << Text;
-		Out.flush();
-		Out.close();
-		if (!MoveFileExW(Path.c_str(), Path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-			throw std::system_error(GetLastError(), std::system_category());
-	}
-	catch (...)
-	{
-		std::error_code Ignored;
-		std::filesystem::remove(Path, Ignored);
-		throw;
-	}
+	File::WriteText(File::PathToUtf8(Path), Text);
+
 }
 
 FString File::ReadText(FStringView Path)

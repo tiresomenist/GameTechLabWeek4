@@ -3,18 +3,25 @@
 #include "Core/Serialization/Archive.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Engine/Resource/ResourceManager.h"
+#include <stdexcept>
 
 void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 {
-    MeshKey = InMeshKey;
-	if (!MeshKey.IsNone())
+	if (!InMeshKey.IsNone())
 	{
-		UStaticMesh* Mesh = nullptr;
-		if (Mesh = GResourceManager::GetInstance()->GetOrLoadStaticMesh(MeshKey))
+		// 로딩 실패 시 기존 MeshKey와 재질 슬롯을 유지한다.
+		UStaticMesh* Mesh = GResourceManager::GetInstance()->GetOrLoadStaticMesh(InMeshKey);
+		if (!Mesh)
 		{
-			OverrideMaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
+			throw std::runtime_error("Static mesh could not be loaded: " + InMeshKey.ToString());
 		}
+
+		// 기존 슬롯 조정 정책을 유지하되, 경로 확정보다 먼저 수행한다.
+		OverrideMaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
 	}
+
+	// 필요한 준비가 끝난 경우에만 새 경로를 확정한다.
+	MeshKey = InMeshKey;
 }
 
 void UStaticMeshComponent::SetStaticMesh(const FString& FilePath)

@@ -183,7 +183,7 @@ inline uint32 ValidateSceneArchive(FArchive& Archive)
         FString TypeText;
         Archive.Field("Type", TypeText);
 		FResolvedSceneType Resolved = ResolveSceneType(FName(TypeText));
-		if (Resolved.Kind != ESceneTypeKind::Component && !Resolved.IsValid())
+        if (Resolved.Kind != ESceneTypeKind::Component || !Resolved.IsValid())
 			throw std::runtime_error("Unsupported scene type: " + TypeText);
 
 		Archive.EndMapEntry();
