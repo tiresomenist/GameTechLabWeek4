@@ -11,7 +11,9 @@
 namespace
 {
     constexpr uint32 MeshMagic = 0x4853454Du; // little-endian으로 "MESH"
-    constexpr uint32 MeshVersion = 1;
+
+    // 버전 2부터 메시 본문 뒤에 원본 파일 상태 목록을 저장한다.
+    constexpr uint32 MeshVersion = 2;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)
@@ -57,7 +59,14 @@ namespace
             Value = std::filesystem::path(Utf8);
         }
     }
-
+    // 원본 파일 하나의 경로·크기·수정 시각을 저장하거나 복원한다.
+    void SerializeSourceFile(FArchive& Archive, FStaticMeshSourceFile& Source)
+    {
+        // 경로는 기존 UTF-8 직렬화를 재사용하고, 상태값은 같은 순서로 처리한다.
+        SerializePath(Archive, "FilePath", Source.FilePath);
+        Archive.Field("FileSize", Source.FileSize);
+        Archive.Field("LastWriteTime", Source.LastWriteTime);
+    }
     // 정점의 위치, 법선, 색상, UV를 정해진 순서로 처리한다.
     void SerializeVertex(FArchive& Archive, FVertexPNCT& Vertex)
     {
@@ -223,6 +232,8 @@ void FStaticMeshData::Serialize(FArchive& Archive)
     SerializeStructArray(Archive, "Objects", Objects, 4, SerializeObjectInfo);
     SerializeVector(Archive, "BoundsMin", BoundsMin);
     SerializeVector(Archive, "BoundsMax", BoundsMax);
+    SerializeStructArray(Archive, "SourceFiles", SourceFiles, 12, SerializeSourceFile);
+
 }
 
 // CPU 메시 데이터를 검사한 뒤 바이너리 파일로 저장한다.

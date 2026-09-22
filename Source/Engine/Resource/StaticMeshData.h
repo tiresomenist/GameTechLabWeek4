@@ -29,11 +29,23 @@ struct FStaticMeshObjectInfo
     FString Name;
 };
 
+// 메시 생성에 사용한 원본 파일의 상태를 보관한다.
+struct FStaticMeshSourceFile
+{
+    // 실제로 읽은 OBJ 또는 MTL의 절대 경로.
+    std::filesystem::path FilePath;
+
+    // 파일 크기의 정수값을 손실 없이 보관하는 문자열.
+    FString FileSize;
+
+    // 파일 수정 시각의 clock tick 정수값을 보관하는 문자열.
+    FString LastWriteTime;
+};
 
 struct FStaticMeshData
 {
     FString PathFileName;
-
+    TArray<FStaticMeshSourceFile> SourceFiles;
     TArray<FVertexPNCT> Vertices;
     TArray<uint32> Indices;
 
