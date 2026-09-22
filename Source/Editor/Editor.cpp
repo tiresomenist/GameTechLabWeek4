@@ -534,27 +534,42 @@ void FEditor::ReleaseRootSplitter()
 void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 {
 	UScene* CurrentScene = GetCurrentScene();
+	if (!CurrentScene || MeshKey.IsNone() || Count <= 0) return;
 
 	for (int i = 0; i < Count; ++i)
 	{
-		AActor* Actor = CurrentScene->SpawnActor<AActor*>(AActor::GetClass());
-		auto* StaticMeshComp = static_cast<UStaticMeshComponent*>(
-			Actor->CreateComponent(UStaticMeshComponent::GetClass()));
+		AActor* Actor = nullptr;
+		try
+		{
+			// 선택 상태를 변경하기 전에 Actor와 필요한 컴포넌트를 구성한다.
+			Actor = CurrentScene->SpawnActor<AActor*>(AActor::GetClass());
+			if (!Actor) throw std::runtime_error("Failed to create a static mesh actor.");
 
-		StaticMeshComp->SetStaticMesh(MeshKey);
-		/*if (MeshKey == "Cube" || MeshKey == "Sphere")
+			auto* StaticMeshComp = static_cast<UStaticMeshComponent*>(
+				Actor->CreateComponent(UStaticMeshComponent::GetClass()));
+			if (!StaticMeshComp) throw std::runtime_error("Failed to create a static mesh component.");
+
+			StaticMeshComp->SetStaticMesh(MeshKey);
+
+			// 기존 Rocket의 정점색 표시 정책을 유지한다.
+			if (MeshKey == "Rocket")
+			{
+				StaticMeshComp->SetOverrideMaterial("Assets/Textures/WhiteTexture.png");
+			}
+
+			Actor->CreateComponent(UWidgetComponent::GetClass());
+		}
+		catch (const std::exception& Error)
 		{
-			StaticMesh->SetMaterial("Assets/Textures/DefaultMaterial.png");
-		}*/
-		// 로켓 색상은 정점 색상에 있으므로 흰색 텍스처를 곱해 원래 색을 유지함
-		if (MeshKey == "Rocket")
-		{
-			StaticMeshComp->SetOverrideMaterial("Assets/Textures/WhiteTexture.png");
+			// 씬이 소유한 Actor는 씬의 제거 함수로 정리한다.
+			if (Actor) CurrentScene->DestroyActor(Actor);
+			UE_LOG("[Editor] Static mesh spawn failed: {}", Error.what());
+			return;
 		}
 
-		Actor->CreateComponent(UWidgetComponent::GetClass());
-
+		// 구성이 완료된 Actor만 선택 대상으로 공개한다.
 		SetSelectedActor(Actor);
+
 	}
 }
 

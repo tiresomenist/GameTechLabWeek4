@@ -11,6 +11,8 @@ class UActorComponent;
 class USceneComponent;
 class AActor;
 struct FClassType;
+class UMeshComponent;
+class UStaticMeshComponent;
 
 class UPropertyWindow : public UEditorWindow
 {
@@ -32,7 +34,11 @@ private:
 	FName SelectedMeshKey;
 	AActor* NameEditingActor = nullptr;
 	std::array<char, 128> ActorNameBuffer {};
+	FString LastTextureError;
 
+	// 텍스처 교체를 요청하고 실패하면 Property 창에 표시할 오류를 저장한다.
+	bool TryApplyTexture(UMeshComponent& MeshComp, const FString& TexturePath, uint32 SlotIdx);
+	bool TryApplyStaticMesh(UStaticMeshComponent& MeshComp, const FName& MeshKey);
 public:
 	virtual void InitializeWindow(FEditor* InEditor, const FString& Name) override;
 
