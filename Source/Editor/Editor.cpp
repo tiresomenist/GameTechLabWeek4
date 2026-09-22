@@ -876,29 +876,33 @@ void FEditor::LoadEditorSetting()
 
 		// 문자열로 저장된 뷰 모드를 복원함
 		FStringView ViewModeText;
-
-		if (TryReadIniValue(FileText,"Viewport","ViewMode",ViewModeText))
+		for (uint32 i = 0; i < Viewports.Num(); ++i)
 		{
-			EViewModeIndex ParsedMode = LoadedViewSettings.ViewMode;
-
-			if (TryParseViewMode(ViewModeText, ParsedMode))
+			FString SectionName = std::format("Viewport{}", i);//FString::Printf(TEXT("Viewport%d" + i));
+			if (TryReadIniValue(FileText, SectionName, "ViewMode", ViewModeText))
 			{
-				LoadedViewSettings.ViewMode = ParsedMode;
-			}
-			else
-			{
-				UE_LOG("알 수 없는 ViewMode: {}. 기존 값 유지함.",ViewModeText);
-			}
-		}
+				EViewModeIndex ParsedMode = LoadedViewSettings.ViewMode;
 
-		// 파일에 존재하는 정상적인 ShowFlag 항목만 변경함
-		for (const FShowFlagIniEntry& Entry : ShowFlagIniEntries)
-		{
-			bool ParsedBool = false;
+				if (TryParseViewMode(ViewModeText, ParsedMode))
+				{
+					LoadedViewSettings.ViewMode = ParsedMode;
+				}
+				else
+				{
+					UE_LOG("알 수 없는 ViewMode: {}. 기존 값 유지함.", ViewModeText);
+				}
 
-			if (TryReadIniBool(FileText,"Viewport",Entry.Key,ParsedBool))
-			{
-				LoadedViewSettings.ShowFlags.SetEnabled(Entry.Flag,ParsedBool);
+				// 파일에 존재하는 정상적인 ShowFlag 항목만 변경함
+				for (const FShowFlagIniEntry& Entry : ShowFlagIniEntries)
+				{
+					bool ParsedBool = false;
+
+					if (TryReadIniBool(FileText, SectionName, Entry.Key, ParsedBool))
+					{
+						LoadedViewSettings.ShowFlags.SetEnabled(Entry.Flag, ParsedBool);
+					}
+				}
+				Viewports[i].SetViewSettings(LoadedViewSettings);
 			}
 		}
 
@@ -923,7 +927,7 @@ void FEditor::LoadEditorSetting()
 		// 모든 항목의 해석 완료 후 실제 설정에 적용함
 		EditorCamera->SetMoveSpeed(LoadedMoveSpeed);
 		SetGridInterval(LoadedGridInterval);
-		ViewSettings = LoadedViewSettings;
+		//ViewSettings = LoadedViewSettings;
 
 		bCanSaveEditorSettings = true;
 	}
@@ -967,21 +971,31 @@ void FEditor::SaveEditorSetting() {
 		"MoveSpeed={}\n"
 		"\n"
 		"[Grid]\n"
-		"Interval={}\n"
-		"\n"
-		"[Viewport]\n"
-		"ViewMode={}\n",
+		"Interval={}\n",
 		EditorCamera->GetMoveSpeed(),
-		GetGrid().Interval, 
-		ViewModeName
+		GetGrid().Interval //,
+		//ViewModeName
 		//ShowFlags는 어떻게 처리할지 고민좀 해봐야됨
 	);
 
-	for (const FShowFlagIniEntry& Entry : ShowFlagIniEntries)
+	for (uint32 i = 0; i< Viewports.Num(); ++i)
 	{
-		const bool bEnabled = ViewSettings.ShowFlags.IsEnabled(Entry.Flag);
-		FileText += std::format("{}={}\n",Entry.Key,bEnabled ? "true" : "false");
+		const char* ViewModeName = GetViewModeName(Viewports[i].GetViewSettings().ViewMode);
+		FileText += std::format(
+			"\n[Viewport{}]\n"
+			"ViewMode={}" "\n", i, ViewModeName);
+		for (const FShowFlagIniEntry& Entry : ShowFlagIniEntries)
+		{
+			const bool bEnabled = Viewports[i].GetViewSettings().ShowFlags.IsEnabled(Entry.Flag);
+			FileText += std::format("{}={}\n", Entry.Key, bEnabled ? "true" : "false");
+		}
 	}
+
+	//for (const FShowFlagIniEntry& Entry : ShowFlagIniEntries)
+	//{
+	//	const bool bEnabled = ViewSettings.ShowFlags.IsEnabled(Entry.Flag);
+	//	FileText += std::format("{}={}\n",Entry.Key,bEnabled ? "true" : "false");
+	//}
 
 	FileText += std::format(
 		"\n"
