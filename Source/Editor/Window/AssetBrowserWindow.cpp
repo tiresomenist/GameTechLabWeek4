@@ -5,6 +5,8 @@
 #include "Editor/Editor.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
+#include <exception>
+#include <stdexcept>
 
 void UAssetBrowserWindow::InitializeWindow(FEditor* InEditor, const FString& InName)
 {
@@ -136,7 +138,7 @@ void UAssetBrowserWindow::DrawContentView()
 	std::filesystem::path NextPath;
 	if (ImGui::BeginTable("AssetGrid", ColumnCount, ImGuiTableFlags_SizingStretchSame))
 	{
-		for (const auto& Entry : CurrentContents)
+		for (auto& Entry : CurrentContents)
 		{
 			ImGui::TableNextColumn();
 
@@ -162,15 +164,28 @@ void UAssetBrowserWindow::DrawContentView()
 			}
 			else if (Entry.Type == EAssetType::Texture)
 			{
-				FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(Path);
-				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-				ImGui::ImageButton("Thumbnail", ImTextureRef(Texture->GetSRV()), ImVec2(Size, Size));
-				ImGui::PopStyleColor();
-				if (ImGui::BeginDragDropSource())
-				{
-					ImGui::SetDragDropPayload("TEXTURE", Path.c_str(), Path.size() + 1);
-					ImGui::Image(ImTextureRef(Texture->GetSRV()), ImVec2(Size, Size));
-					ImGui::EndDragDropSource();
+				FTextureResource* Texture = GetOrRequestThumbnail(Entry);
+				if (Texture) {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+					ImGui::ImageButton("Thumbnail", ImTextureRef(Texture->GetSRV()), ImVec2(Size, Size));
+					ImGui::PopStyleColor();
+					if (ImGui::BeginDragDropSource())
+					{
+						ImGui::SetDragDropPayload("TEXTURE", Path.c_str(), Path.size() + 1);
+						ImGui::Image(ImTextureRef(Texture->GetSRV()), ImVec2(Size, Size));
+						ImGui::EndDragDropSource();
+					}
+				}
+				else {
+					ImGui::Button("Failed##Thumbnail", ImVec2(Size, Size));
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::BeginTooltip();
+						ImGui::TextUnformatted(Entry.ThumbnailError.c_str());
+						ImGui::Separator();
+						ImGui::TextUnformatted("Fix the file, then click Refresh to retry.");
+						ImGui::EndTooltip();
+					}
 				}
 			}
 			else if (Entry.Type == EAssetType::Directory)
@@ -300,4 +315,30 @@ FDirectoryEntry UAssetBrowserWindow::ConstructDirectoryEntry(const std::filesyst
 		}
 	}
 	return Result;
+}
+
+// 텍스처 미리보기 로딩 실패를 저장하여 매 프레임 재시도하지 않는다.
+FTextureResource* UAssetBrowserWindow::GetOrRequestThumbnail(FAssetEntry& Entry)
+{
+	// 성공과 실패 모두 이미 요청한 결과를 재사용한다.
+	if (Entry.bThumbnailRequested) return Entry.Thumbnail;
+	Entry.bThumbnailRequested = true;
+
+	try
+	{
+		// 실제 텍스처 로딩과 소유권 관리는 기존 리소스 매니저에 맡긴다.
+		FTextureResource* Texture = GResourceManager::GetInstance()->GetOrLoadTexture(
+			File::PathToUtf8(Entry.Path));
+		if (!Texture || !Texture->GetSRV())
+		{
+			throw std::runtime_error("Texture preview is unavailable.");
+		}
+		Entry.Thumbnail = Texture;
+	}
+	catch (const std::exception& Error)
+	{
+		// 실패한 항목은 빈 미리보기와 오류 설명을 유지한다.
+		Entry.ThumbnailError = Error.what();
+	}
+	return Entry.Thumbnail;
 }

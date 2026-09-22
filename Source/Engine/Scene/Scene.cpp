@@ -111,8 +111,16 @@ void UScene::Serialize(FArchive& Archive)
 
         if (bLoading)
         {
-			PerspectiveCamera.Location = FVector(Location[0], Location[1], Location[2]);
-			PerspectiveCamera.Rotation = FRotator(Rotation[0], Rotation[1], Rotation[2]);
+            if (!UCameraComponent::AreParametersValid(
+                PerspectiveCamera.FOV, 1.0f, PerspectiveCamera.NearZ,
+                PerspectiveCamera.FarZ, 0.0f, 10.0f))
+            {
+                throw std::runtime_error("Invalid saved perspective camera parameters.");
+            }
+
+            // 투영 값 검사가 끝난 뒤 저장된 위치·회전과 함께 반영한다.
+            PerspectiveCamera.Location = FVector(Location[0], Location[1], Location[2]);
+            PerspectiveCamera.Rotation = FRotator(Rotation[0], Rotation[1], Rotation[2]);
             MainCameraSaveData = PerspectiveCamera;
         }
     }
@@ -294,37 +302,57 @@ void UScene::Serialize(FArchive& Archive)
 			throw std::runtime_error("Failed to set parent actor for UUID: " + std::to_string(Pending.Actor->GetUUID()));
     }
 
-    // 씬 컴포넌트 계층 구조 연결
-	for (const auto& Pending : PendingComponentInfos)
-	{
-		if (!Pending.AttachParentUUID)
-		{
-            Pending.Component->DetachFromParent();
-			continue;
-		}
-
-		UActorComponent** AttachParentPtr = ComponentsByUUID.Find(*Pending.AttachParentUUID);
-		if (AttachParentPtr == nullptr || !(*AttachParentPtr)->IsA(USceneComponent::GetClass()))
-			throw std::runtime_error("Invalid attach parent UUID: " + std::to_string(*Pending.AttachParentUUID));
-
-		USceneComponent* AttachParent = static_cast<USceneComponent*>(*AttachParentPtr);
-        if (!Pending.Component->AttachTo(AttachParent))
-            throw std::runtime_error("Failed to attach component UUID: " + std::to_string(Pending.Component->GetUUID()));
-	}
-
-    // 액터 루트 컴포넌트 연결
-    for (const auto& Pending : PendingActorInfos)
+    // 모든 임시 부모 연결을 먼저 제거하여 생성 순서의 영향을 없앤다.
+    for (const FPendingComponentInfo& Pending : PendingComponentInfos)
     {
-		if (!Pending.RootComponentUUID)
-		{
-			continue;
-		}
+        Pending.Component->DetachFromParent();
+    }
 
-		UActorComponent** RootComponentPtr = ComponentsByUUID.Find(*Pending.RootComponentUUID);
-		if (RootComponentPtr == nullptr || !(*RootComponentPtr)->IsA(USceneComponent::GetClass()))
-			throw std::runtime_error("Invalid root component UUID: " + std::to_string(*Pending.RootComponentUUID));
+    // 모든 연결이 해제된 상태에서 저장된 부모 관계만 다시 구성한다.
+    for (const FPendingComponentInfo& Pending : PendingComponentInfos)
+    {
+        if (!Pending.AttachParentUUID) continue;
 
-		Pending.Actor->SetRootComponent(static_cast<USceneComponent*>(*RootComponentPtr));
+        UActorComponent** ParentPtr = ComponentsByUUID.Find(*Pending.AttachParentUUID);
+        if (ParentPtr == nullptr || *ParentPtr == nullptr
+            || !(*ParentPtr)->IsA(USceneComponent::GetClass()))
+        {
+            throw std::runtime_error("Invalid attach parent UUID: "
+                + std::to_string(*Pending.AttachParentUUID));
+        }
+
+        // 소유 Actor 일치 여부와 순환 관계 검사는 기존 AttachTo에 맡긴다.
+        USceneComponent* Parent = static_cast<USceneComponent*>(*ParentPtr);
+        if (!Pending.Component->AttachTo(Parent))
+        {
+            throw std::runtime_error("Failed to attach component UUID: "
+                + std::to_string(Pending.Component->GetUUID()));
+        }
+    }
+
+    // 저장된 루트가 해당 Actor의 루트로 사용 가능한지 확인한 뒤 지정한다.
+    for (const FPendingActorInfo& Pending : PendingActorInfos)
+    {
+        if (!Pending.RootComponentUUID) continue;
+
+        UActorComponent** RootPtr = ComponentsByUUID.Find(*Pending.RootComponentUUID);
+        if (RootPtr == nullptr || *RootPtr == nullptr
+            || !(*RootPtr)->IsA(USceneComponent::GetClass()))
+        {
+            throw std::runtime_error("Invalid root component UUID: "
+                + std::to_string(*Pending.RootComponentUUID));
+        }
+
+        // 다른 Actor 소유이거나 부모가 있는 컴포넌트를 루트로 지정하지 않는다.
+        USceneComponent* Root = static_cast<USceneComponent*>(*RootPtr);
+        if (Root->GetOwner() != Pending.Actor || !Root->CanBeRootComponent()
+            || Root->GetAttachParent() != nullptr)
+        {
+            throw std::runtime_error("Invalid root component relationship for actor UUID: "
+                + std::to_string(Pending.Actor->GetUUID()));
+        }
+
+        Pending.Actor->SetRootComponent(Root);
     }
 
     EnsureUUIDWidgets();

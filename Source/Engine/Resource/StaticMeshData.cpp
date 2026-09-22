@@ -20,8 +20,8 @@ namespace
     // 버전 8부터 각 텍스처 맵의 Clamp 옵션을 저장한다.
     // 버전 9부터 텍스처 옵션에 범프 배율을 저장한다.
     // 버전 10부터 각 텍스처 맵의 좌표 이동과 배율을 저장한다.
-
-    constexpr uint32 MeshVersion = 10;
+    // 버전 11부터 오목다각형 폴리곤을 지원한다.
+    constexpr uint32 MeshVersion = 11;
 
     // 메시 파일의 식별자와 데이터 버전을 저장하거나 검사한다.
     void SerializeMeshHeader(FArchive& Archive)

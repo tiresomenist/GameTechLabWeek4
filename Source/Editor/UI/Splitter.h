@@ -27,6 +27,11 @@ public:
 
     virtual bool OnMouseDown(const FPoint& Coord) override
     {
+        if (MaximizeWindow)
+        {
+            return false;
+        }
+
         if (IsSplitLineHover(Coord))
         {
             bIsDragging = true;
@@ -57,6 +62,11 @@ public:
 
     virtual void Render() override
     {
+        if (MaximizeWindow)
+        {
+            return;
+        }
+
         if (SideLT) SideLT->Render();
         if (SideRB) SideRB->Render();
 
@@ -70,10 +80,14 @@ public:
             ImVec2(Line.Right(), Line.Bottom()),
             Color
         );
-               
     }
 
-  
+    void SetMaximizeWindow(FViewportClient* InVC)
+    {
+        MaximizeWindow = InVC;
+
+
+    }
 
 protected:
     float SplitRatio = 0.5f;        // LT:RB의 분할 비율
@@ -92,6 +106,12 @@ class SSplitterH : public SSplitter
 public:
     virtual void UpdateLayout(const FRect& InRect) override
     {
+        if (MaximizeWindow)
+        {
+            MaximizeWindow->SetRect(InRect.X, InRect.Y, InRect.Width, InRect.Height);
+            return;
+        }
+
         Rect = InRect;
 
         float HalfThick = SplitterThickness * 0.5f;
@@ -120,6 +140,11 @@ public:
 
     virtual bool OnMouseMove(const FPoint& Coord) override
     {
+        if (MaximizeWindow)
+        {
+            return false;
+        }
+
         if (bIsLineHovered)
         {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
@@ -153,6 +178,8 @@ class SSplitterV : public SSplitter
 public:
     virtual void UpdateLayout(const FRect& InRect) override
     {
+        
+
         Rect = InRect;
 
         float HalfThick = SplitterThickness * 0.5f;
@@ -180,6 +207,11 @@ public:
 
     virtual bool OnMouseMove(const FPoint& Coord) override
     {
+        if (MaximizeWindow)
+        {
+            return false;
+        }
+
         if (bIsLineHovered)
         {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
@@ -193,7 +225,6 @@ public:
         {
             float NewRatio = (Coord.Y - Rect.Y) / Rect.Height;
             SplitRatio = std::clamp(NewRatio, MinRatio, MaxRatio);
-
 
             UpdateLayout(Rect);
             return true;

@@ -48,6 +48,8 @@ void GSceneManager::Initialize()
 void GSceneManager::Release()
 {
     ClearNextScene();
+    LastLoadResult = ESceneLoadResult::None;
+
 	if (CurrentScene)
 	{
 		CurrentScene->EndPlay();
@@ -59,15 +61,16 @@ void GSceneManager::Release()
 
 void GSceneManager::Tick(float DeltaTime)
 {
-	if (CurrentScene)
-	{
-		CurrentScene->Tick(DeltaTime);
-	}
+    if (CurrentScene)
+    {
+        CurrentScene->Tick(DeltaTime);
+    }
 
-	if (NextScene)
-	{
-		InternalLoadScene();
-	}
+    // 타입 포인터가 잘못된 요청도 검사 후 Failed로 종료시킨다.
+    if (LastLoadResult == ESceneLoadResult::Pending)
+    {
+        InternalLoadScene();
+    }
 }
 
 void GSceneManager::LoadScene(FSceneType* SceneType, FStringView SerializedName)
@@ -75,6 +78,7 @@ void GSceneManager::LoadScene(FSceneType* SceneType, FStringView SerializedName)
 	NextScene = SceneType;
 	NextSceneFile = SerializedName;
 	NextScenePath.clear();
+    LastLoadResult = ESceneLoadResult::Pending;
 
 	if (!CurrentScene)
 	{
@@ -87,6 +91,7 @@ void GSceneManager::LoadSceneFromPath(FSceneType* SceneType, const std::filesyst
 	NextScene = SceneType;
 	NextSceneFile.clear();
 	NextScenePath = ScenePath;
+    LastLoadResult = ESceneLoadResult::Pending;
 
 	if (!CurrentScene)
 	{
@@ -106,6 +111,7 @@ void GSceneManager::InternalLoadScene()
 {
     if (NextScene == nullptr || NextScene->SceneConstructor == nullptr)
     {
+        LastLoadResult = ESceneLoadResult::Failed;
         ClearNextScene();
         return;
     }
@@ -136,6 +142,30 @@ void GSceneManager::InternalLoadScene()
     catch (const std::exception& Error)
     {
         UE_LOG("[SceneManager] Scene file validation failed: {}", Error.what());
+        LastLoadResult = ESceneLoadResult::Failed;
+        ClearNextScene();
+        return;
+    }
+    const uint32 PreviousNextUUID = GObjectStatics::GetNextUUID(EObjectDomain::EOT_Scene);
+    std::unique_ptr<UScene> Candidate;
+    try
+    {
+        // 기존 씬을 유지한 채 새 씬의 복원을 끝낸다.
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
+        Candidate.reset(NextScene->SceneConstructor());
+        if (!Candidate){ throw std::runtime_error("Failed to create scene."); }
+
+        Candidate->Serialize(*Reader);
+        Candidate->BeginPlay();
+    }
+    catch (const std::exception& Error)
+    {
+        // 후보 씬과 후보 생성에 사용한 UUID 상태만 되돌린다.
+        if (Candidate) Candidate->EndPlay();
+        Candidate.reset();
+        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, PreviousNextUUID);
+        UE_LOG("[SceneManager] Scene restoration failed: {}", Error.what());
+        LastLoadResult = ESceneLoadResult::Failed;
         ClearNextScene();
         return;
     }
@@ -145,28 +175,10 @@ void GSceneManager::InternalLoadScene()
     {
         CurrentScene->EndPlay();
         delete CurrentScene;
-        CurrentScene = nullptr;
     }
 
-    // 새 씬의 객체를 복원하고 완료된 씬의 플레이를 시작한다.
-    try
-    {
-        GObjectStatics::SetNextUUID(EObjectDomain::EOT_Scene, NextUUID);
-        CurrentScene = NextScene->SceneConstructor();
-        if (CurrentScene == nullptr)
-            throw std::runtime_error("Failed to create scene.");
-
-        CurrentScene->Serialize(*Reader);
-        CurrentScene->BeginPlay();
-    }
-    catch (const std::exception& Error)
-    {
-        // 복원 중 실패한 씬을 남기지 않고 정리한다.
-        delete CurrentScene;
-        CurrentScene = nullptr;
-        UE_LOG("[SceneManager] Scene restoration failed: {}", Error.what());
-    }
-
+    CurrentScene = Candidate.release();
+    LastLoadResult = ESceneLoadResult::Succeeded;
     ClearNextScene();
 }
 

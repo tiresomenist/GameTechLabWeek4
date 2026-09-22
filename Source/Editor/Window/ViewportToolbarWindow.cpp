@@ -45,6 +45,12 @@ void UViewportToolbarWindow::Render(float DeltaTime)
         ImGui::SetNextWindowSize(ImVec2(VP.Width, 40.0f), ImGuiCond_Always);
         
         FString name = std::format("{}{}", Name.c_str(), i);
+        bool IsMaximize = (Editor->GetCurrMaxViewIdx() == i);
+
+        if (-1 != Editor->GetCurrMaxViewIdx() && !IsMaximize)
+        {
+            continue;
+        }
 
         ImGui::Begin(name.c_str(), nullptr, Flags);
         {
@@ -76,6 +82,12 @@ void UViewportToolbarWindow::Render(float DeltaTime)
                    {
                        DrawShowFlagsPopup(VC);
                    });
+               ImGui::SameLine();
+               const char* WindowButton = IsMaximize ? "Restore" : "Maximize";
+               if (ImGui::Button(WindowButton))
+               {
+                   Editor->ToggleMaxView(i);
+               }
         }
         ImGui::End();
 	}

@@ -347,26 +347,7 @@ void FEditor::InitializeGrids()
 
 void FEditor::Tick(float DeltaTime)
 {
-	if (bPendingCameraLoad)
-	{
-		for (const auto& Viewport : Viewports)
-		{
-			if (Viewport.GetViewportType() == EViewportType::Perspective)
-			{
-				FCameraSaveData CameraData = GetCurrentScene()->GetMainCameraSaveData();
-				UCameraComponent& Camera = *Viewport.GetCamera();
-				Camera.SetRelativeLocation(CameraData.Location);
-				Camera.SetRelativeRotation(CameraData.Rotation);
-				Camera.SetFOVByRadian(CameraData.FOV);
-				Camera.SetNearZ(CameraData.NearZ);
-				Camera.SetFarZ(CameraData.FarZ);
-
-				break;
-			}
-		}
-
-		bPendingCameraLoad = false;
-	}
+	ApplyPendingSceneCamera();
 
 	//CameraController.Tick(DeltaTime);
 	GEngine& Engine = *GEngine::GetInstance();
@@ -553,27 +534,42 @@ void FEditor::ReleaseRootSplitter()
 void FEditor::SpawnStaticMesh(const FName& MeshKey, int Count)
 {
 	UScene* CurrentScene = GetCurrentScene();
+	if (!CurrentScene || MeshKey.IsNone() || Count <= 0) return;
 
 	for (int i = 0; i < Count; ++i)
 	{
-		AActor* Actor = CurrentScene->SpawnActor<AActor*>(AActor::GetClass());
-		auto* StaticMeshComp = static_cast<UStaticMeshComponent*>(
-			Actor->CreateComponent(UStaticMeshComponent::GetClass()));
+		AActor* Actor = nullptr;
+		try
+		{
+			// 선택 상태를 변경하기 전에 Actor와 필요한 컴포넌트를 구성한다.
+			Actor = CurrentScene->SpawnActor<AActor*>(AActor::GetClass());
+			if (!Actor) throw std::runtime_error("Failed to create a static mesh actor.");
 
-		StaticMeshComp->SetStaticMesh(MeshKey);
-		/*if (MeshKey == "Cube" || MeshKey == "Sphere")
+			auto* StaticMeshComp = static_cast<UStaticMeshComponent*>(
+				Actor->CreateComponent(UStaticMeshComponent::GetClass()));
+			if (!StaticMeshComp) throw std::runtime_error("Failed to create a static mesh component.");
+
+			StaticMeshComp->SetStaticMesh(MeshKey);
+
+			// 기존 Rocket의 정점색 표시 정책을 유지한다.
+			if (MeshKey == "Rocket")
+			{
+				StaticMeshComp->SetOverrideMaterial("Assets/Textures/WhiteTexture.png");
+			}
+
+			Actor->CreateComponent(UWidgetComponent::GetClass());
+		}
+		catch (const std::exception& Error)
 		{
-			StaticMesh->SetMaterial("Assets/Textures/DefaultMaterial.png");
-		}*/
-		// 로켓 색상은 정점 색상에 있으므로 흰색 텍스처를 곱해 원래 색을 유지함
-		if (MeshKey == "Rocket")
-		{
-			StaticMeshComp->SetOverrideMaterial("Assets/Textures/WhiteTexture.png");
+			// 씬이 소유한 Actor는 씬의 제거 함수로 정리한다.
+			if (Actor) CurrentScene->DestroyActor(Actor);
+			UE_LOG("[Editor] Static mesh spawn failed: {}", Error.what());
+			return;
 		}
 
-		Actor->CreateComponent(UWidgetComponent::GetClass());
-
+		// 구성이 완료된 Actor만 선택 대상으로 공개한다.
 		SetSelectedActor(Actor);
+
 	}
 }
 
@@ -614,6 +610,7 @@ void FEditor::NewScene()
 
 void FEditor::LoadScene(FStringView SceneName)
 {
+	CancelWindowRenames();
 	SetSelectedActor(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
@@ -625,6 +622,7 @@ void FEditor::LoadScene(FStringView SceneName)
 
 void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
 {
+	CancelWindowRenames();
 	SetSelectedComponent(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
@@ -716,7 +714,7 @@ void FEditor::RemoveSelectedComponent()
 	{
 		return;
 	}
-
+	CancelWindowRenames();
 	AActor* Actor = SelectedActor;
 	if (Actor->RemoveComponent(SelectedComponent))
 	{
@@ -728,6 +726,7 @@ void FEditor::DeleteSelectedActor()
 {
 	if (SelectedActor == nullptr) { return; }
 
+	CancelWindowRenames();
 	UScene* CurrentScene = GetCurrentScene();
 	CurrentScene->DestroyActor(SelectedActor);
 
@@ -788,6 +787,30 @@ TArray<FViewportClient>& FEditor::GetViewports()
 {
 	return Viewports;
 }
+
+void FEditor::ToggleMaxView(uint32 InIdx)
+{
+	if (CurrMaxViewIdx == InIdx)
+	{
+		CurrMaxViewIdx = -1;
+		RootSplitter->SetMaximizeWindow(nullptr);
+	}
+	else
+	{
+		CurrMaxViewIdx = InIdx;
+		RootSplitter->SetMaximizeWindow(&Viewports[CurrMaxViewIdx]);
+
+		CurrEditedViewportIndex = InIdx;
+		EditorCamera = Viewports[InIdx].GetCamera();
+		CameraController.SetCamera(EditorCamera);
+		CameraController.SetViewportClient(&Viewports[InIdx]);
+
+	}
+
+	const auto& EngineViewport = GEngine::GetInstance()->GetViewport();
+	OnResize(EngineViewport.Width, EngineViewport.Height);
+}
+
 
 void FEditor::RegisterGrid(FClassType* Type)
 {
@@ -1091,9 +1114,74 @@ TArray<FRenderView> FEditor::BuildRenderViews(const D3D11_VIEWPORT& FullViewport
 {
 	// 각 뷰포트가 보유한 카메라, 출력 영역, 표시 설정을 그대로 전달합니다.
 	TArray<FRenderView> Views;
+	if (CurrMaxViewIdx != -1)
+	{
+		Views.Add(Viewports[CurrMaxViewIdx].GetRenderView());
+		return Views;
+	}
+
 	for (const FViewportClient& Viewport : Viewports)
 	{
 		Views.Add(Viewport.GetRenderView());
 	}
 	return Views;
+}
+
+// 완료된 씬 로드 요청을 확인하여 에디터 카메라를 한 번 복원한다.
+void FEditor::ApplyPendingSceneCamera()
+{
+	if (!bPendingCameraLoad) return;
+
+	const ESceneLoadResult Result =
+		GSceneManager::GetInstance()->GetLastLoadResult();
+
+	// 요청이 아직 처리되지 않았다면 다음 Tick에서 다시 확인한다.
+	if (Result == ESceneLoadResult::Pending) return;
+
+	// 완료된 요청은 한 번만 처리하고, 실패 시 카메라를 변경하지 않는다.
+	bPendingCameraLoad = false;
+	if (Result != ESceneLoadResult::Succeeded) return;
+	CancelWindowRenames();
+	SetSelectedActor(nullptr);
+	UScene* Scene = GetCurrentScene();
+	if (!Scene) return;
+	const FCameraSaveData CameraData = Scene->GetMainCameraSaveData();
+
+	// 저장 대상인 Perspective 뷰의 카메라만 복원한다.
+	for (const FViewportClient& Viewport : Viewports)
+	{
+		if (Viewport.GetViewportType() != EViewportType::Perspective)
+			continue;
+
+		UCameraComponent* Camera = Viewport.GetCamera();
+		if (!Camera) continue;
+
+		// 실제 뷰의 화면 비율을 포함해 투영 값을 검증하고 함께 적용한다.
+		if (!Camera->TrySetProjection(CameraData.FOV, CameraData.NearZ, CameraData.FarZ))
+		{
+			UE_LOG("[Editor] Saved camera projection cannot be applied to the current viewport.");
+			return;
+		}
+
+		// 투영 값 적용이 성공한 경우에만 위치와 회전을 변경한다.
+		Camera->SetRelativeLocation(CameraData.Location);
+		Camera->SetRelativeRotation(CameraData.Rotation);
+		break;
+	}
+}
+// 객체 삭제나 씬 전환 전에 이름 편집 대상과 입력 내용을 해제한다.
+void FEditor::CancelWindowRenames()
+{
+	// 닫혀 있는 창에도 편집 대상이 남을 수 있으므로 모든 등록 창을 확인한다.
+	for (UEditorWindow* Window : Windows)
+	{
+		if (Window->IsA(UPropertyWindow::GetClass()))
+		{
+			static_cast<UPropertyWindow*>(Window)->FinishRename(false);
+		}
+		else if (Window->IsA(UOutlinerWindow::GetClass()))
+		{
+			static_cast<UOutlinerWindow*>(Window)->FinishRename(false);
+		}
+	}
 }

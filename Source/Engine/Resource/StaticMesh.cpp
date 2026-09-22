@@ -3,6 +3,9 @@
 #include "ResourceManager.h"
 #include "Engine/Resource/TextureResource.h"
 #include "Core/Util/File.h"
+#include "Engine/Log.h"
+#include <stdexcept>
+
 
 UStaticMesh::~UStaticMesh()
 {
@@ -23,8 +26,17 @@ void UStaticMesh::BuildFromMeshData(const FStaticMeshData& MeshData)
         FString TexturePath = File::PathToUtf8(CPUMaterial.DiffuseTexturePath);
         if (!CPUMaterial.DiffuseTexturePath.empty())
         {
-            if (FTextureResource* Tex = RM->GetOrLoadTexture(TexturePath))
-                SRV = Tex->GetSRV();
+            // 텍스처 로딩이 실패했을때는 SRV==nullptr이라서 하단 블럭에서 화이트텍스처로 대체됨 
+            try
+            {
+                if (FTextureResource* Tex = RM->GetOrLoadTexture(TexturePath))
+                    SRV = Tex->GetSRV();
+            }
+            catch (const std::exception& Error)
+            {
+                UE_LOG("[StaticMesh] Texture load failed: {} ({})", TexturePath, Error.what());
+            }
+
         }
 
         // SRV 로드에 실패했거나 경로가 없었던 경우 화이트 텍스처로 대체

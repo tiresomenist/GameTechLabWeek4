@@ -57,6 +57,8 @@ private:
 	// Viewport 배열
 	TArray<FViewportClient> Viewports;
 	uint32 CurrEditedViewportIndex = 0;
+	// 최대화 뷰포트 관련
+	int32 CurrMaxViewIdx = -1;
 
 	// 스플리터
 	SSplitter* RootSplitter = nullptr;
@@ -86,7 +88,10 @@ private:
 	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
 	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
 	float DrawStatMemory(ImDrawList* DrawList, float X, float Y);
+	void ApplyPendingSceneCamera();
 
+	// 등록된 Property·Outliner 창에서 진행 중인 이름 편집을 취소한다.
+	void CancelWindowRenames();
 public:
 	virtual ~FEditor() = default;
 
@@ -183,7 +188,8 @@ public:
 
 	TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
-
+	const uint32 GetCurrMaxViewIdx() { return CurrMaxViewIdx; }
+	void ToggleMaxView(uint32 InIdx);
 
 	// 스플리터
 	SSplitter* GetSplitter() const { return RootSplitter; }
