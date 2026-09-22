@@ -26,7 +26,7 @@ public:
 	void ChangeMod();
 private:
 	bool GetRotationDirection(float NDCX, float NDCY, FVector& OutDirection) const;
-	FVector RotationPivot;
+	FVector GizmoPivot;
 	FVector PreviousRotationDirection;
 	double AccumulatedAngle = 0.0;
 	bool bHasRotationDirection = false;
