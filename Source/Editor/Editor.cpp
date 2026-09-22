@@ -902,6 +902,24 @@ void FEditor::LoadEditorSetting()
 			}
 		}
 
+		float RootRatio;
+		if (TryReadIniFloat(FileText, "Splitter", "RootRatio", RootRatio))
+		{
+			RootSplitter->SetSplitRatio(RootRatio);
+		}
+		float LeftSideRatio;
+		if (TryReadIniFloat(FileText, "Splitter", "LeftSideRatio", LeftSideRatio))
+		{
+			SSplitter* LS = dynamic_cast<SSplitter*>(RootSplitter->GetLTSide());
+			LS->SetSplitRatio(LeftSideRatio);
+
+		}
+		float RightSideRatio;
+		if (TryReadIniFloat(FileText, "Splitter", "RightSideRatio", RightSideRatio))
+		{
+			SSplitter* RS = dynamic_cast<SSplitter*>(RootSplitter->GetRBSide());
+			RS->SetSplitRatio(RightSideRatio);
+		}
 		// 모든 항목의 해석 완료 후 실제 설정에 적용함
 		EditorCamera->SetMoveSpeed(LoadedMoveSpeed);
 		SetGridInterval(LoadedGridInterval);
@@ -921,6 +939,12 @@ void FEditor::SaveEditorSetting() {
 	const float MoveSpeed = EditorCamera->GetMoveSpeed();
 	const float GridInterval = GetGrid().Interval;
 	const char* ViewModeName = GetViewModeName(ViewSettings.ViewMode);
+	const float RootSplitterRatio = RootSplitter->GetSplitRatio();
+	SSplitter* LeftSpliter = dynamic_cast<SSplitter*>(RootSplitter->GetLTSide());
+	const float RootLeftRatio = LeftSpliter->GetSplitRatio();
+	SSplitter* RightSpliter = dynamic_cast<SSplitter*>(RootSplitter->GetRBSide());
+	const float RootRightRatio = RightSpliter->GetSplitRatio();
+
 	if (!std::isfinite(MoveSpeed) || MoveSpeed <= 0.0f)
 	{
 		throw std::runtime_error("잘못된 카메라 이동속도를 저장할 수 없음");
@@ -935,6 +959,8 @@ void FEditor::SaveEditorSetting() {
 	{
 		throw std::runtime_error("알수 없는 뷰모드를 저장할 수 없음");
 	}
+
+
 	//// 현재 설정값을 INI 형식으로 구성함
 	FString FileText = std::format(
 		"[Camera]\n"
@@ -944,7 +970,7 @@ void FEditor::SaveEditorSetting() {
 		"Interval={}\n"
 		"\n"
 		"[Viewport]\n"
-		"ViewMode={}\n", 
+		"ViewMode={}\n",
 		EditorCamera->GetMoveSpeed(),
 		GetGrid().Interval, 
 		ViewModeName
@@ -956,6 +982,13 @@ void FEditor::SaveEditorSetting() {
 		const bool bEnabled = ViewSettings.ShowFlags.IsEnabled(Entry.Flag);
 		FileText += std::format("{}={}\n",Entry.Key,bEnabled ? "true" : "false");
 	}
+
+	FileText += std::format(
+		"\n"
+		"[Splitter]\n"
+		"RootRatio={}\n"
+		"LeftSideRatio={}\n"
+		"RightSideRatio={}\n", RootSplitterRatio, RootLeftRatio, RootRightRatio);
 
 	File::WriteText("editor.ini", FileText);
 }
