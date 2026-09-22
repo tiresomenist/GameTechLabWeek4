@@ -5,6 +5,7 @@
 #include "Engine/Scene/Scene.h"
 #include "Engine/Input/InputManager.h"
 #include "ImGui/imgui.h"
+#include "ImGui/imgui_internal.h"
 #include "Core/Util/File.h"
 #include "Engine/Log.h"
 #include <cwchar>
@@ -18,6 +19,7 @@
 #include "Engine/Component/CameraComponent.h"
 #include <algorithm>
 #include "Core/Math/Quaternion.h"
+#include "Editor/Window/AssetBrowserWindow.h"
 
 #if defined(OBJVIEWER_APP)
 // 기존 메시 렌더링을 재사용하며 Viewer의 섹션 선택만 추가합니다.
@@ -95,6 +97,20 @@ void FObjViewer::Initialize()
     // 기존 등록 기능과 라인 렌더링 경로를 재사용합니다.
     RegisterGrid(UGrid::GetClass());
     RegisterGizmo(UWorldAxisGizmo::GetClass());
+
+    // 공통 에셋 브라우저를 Viewer의 창 목록에 등록합니다.
+    RegisterWindow(UAssetBrowserWindow::GetClass(), "Asset Browser");
+    // 공통 창의 기본 동작은 유지하고 Viewer 인스턴스에만 옵션을 적용합니다.
+    for (UEditorWindow* Window : GetWindows())
+    {
+        if (!Window->IsA(UAssetBrowserWindow::GetClass())) continue;
+        auto* Browser = static_cast<UAssetBrowserWindow*>(Window);
+        Browser->SetObjOnly(true);
+        Browser->SetOnObjActivated([this](const std::filesystem::path& Path)
+        {
+            PendingObjPath = Path;
+        });
+    }
     PreviewScene->BeginPlay();
 }
 
@@ -102,6 +118,14 @@ void FObjViewer::Initialize()
 void FObjViewer::Tick(float DeltaTime)
 {
     if (!PreviewScene || !EditorCamera) return;
+    // ImGui 창 렌더링이 끝난 다음 프레임에 모델을 교체합니다.
+    if (!PendingObjPath.empty())
+    {
+        std::filesystem::path Path;
+        Path.swap(PendingObjPath);
+        OpenObjPath(Path);
+        return;
+    }
     // 파일 대화상자를 닫은 프레임에는 카메라 입력을 처리하지 않습니다.
     if (bOpenObjDialogRequested)
     {
@@ -124,6 +148,7 @@ void FObjViewer::Release()
 {
     // 컨트롤러의 카메라 참조와 등록한 그리드·기즈모를 먼저 정리합니다.
     FEditor::Release();
+    PendingObjPath.clear();
     EditorCamera = nullptr;
     PreviewActor = nullptr;
     PreviewComponent = nullptr;
@@ -149,7 +174,11 @@ UScene* FObjViewer::GetCurrentScene()
 void FObjViewer::DrawMenu()
 {
     MenuBarHeight = 0.0f;
-    if (!ImGui::BeginMainMenuBar()) return;
+    if (!ImGui::BeginMainMenuBar())
+    {
+        DrawDockLayout();
+        return;
+    }
     MenuBarHeight = ImGui::GetWindowHeight();
 
     // 대화상자는 다음 Tick에서 열고 현재 ImGui 프레임은 정상적으로 마무리합니다.
@@ -159,19 +188,30 @@ void FObjViewer::DrawMenu()
         ImGui::EndMenu();
     }
 
-    // 기존 표시 설정 메뉴를 유지합니다.
+    // 표시 설정과 등록된 도구 창의 열림 상태를 변경합니다.
     if (ImGui::BeginMenu("View"))
     {
         bool bShowGrid = IsShowingGrid();
         if (ImGui::MenuItem("Grid", nullptr, &bShowGrid)) { SetShowGrid(bShowGrid); }
 
         bool bShowWorldAxis = IsShowingWorldAxis();
-        if (ImGui::MenuItem("World Axis", nullptr, &bShowWorldAxis)){ SetShowWorldAxis(bShowWorldAxis); }
+        if (ImGui::MenuItem("World Axis", nullptr, &bShowWorldAxis)) { SetShowWorldAxis(bShowWorldAxis); }
 
+        // 기존 뷰 모드 선택을 유지합니다.
         ImGui::Separator();
         for (const FViewModeEntry& Entry : ViewModeEntries)
         {
-            if (ImGui::MenuItem(Entry.Name, nullptr, GetViewMode() == Entry.Mode)) { SetViewMode(Entry.Mode); }
+            if (ImGui::MenuItem(Entry.Name, nullptr, GetViewMode() == Entry.Mode))
+                SetViewMode(Entry.Mode);
+        }
+
+        // 창이 사용하는 bOpen을 직접 연결하여 닫기와 다시 열기를 지원합니다.
+        ImGui::Separator();
+        for (UEditorWindow* Window : GetWindows())
+        {
+            ImGui::PushID(Window);
+            ImGui::MenuItem(Window->GetWindowName().c_str(), nullptr, Window->GetOpenPtr());
+            ImGui::PopID();
         }
         ImGui::EndMenu();
     }
@@ -192,30 +232,46 @@ void FObjViewer::DrawMenu()
     }
 
     ImGui::EndMainMenuBar();
+    DrawDockLayout();
 }
 
+// 중앙 모델 영역과 오른쪽 정보 창, 하단 에셋 창의 도킹 배치를 구성합니다.
+void FObjViewer::DrawDockLayout()
+{
+    const ImGuiViewport* MainViewport = ImGui::GetMainViewport();
+    if (MainViewport->WorkSize.x <= 0.0f || MainViewport->WorkSize.y <= 0.0f) return;
+    ViewerDockSpaceId = ImHashStr("ObjViewerDockSpace");
+    constexpr ImGuiDockNodeFlags Flags = ImGuiDockNodeFlags_PassthruCentralNode
+        | ImGuiDockNodeFlags_NoDockingOverCentralNode;
 
-// 오른쪽 패널에 현재 모델 정보와 선택 가능한 섹션 목록을 표시합니다.
+    // 첫 생성 때만 나누어 사용자가 조절한 도킹 경계를 유지합니다.
+    if (!ImGui::DockBuilderGetNode(ViewerDockSpaceId))
+    {
+        ImGui::DockBuilderAddNode(ViewerDockSpaceId, ImGuiDockNodeFlags_DockSpace | Flags);
+        ImGui::DockBuilderSetNodePos(ViewerDockSpaceId, MainViewport->WorkPos);
+        ImGui::DockBuilderSetNodeSize(ViewerDockSpaceId, MainViewport->WorkSize);
+        ImGuiID CenterId = ViewerDockSpaceId;
+        const float InfoRatio = (std::min)(320.0f / MainViewport->WorkSize.x, 0.35f);
+        const ImGuiID InfoId = ImGui::DockBuilderSplitNode(
+            CenterId, ImGuiDir_Right, InfoRatio, nullptr, &CenterId);
+        const ImGuiID AssetsId = ImGui::DockBuilderSplitNode(
+            CenterId, ImGuiDir_Down, 0.30f, nullptr, &CenterId);
+        ImGui::DockBuilderDockWindow("Model Info", InfoId);
+        ImGui::DockBuilderDockWindow("Asset Browser", AssetsId);
+        ImGui::DockBuilderFinish(ViewerDockSpaceId);
+    }
+    // 중앙 배경을 투명하게 하여 DirectX 모델 화면을 노출합니다.
+    ImGui::DockSpaceOverViewport(ViewerDockSpaceId, MainViewport, Flags);
+}
+
+// 등록된 공통 창과 Viewer의 모델 정보 패널을 표시합니다.
 void FObjViewer::DrawWindows(float DeltaTime)
 {
-    const D3D11_VIEWPORT FullViewport = GEngine::GetInstance()->GetViewport();
-    const D3D11_VIEWPORT SceneViewport = GetRenderViewport(FullViewport);
-    const float PanelWidth = FullViewport.Width - SceneViewport.Width;
-    if (PanelWidth <= 0.0f || SceneViewport.Height <= 0.0f) return;
+    // 모델 로딩 여부와 관계없이 에셋 브라우저를 먼저 처리합니다.
+    FEditor::DrawWindows(DeltaTime);
 
-    // DirectX의 클라이언트 좌표를 ImGui의 화면 좌표로 변환합니다.
-    const ImGuiViewport* MainViewport = ImGui::GetMainViewport();
-    const ImVec2 PanelPosition(
-        MainViewport->Pos.x + SceneViewport.TopLeftX + SceneViewport.Width,
-        MainViewport->Pos.y + SceneViewport.TopLeftY);
-    ImGui::SetNextWindowViewport(MainViewport->ID);
-    ImGui::SetNextWindowPos(PanelPosition, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(PanelWidth, SceneViewport.Height), ImGuiCond_Always);
-
-    // 별도 도킹 구성 없이 Viewer 안에 고정된 정보 패널을 배치합니다.
-    constexpr ImGuiWindowFlags Flags = ImGuiWindowFlags_NoMove
-        | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse
-        | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings;
+    // 초기 DockBuilder 설정을 읽도록 허용합니다. 파일 저장은 IniFilename=nullptr로 차단합니다.
+    constexpr ImGuiWindowFlags Flags = ImGuiWindowFlags_NoCollapse;
     if (!ImGui::Begin("Model Info", nullptr, Flags))
     {
         ImGui::End();
@@ -225,7 +281,7 @@ void FObjViewer::DrawWindows(float DeltaTime)
     // 모델이 없는 상태에서도 파일을 여는 방법을 안내합니다.
     if (!PreviewMesh)
     {
-        ImGui::TextWrapped("Open an OBJ file from File > Open OBJ.");
+        ImGui::TextWrapped("Double-click an OBJ in Asset Browser or use File > Open OBJ.");
         ImGui::End();
         return;
     }
@@ -315,7 +371,7 @@ TArray<FRenderView> FObjViewer::BuildRenderViews(const D3D11_VIEWPORT& FullViewp
     return Views;
 }
 
-// 전체 출력 영역에서 상단 메뉴가 차지하는 높이를 제외합니다.
+// 도킹 창을 제외한 중앙 영역을 모델 출력 영역으로 반환합니다.
 D3D11_VIEWPORT FObjViewer::GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const
 {
     D3D11_VIEWPORT Viewport = FullViewport;
@@ -323,6 +379,23 @@ D3D11_VIEWPORT FObjViewer::GetRenderViewport(const D3D11_VIEWPORT& FullViewport)
     // 작은 창에서도 음수 크기가 생기지 않도록 메뉴와 패널 크기를 제한합니다.
     const float FullWidth = (std::max)(0.0f, FullViewport.Width);
     const float FullHeight = (std::max)(0.0f, FullViewport.Height);
+    // 화면 좌표를 클라이언트 좌표로 바꾸고 최소화 중에도 크기를 제한합니다.
+    const ImGuiDockNode* CenterNode = ViewerDockSpaceId != 0
+        ? ImGui::DockBuilderGetCentralNode(ViewerDockSpaceId) : nullptr;
+    if (CenterNode)
+    {
+        const ImVec2 Origin = ImGui::GetMainViewport()->Pos;
+        const float Left = std::clamp(
+            CenterNode->Pos.x - Origin.x - FullViewport.TopLeftX, 0.0f, FullWidth);
+        const float Top = std::clamp(
+            CenterNode->Pos.y - Origin.y - FullViewport.TopLeftY, 0.0f, FullHeight);
+        Viewport.TopLeftX += Left;
+        Viewport.TopLeftY += Top;
+        Viewport.Width = std::clamp(CenterNode->Size.x, 0.0f, FullWidth - Left);
+        Viewport.Height = std::clamp(CenterNode->Size.y, 0.0f, FullHeight - Top);
+        return Viewport;
+    }
+    // 첫 도킹 프레임 전에는 기존 초기 배치를 사용합니다.
     const float ReservedHeight = std::clamp(MenuBarHeight, 0.0f, FullHeight);
     const float PanelWidth = (std::min)(320.0f, FullWidth * 0.35f);
 
@@ -353,30 +426,43 @@ void FObjViewer::OpenObjDialog()
         // 취소하면 기존 모델과 파일명을 유지합니다.
         if (Path)
         {
-            const std::filesystem::path Candidate = std::filesystem::absolute(*Path).lexically_normal();
-            if (_wcsicmp(Candidate.extension().c_str(), L".obj") != 0)
-            {
-                FileSelectionError = "Please select an OBJ file.";
-            }
-            else if (!std::filesystem::is_regular_file(Candidate))
-            {
-                FileSelectionError = "The selected file does not exist.";
-            }
-            else
-            {
-                // 파일 선택뿐 아니라 모델 구성까지 성공해야 현재 모델을 교체합니다.
-                LoadPreviewMesh(Candidate);
-            }
+            OpenObjPath(*Path);
         }
     }
     catch (const std::exception& Error)
     {
-        // 파싱이나 머티리얼 로딩에 실패해도 Viewer와 기존 모델을 유지합니다.
-        FileSelectionError = "Could not load the OBJ file.";
-        UE_LOG("[ObjViewer] OBJ load failed: {}", Error.what());
+        // 대화상자나 시작 폴더 준비 실패를 화면에 표시합니다.
+        FileSelectionError = "Could not open the OBJ file dialog.";
+        UE_LOG("[ObjViewer] File dialog failed: {}", Error.what());
     }
 
     // 대화상자 종료 시점에 들어온 입력을 비워 카메라 오작동을 방지합니다.
+    Input.KillFocus();
+}
+
+// 파일 대화상자와 에셋 브라우저가 동일한 모델 검증 및 교체 경로를 사용합니다.
+void FObjViewer::OpenObjPath(const std::filesystem::path& FilePath)
+{
+    GInputManager& Input = *GInputManager::GetInstance();
+    Input.KillFocus();
+    FileSelectionError.clear();
+    try
+    {
+        // 절대 경로와 확장자를 확인한 뒤 기존 리소스 로더를 재사용합니다.
+        const std::filesystem::path Candidate = std::filesystem::absolute(FilePath).lexically_normal();
+        if (_wcsicmp(Candidate.extension().c_str(), L".obj") != 0)
+            FileSelectionError = "Please select an OBJ file.";
+        else if (!std::filesystem::is_regular_file(Candidate))
+            FileSelectionError = "The selected file does not exist.";
+        else
+            LoadPreviewMesh(Candidate);
+    }
+    catch (const std::exception& Error)
+    {
+        // 실패하면 현재 모델을 유지하고 오류를 표시합니다.
+        FileSelectionError = "Could not load the OBJ file.";
+        UE_LOG("[ObjViewer] OBJ load failed: {}", Error.what());
+    }
     Input.KillFocus();
 }
 

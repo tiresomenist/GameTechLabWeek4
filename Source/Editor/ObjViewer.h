@@ -37,6 +37,10 @@ public:
     D3D11_VIEWPORT GetRenderViewport(const D3D11_VIEWPORT& FullViewport) const override;
 
 private:
+    uint32 ViewerDockSpaceId = 0;
+    // 기본 도킹 배치를 만들고 중앙 모델 출력 영역을 확보합니다.
+    void DrawDockLayout();
+
     float MenuBarHeight = 0.0f;
     UScene* PreviewScene = nullptr;
 
@@ -44,6 +48,9 @@ private:
     void OpenObjDialog();
 
     bool bOpenObjDialogRequested = false;
+    std::filesystem::path PendingObjPath;
+    // 공통 검증과 오류 처리를 거쳐 미리보기 모델을 엽니다.
+    void OpenObjPath(const std::filesystem::path& FilePath);
     std::filesystem::path SelectedObjPath;
     FString SelectedObjName;
     FString FileSelectionError;

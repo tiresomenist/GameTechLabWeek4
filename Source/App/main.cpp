@@ -228,6 +228,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             bEngineReady = true;
             ShowWindow(hWnd, nShowCmd);
             UpdateWindow(hWnd);
+            SetForegroundWindow(hWnd);
 
             bool bIsExit = false;
             while (!bIsExit)
