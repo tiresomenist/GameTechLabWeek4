@@ -57,6 +57,8 @@ private:
 	// Viewport 배열
 	TArray<FViewportClient> Viewports;
 	uint32 CurrEditedViewportIndex = 0;
+	// 최대화 뷰포트 관련
+	int32 CurrMaxViewIdx = -1;
 
 	// 스플리터
 	SSplitter* RootSplitter = nullptr;
@@ -183,7 +185,8 @@ public:
 
 	TArray<FViewportClient>& GetViewports();
 	const uint32 GetCurrentEditViewportIndex() { return CurrEditedViewportIndex; }
-
+	const uint32 GetCurrMaxViewIdx() { return CurrMaxViewIdx; }
+	void ToggleMaxView(uint32 InIdx);
 
 	// 스플리터
 	SSplitter* GetSplitter() const { return RootSplitter; }
