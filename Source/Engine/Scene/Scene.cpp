@@ -111,8 +111,16 @@ void UScene::Serialize(FArchive& Archive)
 
         if (bLoading)
         {
-			PerspectiveCamera.Location = FVector(Location[0], Location[1], Location[2]);
-			PerspectiveCamera.Rotation = FRotator(Rotation[0], Rotation[1], Rotation[2]);
+            if (!UCameraComponent::AreParametersValid(
+                PerspectiveCamera.FOV, 1.0f, PerspectiveCamera.NearZ,
+                PerspectiveCamera.FarZ, 0.0f, 10.0f))
+            {
+                throw std::runtime_error("Invalid saved perspective camera parameters.");
+            }
+
+            // 투영 값 검사가 끝난 뒤 저장된 위치·회전과 함께 반영한다.
+            PerspectiveCamera.Location = FVector(Location[0], Location[1], Location[2]);
+            PerspectiveCamera.Rotation = FRotator(Rotation[0], Rotation[1], Rotation[2]);
             MainCameraSaveData = PerspectiveCamera;
         }
     }

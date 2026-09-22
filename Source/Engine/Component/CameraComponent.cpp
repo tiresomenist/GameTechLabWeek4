@@ -27,6 +27,41 @@ namespace
     }
 }
 
+bool UCameraComponent::AreParametersValid(float FOV, float Aspect,
+	float Near, float Far, float Speed, float Height)
+{
+	// 검사 수식을 복제하지 않고 기존 구현을 그대로 재사용한다.
+	return ValidCamera(FOV, Aspect, Near, Far, Speed, Height);
+}
+
+// 새 투영 값 전체를 검증한 뒤 카메라에 함께 반영한다.
+bool UCameraComponent::TrySetProjection(float InFOV, float InNearZ, float InFarZ)
+{
+	// 실제 카메라의 화면 비율과 나머지 설정까지 포함하여 검사한다.
+	if (!AreParametersValid(InFOV, AspectRatio, InNearZ,
+		InFarZ, MoveSpeed, OrthoHeight))
+		return false;
+
+	// 검사를 모두 통과한 뒤에만 기존 상태를 변경한다.
+	FOV = InFOV;
+	NearZ = InNearZ;
+	FarZ = InFarZ;
+	return true;
+}
+
+// 다른 투영 값은 유지하면서 유효한 Near만 적용한다.
+void UCameraComponent::SetNearZ(float InNearZ)
+{
+	// 실패하면 FOV·Near·Far 모두 기존 값을 유지한다.
+	TrySetProjection(FOV, InNearZ, FarZ);
+}
+
+// 다른 투영 값은 유지하면서 유효한 Far만 적용한다.
+void UCameraComponent::SetFarZ(float InFarZ)
+{
+	// 실패하면 FOV·Near·Far 모두 기존 값을 유지한다.
+	TrySetProjection(FOV, NearZ, InFarZ);
+}
 
 FVector UCameraComponent::GetForward() const
 {
@@ -108,9 +143,11 @@ void UCameraComponent::SetIsPerspective(bool Value)
 	bIsPerspective = Value;
 }
 
+// 현재 클리핑 범위와 호환되는 라디안 단위 FOV만 적용한다.
 void UCameraComponent::SetFOVByRadian(const float& InRadian)
 {
-	if (ValidCamera(InRadian, AspectRatio, NearZ, FarZ, MoveSpeed, OrthoHeight)) FOV = InRadian;
+	// FOV 변경도 동일한 투영 검증·적용 경로를 사용한다.
+	TrySetProjection(InRadian, NearZ, FarZ);
 }
 
 void UCameraComponent::SetFOVByDegree(const float& InDegree)
@@ -138,8 +175,14 @@ void UCameraComponent::LookAt(const FVector& InTargetPosition)
 
 }
 
+// 현재 카메라 상태와 함께 검증한 이동 속도만 적용한다.
 void UCameraComponent::SetMoveSpeed(const float& InMoveSpeed)
 {
+	// 음수나 유한하지 않은 속도로 카메라 상태가 깨지는 것을 막는다.
+	if (!AreParametersValid(FOV, AspectRatio, NearZ,
+		FarZ, InMoveSpeed, OrthoHeight))
+		return;
+
 	MoveSpeed = InMoveSpeed;
 }
 

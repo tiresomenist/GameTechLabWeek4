@@ -1125,11 +1125,16 @@ void FEditor::ApplyPendingSceneCamera()
 		UCameraComponent* Camera = Viewport.GetCamera();
 		if (!Camera) continue;
 
+		// 실제 뷰의 화면 비율을 포함해 투영 값을 검증하고 함께 적용한다.
+		if (!Camera->TrySetProjection(CameraData.FOV, CameraData.NearZ, CameraData.FarZ))
+		{
+			UE_LOG("[Editor] Saved camera projection cannot be applied to the current viewport.");
+			return;
+		}
+
+		// 투영 값 적용이 성공한 경우에만 위치와 회전을 변경한다.
 		Camera->SetRelativeLocation(CameraData.Location);
 		Camera->SetRelativeRotation(CameraData.Rotation);
-		Camera->SetFOVByRadian(CameraData.FOV);
-		Camera->SetNearZ(CameraData.NearZ);
-		Camera->SetFarZ(CameraData.FarZ);
 		break;
 	}
 }

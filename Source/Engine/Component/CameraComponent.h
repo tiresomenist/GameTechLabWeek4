@@ -38,8 +38,8 @@ public:
 
     void SetAspectRatio(const float& InRatio);
 
-	void SetNearZ(float InNearZ) { NearZ = InNearZ; }
-	void SetFarZ(float InFarZ) { FarZ = InFarZ; }
+    void SetNearZ(float InNearZ);
+    void SetFarZ(float InFarZ);
 
     //카메라가 원하는 지점을 바라보도록 하는 함수
     void LookAt(const FVector& InTargetPosition);
@@ -49,7 +49,9 @@ public:
 
 
     virtual void Serialize(FArchive& Archive) override;
+    static bool AreParametersValid(float FOV, float Aspect, float Near, float Far, float Speed, float Height);
 
+    bool TrySetProjection(float InFOV, float InNearZ, float InFarZ);
 private:
     FMatrix GetCameraRotationMatrix() const;
 
