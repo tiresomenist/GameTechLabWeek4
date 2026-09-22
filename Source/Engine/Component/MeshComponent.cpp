@@ -5,6 +5,27 @@
 #include "Engine\Resource\TextureResource.h"
 #include "MeshComponent.h"
 
+void UMeshComponent::Serialize(FArchive& Archive)
+{
+	Super::Serialize(Archive);
+	Archive.OptionalField("bIsVisible", bIsVisible);
+}
+
+void UMeshComponent::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	if (bEnableUVScroll)
+	{
+		if (ScrollSpeed.X != 0.0f || ScrollSpeed.Y != 0.0f)
+		{
+			UVOffset += ScrollSpeed * DeltaTime;
+
+			UVOffset.X -= std::floor(UVOffset.X);
+			UVOffset.Y -= std::floor(UVOffset.Y);
+		}
+	}
+}
+
 void UMeshComponent::SetOverrideMaterial(FMaterial* InMaterial, uint32 MaterialSlot)
 {
 	if (MaterialSlot >= static_cast<uint32>(OverrideMaterialList.Num()))

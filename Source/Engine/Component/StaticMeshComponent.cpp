@@ -97,6 +97,9 @@ void UStaticMeshComponent::CreateRenderData(TArray<FPrimitiveRenderData>& Compon
 		OutData.Min = MeshResource->GetBoundsMin();
 		OutData.Max = MeshResource->GetBoundsMax();
 
+		OutData.UVTransform.Scale = UVScale;
+		OutData.UVTransform.Offset = UVOffset;
+
 		const FMaterial* SectionMaterial = nullptr;
 		if ((Section.MaterialIndex < static_cast<uint32>(OverrideMaterialList.Num()) && OverrideMaterialList[Section.MaterialIndex]))
 		{

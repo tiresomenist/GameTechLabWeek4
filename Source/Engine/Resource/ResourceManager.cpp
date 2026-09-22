@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include "Core/Util/File.h"
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -862,11 +864,15 @@ void GResourceManager::RegisterDefaultRenderResources()
 
     RegisterSampler(FName("LinearClamp"), SamplerDesc);
 
-    // 필터와 LOD 설정을 공유하고 주소 지정 방식만 Wrap으로 변경한다.
-    D3D11_SAMPLER_DESC WrapSamplerDesc = SamplerDesc;
+    D3D11_SAMPLER_DESC WrapSamplerDesc{};
+    WrapSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     WrapSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     WrapSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     WrapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    WrapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    WrapSamplerDesc.MinLOD = 0.0f;
+    WrapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
     RegisterSampler(FName("LinearWrap"), WrapSamplerDesc);
 
     D3D11_SAMPLER_DESC FontSamplerDesc{};

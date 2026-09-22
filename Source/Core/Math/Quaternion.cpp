@@ -139,7 +139,7 @@ FQuaternion FQuaternion::GetUprightCameraRotation() const
     // At the pole, recover heading from the previous right axis.
     const float Yaw = Horizontal > 1e-6f ? std::atan2(Forward.Y, Forward.X)
         : std::atan2(-R.M[1][0], R.M[1][1]);
-    constexpr float Limit = 89.0f * PI / 180.0f;
+    constexpr float Limit = 89.9f * PI / 180.0f;
     const float Pitch = std::clamp(std::atan2(-Forward.Z, Horizontal), -Limit, Limit);
     FQuaternion Result = FromAxisAngle(FVector(0, 0, 1), Yaw)
         * FromAxisAngle(FVector(0, 1, 0), Pitch);

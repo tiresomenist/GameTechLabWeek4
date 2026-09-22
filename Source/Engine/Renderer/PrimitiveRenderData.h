@@ -9,10 +9,14 @@ struct FMatrix;
 // HLSL의 float2 크기와 float2 오프셋에 대응하는 16바이트 상수
 struct FTextureUVTransform
 {
-    float ScaleU = 1.0f;
-    float ScaleV = 1.0f;
-    float OffsetU = 0.0f;
-    float OffsetV = 0.0f;
+    FVector2 Scale{ 1.0f, 1.0f };
+    FVector2 Offset{ 0.0f, 0.0f };
+
+    FTextureUVTransform() = default;
+    FTextureUVTransform(const FVector2& InScale, const FVector2& InOffset)
+        : Scale(InScale), Offset(InOffset) {}
+    FTextureUVTransform(float ScaleU, float ScaleV, float OffsetU, float OffsetV)
+        : Scale(ScaleU, ScaleV), Offset(OffsetU, OffsetV) {}
 };
 
 static_assert(sizeof(FTextureUVTransform) == 16);
