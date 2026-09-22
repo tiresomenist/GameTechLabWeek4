@@ -34,7 +34,7 @@ void UStaticMesh::BuildFromMeshData(const FStaticMeshData& MeshData)
             if (FTextureResource* WhiteTex = RM->GetOrLoadTexture(TexturePath))
                 SRV = WhiteTex->GetSRV();
         }
-        FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(SRV, TexturePath);
+        FMaterial GPUMaterial = RM->CreateStaticMeshMaterial(SRV, TexturePath, CPUMaterial.DiffuseTextureOptions.bClamp);
         Materials.Add(new FMaterial(GPUMaterial));
     }
 	BoundsMin = MeshData.BoundsMin;

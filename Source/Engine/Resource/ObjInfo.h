@@ -5,6 +5,7 @@
 #include "Core/Container/String.h"
 #include "Core/Container/Array.h"
 #include "Core/Math/Vector.h"
+#include "Engine/Resource/StaticMeshData.h"
 
 // Obj파일을 읽어온 결과값을 담는 구조체
 // 
@@ -27,24 +28,20 @@ struct FObjTriangle
     // Objects 배열의 인덱스.
     int32 ObjectIndex = -1;
 
-    // -1이면 재질 미지정.
+    // -1이면 머티리얼 미지정.
     int32 MaterialIndex = -1;
 
     // 0이면 smoothing off.
     uint32 SmoothingGroup = 0;
 };
 
-// MTL에서 읽은 CPU 재질 정보.
-struct FObjMaterialInfo
+// MTL에서 읽은 CPU 머티리얼 정보.
+// 공통 CPU 머티리얼 데이터에 MTL 파싱 중 필요한 정의 여부를 추가한다.
+struct FObjMaterialInfo : FStaticMeshMaterial
 {
-    FString Name;
-
-    FVector DiffuseColor{ 1.0f, 1.0f, 1.0f };
-    float Opacity = 1.0f;
-
-    std::filesystem::path DiffuseTexturePath;
-
-    // usemtl로 먼저 등록된 이름과 실제 newmtl 정의를 구분.
+    //그외필드는 FStaticMeshMaterial 확인할것.
+    // 이후 머티리얼 필드 추가로 저장할 때, FStaticMeshMaterial만 고치면 됨.
+    // usemtl로 등록된 이름이 실제 newmtl 정의를 만났는지 구분한다.
     bool bDefined = false;
 };
 

@@ -676,15 +676,16 @@ FMaterial GResourceManager::CreateTextureMaterial(ID3D11ShaderResourceView* SRV)
     return Material;
 }
 
-FMaterial GResourceManager::CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV, const FString& InTexturePath) const
+FMaterial GResourceManager::CreateStaticMeshMaterial(ID3D11ShaderResourceView* SRV, const FString& InTexturePath,bool bClamp) const
 {
     static const FName ShaderName("Mesh.StaticMesh");
-    static const FName SamplerName("LinearWrap");
+    static const FName ClampSamplerName("LinearClamp");
+    static const FName WrapSamplerName("LinearWrap");
 
     FMaterial Material{};
     Material.SRV = SRV;
     Material.Shader = GetShader(ShaderName);
-    Material.Sampler = GetSampler(SamplerName);
+    Material.Sampler = GetSampler(bClamp ? ClampSamplerName : WrapSamplerName);
     Material.ConstantBuffer = TextureMaterialConstantBuffer.Get();
     Material.TexturePath = InTexturePath;
     return Material;
