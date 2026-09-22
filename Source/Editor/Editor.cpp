@@ -347,26 +347,7 @@ void FEditor::InitializeGrids()
 
 void FEditor::Tick(float DeltaTime)
 {
-	if (bPendingCameraLoad)
-	{
-		for (const auto& Viewport : Viewports)
-		{
-			if (Viewport.GetViewportType() == EViewportType::Perspective)
-			{
-				FCameraSaveData CameraData = GetCurrentScene()->GetMainCameraSaveData();
-				UCameraComponent& Camera = *Viewport.GetCamera();
-				Camera.SetRelativeLocation(CameraData.Location);
-				Camera.SetRelativeRotation(CameraData.Rotation);
-				Camera.SetFOVByRadian(CameraData.FOV);
-				Camera.SetNearZ(CameraData.NearZ);
-				Camera.SetFarZ(CameraData.FarZ);
-
-				break;
-			}
-		}
-
-		bPendingCameraLoad = false;
-	}
+	ApplyPendingSceneCamera();
 
 	//CameraController.Tick(DeltaTime);
 	GEngine& Engine = *GEngine::GetInstance();
@@ -1114,4 +1095,41 @@ TArray<FRenderView> FEditor::BuildRenderViews(const D3D11_VIEWPORT& FullViewport
 		Views.Add(Viewport.GetRenderView());
 	}
 	return Views;
+}
+
+// 완료된 씬 로드 요청을 확인하여 에디터 카메라를 한 번 복원한다.
+void FEditor::ApplyPendingSceneCamera()
+{
+	if (!bPendingCameraLoad) return;
+
+	const ESceneLoadResult Result =
+		GSceneManager::GetInstance()->GetLastLoadResult();
+
+	// 요청이 아직 처리되지 않았다면 다음 Tick에서 다시 확인한다.
+	if (Result == ESceneLoadResult::Pending) return;
+
+	// 완료된 요청은 한 번만 처리하고, 실패 시 카메라를 변경하지 않는다.
+	bPendingCameraLoad = false;
+	if (Result != ESceneLoadResult::Succeeded) return;
+
+	UScene* Scene = GetCurrentScene();
+	if (!Scene) return;
+	const FCameraSaveData CameraData = Scene->GetMainCameraSaveData();
+
+	// 저장 대상인 Perspective 뷰의 카메라만 복원한다.
+	for (const FViewportClient& Viewport : Viewports)
+	{
+		if (Viewport.GetViewportType() != EViewportType::Perspective)
+			continue;
+
+		UCameraComponent* Camera = Viewport.GetCamera();
+		if (!Camera) continue;
+
+		Camera->SetRelativeLocation(CameraData.Location);
+		Camera->SetRelativeRotation(CameraData.Rotation);
+		Camera->SetFOVByRadian(CameraData.FOV);
+		Camera->SetNearZ(CameraData.NearZ);
+		Camera->SetFarZ(CameraData.FarZ);
+		break;
+	}
 }

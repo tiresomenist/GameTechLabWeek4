@@ -88,7 +88,7 @@ private:
 	float DrawStatFPS(ImDrawList* DrawList, float X, float Y);
 	float DrawStatUnit(ImDrawList* DrawList, float X, float Y);
 	float DrawStatMemory(ImDrawList* DrawList, float X, float Y);
-
+	void ApplyPendingSceneCamera();
 public:
 	virtual ~FEditor() = default;
 
