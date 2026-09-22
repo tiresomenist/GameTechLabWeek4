@@ -323,10 +323,26 @@ namespace
         return (Parent / Relative).lexically_normal();
     }
 
+    // 실제로 읽은 원본 파일의 절대 경로를 중복 없이 기록한다.
+    void AddSourceFile(FObjInfo& Info, const std::filesystem::path& Path)
+    {
+        // 상대 경로와 불필요한 "."·".."를 정리해 변경 검사 기준을 통일한다.
+        const std::filesystem::path AbsolutePath =
+            std::filesystem::absolute(Path).lexically_normal();
+
+        // 같은 경로가 반복 선언돼도 원본 목록에는 한 번만 추가한다.
+        for (const std::filesystem::path& ExistingPath : Info.SourceFiles)
+        {
+            if (ExistingPath == AbsolutePath) return;
+        }
+        Info.SourceFiles.Add(AbsolutePath);
+    }
+
     // MTL 파일을 읽어 재질 이름,Diffuse 색상,불투명도,텍스처 경로를 채움
     void ReadMtl(const std::filesystem::path& Path, FObjInfo& Info, TMap<FString, int32>& MaterialLookup)
     {
         const FString Text = File::ReadTextFromPath(Path);
+        AddSourceFile(Info, Path);
         int32 CurrentMaterial = -1;
 
         ForEachLine(Text, Path,[&](FStringView Line, size_t LineNumber)
@@ -424,6 +440,7 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
 
     //파일 전체 txt
     const FString Text = File::ReadTextFromPath(Path);
+    AddSourceFile(Info, Path);
 
     // 현재 객체/머티리얼/스무딩 그룹.
     int32 CurrentObject = -1;

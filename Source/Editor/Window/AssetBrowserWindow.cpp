@@ -249,9 +249,13 @@ void UAssetBrowserWindow::RefreshCurrentContents()
 		if (Entry.is_regular_file())
 		{
 			const FString Extension = File::PathToUtf8(Entry.path().extension());
-			if (Extension == ".obj" || Extension == ".obj.meshcache")
+			if (Extension == ".obj")
 			{
 				AssetEntry.Type = EAssetType::StaticMesh;
+			}
+			else if (Extension == ".meshcache")
+			{
+				continue;
 			}
 			else if (Extension == ".png")
 			{
