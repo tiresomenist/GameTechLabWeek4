@@ -153,7 +153,7 @@ TArray<FWorldTextItem> RenderUtil::GetTextRenderList(UScene* Scene, const UCamer
 }
 
 void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UCameraComponent* Camera,
-	const FViewSettings& ViewSettings, FLineBatcher& Batcher)
+	const FViewSettings& ViewSettings, FLineBatcher& Batcher, EViewportType InViewtype)
 {
 	if (!Editor || !Scene|| !Camera) { return; }
 
@@ -170,6 +170,7 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UC
 	Context.Camera = Camera;
 	Context.bShowBounds = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Bounds);
 	Context.bShowPrimitives = ViewSettings.ShowFlags.IsEnabled(EEngineShowFlag::Primitives);
+	Context.ViewType = InViewtype;
 
 	// 각 프리미티브가 생성한 바운딩 박스 요청을 즉시 제출함
 	Scene->ForEachPrimitive([&](UPrimitiveComponent* Primitive)
@@ -210,7 +211,7 @@ void RenderUtil::SubmitLineDrawRequests(FEditor* Editor, UScene* Scene, const UC
 	{
 		for (UGrid* Grid : Editor->GetGrids())
 		{
-			Submit(Grid->BuildLineDrawRequest(GridSettings,CameraPosition));
+			Submit(Grid->BuildLineDrawRequest(GridSettings,CameraPosition, InViewtype));
 		}
 	}
 

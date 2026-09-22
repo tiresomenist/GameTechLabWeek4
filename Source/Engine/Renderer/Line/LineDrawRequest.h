@@ -5,6 +5,7 @@
 #include <functional>
 
 class UCameraComponent;
+enum class EViewportType;
 
 // 하나의 오브젝트가 생성한 라인 메시 요청
 struct FLineDrawRequest
@@ -22,6 +23,8 @@ using FLineRequestConsumer = std::function<void(const FLineDrawRequest&)>;
 struct FLineDrawContext
 {
     const UCameraComponent* Camera = nullptr;
+
+    EViewportType ViewType;
 
     bool bSelected = false;
     bool bShowBounds = false;
