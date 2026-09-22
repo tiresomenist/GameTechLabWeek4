@@ -7,6 +7,8 @@
 #include "Engine/Renderer/Grid.h"
 #include "Engine/Renderer/Line/LineDrawRequest.h"
 
+enum class EViewportType;
+
 class UGrid : public UObject
 {
     UCLASS(UGrid, "Grid", UObject)
@@ -19,7 +21,7 @@ public:
 
     virtual TArray<FPrimitiveRenderData> GetRenderData();
     FMeshResource* GetMeshResource() { return MeshResource; }
-    FLineDrawRequest BuildLineDrawRequest(const FGrid& Grid,const FVector& CameraPosition) const;
+    FLineDrawRequest BuildLineDrawRequest(const FGrid& Grid,const FVector& CameraPosition, EViewportType InViewType) const;
     FPrimitiveRenderData RenderData;
     FMeshResource* MeshResource;
 

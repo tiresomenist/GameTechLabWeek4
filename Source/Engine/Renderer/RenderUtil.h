@@ -11,6 +11,7 @@ class UScene;
 class FEditor;
 class UCameraComponent;
 struct FPrimitiveRenderData;
+enum class EViewportType;
 
 namespace RenderUtil
 {
@@ -20,5 +21,5 @@ namespace RenderUtil
 	TArray<FWorldTextItem> GetTextRenderList(UScene* Scene, const UCameraComponent* Camera,
 		bool bShowUUIDWidgets);
 	void SubmitLineDrawRequests(FEditor* Editor,UScene* Scene, const UCameraComponent* Camera,
-		const FViewSettings& ViewSettings, FLineBatcher& Batcher);
+		const FViewSettings& ViewSettings, FLineBatcher& Batcher, EViewportType InViewtype);
 };

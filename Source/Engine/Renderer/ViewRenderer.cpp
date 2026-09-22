@@ -454,7 +454,7 @@ void FViewRenderer::RenderView(FEditor* Editor,UScene* Scene,const FRenderView& 
 		}
 	}
 	// 모든 라인 요청을 배처의 통합 배열에 즉시 병합함
-	RenderUtil::SubmitLineDrawRequests(Editor, Scene, Camera, ViewSettings, LineBatcher);
+	RenderUtil::SubmitLineDrawRequests(Editor, Scene, Camera, ViewSettings, LineBatcher, View.ViewType);
 
 	// 통합 데이터를 GPU에 업로드하고 배치 렌더링함
 	RenderBatchLine(ViewProjMatrix);

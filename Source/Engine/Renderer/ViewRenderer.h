@@ -12,6 +12,7 @@ class FEditor;
 class UCameraComponent;
 struct FShaderResource;
 struct FVertexTexture;
+enum class EViewportType;
 
 struct FRenderView
 {
@@ -19,6 +20,7 @@ struct FRenderView
 	D3D11_VIEWPORT Viewport{};
 	FViewSettings ViewSettings{};
 	bool bDrawEditorGizmos = false;
+	EViewportType ViewType;
 };
 
 // 출력 타깃은 호출자가 준비한다. 각 View는 데이터를 수집한 직후 그린다.
