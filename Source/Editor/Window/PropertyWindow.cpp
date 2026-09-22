@@ -55,8 +55,15 @@ bool UPropertyWindow::TryApplyTexture(UMeshComponent& MeshComp, const FString& T
 {
 	try
 	{
-		// 기존 로딩·재질 교체 로직을 재사용한다. 빈 경로는 기본 재질 복원 요청이다.
-		MeshComp.SetOverrideMaterial(TexturePath, SlotIdx);
+		if (TexturePath.empty())
+		{
+			MeshComp.ResetOverrideMaterial(SlotIdx);
+			LastTextureError.clear();
+			return true;
+		}
+
+		FMaterial* Mat = MeshComp.GetOrCreateOverrideMaterial(SlotIdx);
+		Mat->SetTexture(TexturePath);
 		LastTextureError.clear();
 		return true;
 	}
@@ -94,7 +101,7 @@ void UPropertyWindow::InitializeWindow(FEditor* InEditor, const FString& Name)
 	AddableComponentClasses.Add(USpotLightComponent::GetClass());
 	SelectedAddComponentClass = *AddableComponentClasses.begin();
 
-	SelectedMeshKey = MeshSelection::GetEntries()[0].Key;
+	SelectedMeshKey = MeshSelection::GetDefaultKey();
 }
 
 void UPropertyWindow::GetSelectedValue()
@@ -522,6 +529,7 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 		ImGui::SetNextItemWidth(150.0f);
 		if (MeshSelection::DrawCombo("##MeshKey", NewMeshKey))
 		{
+			auto temp = NewMeshKey.ToString();
 			// 실패하면 컴포넌트의 기존 모델 연결을 유지한다.
 			TryApplyStaticMesh(*MeshComp, NewMeshKey);
 		}
@@ -552,29 +560,91 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 			for (uint32 SlotIdx = 0; SlotIdx < NumSlots; ++SlotIdx)
 			{
 				ImGui::PushID(static_cast<int>(SlotIdx));
-				FString CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx).c_str();
+				const FMaterial* CurrentMat = MeshComp->GetMaterial(SlotIdx);
+				if (!CurrentMat)
+				{
+					ImGui::Text("Slot [%u] (Empty)", SlotIdx);
+					ImGui::PopID();
+					continue;
+				}
+
+				FVector4 Color = CurrentMat->DiffuseColor;
+				float AlphaCutoff = CurrentMat->AlphaCutoff;
+				FVector2 ScrollSpeed = CurrentMat->ScrollSpeed;
+				FVector2 UVScale = CurrentMat->UVScale;
+				FVector2 UVOffset = CurrentMat->UVOffset;
+				bool bEnableUVScroll = CurrentMat->bEnableUVScroll;
+
+				FString CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx);
 
 				ImGui::Text("Slot [%u]", SlotIdx);
-				ImGui::SameLine();
-				
-				// 실제 렌더링에 사용 중인 재질의 텍스처를 미리보기에도 사용한다.
-				const FMaterial* Material = MeshComp->GetMaterial(SlotIdx);
-				if (Material && Material->SRV)
+
+				// 머티리얼 기본 속성 조작 (#27)
+				bool bModified = false;
+				bModified |= ImGui::ColorEdit4("Diffuse", &Color.X);
+				bModified |= ImGui::SliderFloat("Alpha Cutoff", &AlphaCutoff, 0.0f, 1.0f);
+				bModified |= ImGui::DragFloat2("UV Scale", &UVScale.X, 0.01f);
+				bModified |= ImGui::DragFloat2("UV Offset", &UVOffset.X, 0.01f);
+				bModified |= ImGui::Checkbox("Enable UV Scroll", &bEnableUVScroll);
+				bModified |= ImGui::DragFloat2("Scroll Speed", &ScrollSpeed.X, 0.01f);
+
+				if (bModified)
 				{
-					ImGui::Image(ImTextureRef(Material->SRV), ImVec2(64.0f, 64.0f));
+					FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
+					Mat->DiffuseColor = Color;
+					Mat->AlphaCutoff = AlphaCutoff;
+					Mat->bEnableUVScroll = bEnableUVScroll;
+					Mat->UVOffset = UVOffset;
+					Mat->UVScale = UVScale;
+					Mat->ScrollSpeed = ScrollSpeed;
+				}
+
+				// 샘플러 선택 (#27)
+				static const char* SamplerOptions[] = {
+					"LinearWrap",
+					"LinearClamp",
+					"LinearMirror",
+					"PointWrap",
+					"PointClamp",
+					"PointMirror",
+				};
+
+				FString CurrentSamplerName = CurrentMat->SamplerName.ToString();
+				ImGui::SetNextItemWidth(150.0f);
+				if (ImGui::BeginCombo("Sampler", CurrentSamplerName.c_str()))
+				{
+					for (int i = 0; i < IM_ARRAYSIZE(SamplerOptions); ++i)
+					{
+						const bool bIsSelected = (CurrentSamplerName == SamplerOptions[i]);
+						if (ImGui::Selectable(SamplerOptions[i], bIsSelected))
+						{
+							FMaterial* Mat = MeshComp->GetOrCreateOverrideMaterial(SlotIdx);
+							Mat->SetSampler(FName(SamplerOptions[i]));
+						}
+						if (bIsSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}
+
+				// 텍스처 썸네일 미리보기 (Development: 안전 검사)
+				if (CurrentMat && CurrentMat->SRV)
+				{
+					ImGui::Image(ImTextureRef(CurrentMat->SRV), ImVec2(64.0f, 64.0f));
 				}
 				else
 				{
-					// 텍스처가 없어도 드래그 앤 드롭을 받을 UI 항목은 유지한다.
 					ImGui::Button("No texture", ImVec2(64.0f, 64.0f));
 				}
-				
+
+				// 드래그 앤 드롭 타겟
 				if (ImGui::BeginDragDropTarget())
 				{
 					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("TEXTURE"))
 					{
 						FString TexturePath = static_cast<const char*>(Payload->Data);
-						// 교체에 성공한 경우에만 표시 경로를 갱신한다.
 						if (TryApplyTexture(*MeshComp, TexturePath, SlotIdx))
 						{
 							CurrentTexPath = MeshComp->GetMaterialPath(SlotIdx);
@@ -583,22 +653,23 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					ImGui::EndDragDropTarget();
 				}
 
+				// 텍스처 경로 직접 입력
 				ImGui::SetNextItemWidth(150.0f);
 				if (ImGui::InputText("##TexturePath", &CurrentTexPath, ImGuiInputTextFlags_EnterReturnsTrue))
 				{
 					TryApplyTexture(*MeshComp, CurrentTexPath, SlotIdx);
 				}
 				ImGui::SameLine();
+
+				// 파일 탐색기 브라우즈
 				if (ImGui::Button("Browse..."))
 				{
 					try
 					{
-						// 파일 선택을 취소하면 현재 텍스처를 유지한다.
 						const HWND Owner = static_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
 						const auto TexturePath = File::OpenFileDialog(Owner, EFileDialogType::Image, "Assets/Textures");
 						if (TexturePath)
 						{
-							// 상대 경로를 만들 수 없는 다른 드라이브의 파일은 절대 경로로 사용한다.
 							const std::filesystem::path RelativePath =
 								std::filesystem::relative(*TexturePath, std::filesystem::current_path());
 							const std::filesystem::path& LoadPath = RelativePath.empty() ? *TexturePath : RelativePath;
@@ -607,53 +678,25 @@ void UPropertyWindow::RenderSelectedComponentDetails()
 					}
 					catch (const std::exception& Error)
 					{
-						// 파일 선택 또는 경로 변환에서 발생한 실패도 UI에서 처리한다.
 						LastTextureError = Error.what();
 					}
 				}
+
 				ImGui::SameLine();
 				if (ImGui::Button("Reset"))
 				{
-					TryApplyTexture(*MeshComp, FString{}, SlotIdx);
+					MeshComp->ResetOverrideMaterial(SlotIdx);
+					LastTextureError.clear();
 				}
 				ImGui::PopID();
+				ImGui::Separator();
 			}
+
+			// 텍스처 작업 실패 메시지 출력 (Development)
 			if (!LastTextureError.empty())
 			{
 				ImGui::TextWrapped("Last texture operation failed: %s", LastTextureError.c_str());
 			}
-		}
-	}
-
-	if (InspectedComponent->IsA(UMeshComponent::GetClass()) &&
-		ImGui::CollapsingHeader("UV & Scroll", ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		auto* MeshComp = static_cast<UMeshComponent*>(InspectedComponent);
-
-		bool bScroll = MeshComp->IsUVScrollEnabled();
-		if (ImGui::Checkbox("Enable UV Scroll", &bScroll))
-		{
-			MeshComp->SetUVScrollEnabled(bScroll);
-		}
-
-		FVector2 Scale = MeshComp->GetUVScale();
-		if (ImGui::DragFloat2("UV Scale", &Scale.X, 0.05f, 0.01f, 50.0f, "%.2f"))
-		{
-			MeshComp->SetUVScale(Scale);
-		}
-
-		FVector2 Speed = MeshComp->GetScrollSpeed();
-		if (ImGui::DragFloat2("Scroll Speed", &Speed.X, 0.01f, -10.0f, 10.0f, "%.3f"))
-		{
-			MeshComp->SetScrollSpeed(Speed);
-		}
-
-		const FVector2& Offset = MeshComp->GetUVOffset();
-		ImGui::Text("Current Offset: (%.3f, %.3f)", Offset.X, Offset.Y);
-		ImGui::SameLine();
-		if (ImGui::Button("Reset Offset"))
-		{
-			MeshComp->ResetUVOffset();
 		}
 	}
 

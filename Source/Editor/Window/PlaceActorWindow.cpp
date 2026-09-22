@@ -50,7 +50,7 @@ void UPlaceActorWindow::InitializeWindow(FEditor* Editor, const FString& Name)
 
 	SelectedSpecialComponentClass = *SpecialComponentClasses.begin();
 
-	SelectedMeshKey = MeshSelection::GetEntries()[0].Key;
+	SelectedMeshKey = MeshSelection::GetDefaultKey();
 }
 
 

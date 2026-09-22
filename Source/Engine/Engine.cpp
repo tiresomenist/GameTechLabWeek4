@@ -39,7 +39,7 @@ GEngine* GEngine::GetInstance()
 }
 
 // 엔진을 초기 상태로 초기화합니다.
-void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
+bool GEngine::Initialize(HWND InHwnd, EApplicationMode Mode, const std::function<bool(GResourceManager&)>& PrepareResources)
 {
     ApplicationMode = Mode;
     try
@@ -63,11 +63,21 @@ void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
         GResourceManager& ResourceManager = *GResourceManager::GetInstance();
         ResourceManager.Initialize(&Device);
 
+        // GPU 메시를 만들 수 있는 시점에 호출자의 준비 작업을 동기적으로 실행한다.
+        if (PrepareResources && !PrepareResources(ResourceManager))
+        {
+            // 취소되면 지금까지 생성한 메시와 엔진 리소스를 정리한다.
+            Destroy();
+            return false;
+        }
+
         /*
         * 태양계 스폰 시 사용할 텍스처 미리 불러오기
         */
         if (ApplicationMode == EApplicationMode::Editor)
         {
+            ResourceManager.GetOrLoadStaticMesh("Assets/Models/Sphere.obj");
+
             ResourceManager.GetOrLoadTexture("Assets/Textures/sun.png");
             ResourceManager.GetOrLoadTexture("Assets/Textures/mercury.png");
             ResourceManager.GetOrLoadTexture("Assets/Textures/venus.png");
@@ -101,6 +111,7 @@ void GEngine::Initialize(HWND InHwnd, EApplicationMode Mode)
 
         StartTime = GetTime();
         LastTickTime = GetTime();
+        return true;
     }
     catch (...)
     {

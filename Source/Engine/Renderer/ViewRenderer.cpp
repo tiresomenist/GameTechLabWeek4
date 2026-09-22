@@ -333,8 +333,8 @@ void FViewRenderer::UpdateMaterialConstants(const FPrimitiveRenderData& Data)
 	// 현재 머티리얼 b1 버퍼는 모두 FTextureDrawConstants 레이아웃을 사용한다.
 	FTextureDrawConstants Constants{};
 	Constants.UV = Data.UVTransform;
-	Constants.DiffuseColor = Data.DiffuseColor;
-	Constants.AlphaCutoff = Data.AlphaCutoff;
+	Constants.DiffuseColor = Data.Material.DiffuseColor;
+	Constants.AlphaCutoff = Data.Material.AlphaCutoff;
 
 	DeviceContext->UpdateSubresource(
 		Data.Material.ConstantBuffer, 0, nullptr, &Constants, 0, 0);

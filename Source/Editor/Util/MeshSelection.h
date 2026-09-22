@@ -1,78 +1,61 @@
 #pragma once
 
-#include "Core/Container/Array.h"
 #include "Core/Container/String.h"
 #include "Engine/Resource/MeshNames.h"
+#include "Engine/Object/ObjectIterator.h"
 #include "ImGui/imgui.h"
 
 namespace MeshSelection
 {
-    struct FEntry
+    inline FName GetDefaultKey()
     {
-        FName Key;
-        const char* Label;
-    };
-    inline const TArray<FEntry>& GetEntries()
-    {
-        const FMeshNames& Names = GetMeshNames();
-        static const TArray<FEntry> Entries
-        {
-            { Names.Sphere,   "Sphere" },
-            { Names.Cube,     "Cube" },
-            { Names.Plane,    "Plane" },
-            { Names.Triangle,"Triangle" },
-            { Names.Pepe,     "Pepe" },
-            { Names.Octopus,  "Octopus" },
-            { Names.Test1,    "test1" }
-        };
-
-        return Entries;
+        return GetMeshNames().Sphere;
     }
 
     inline bool DrawCombo(const char* Label, FName& SelectedKey, ImGuiComboFlags Flags = 0)
     {
-        const TArray<FEntry>& Entries = GetEntries();
-
         const char* Preview = nullptr;
-        // 등록된 항목은 재사용
-        for (const FEntry& Entry : Entries)
-        {
-            if (Entry.Key == SelectedKey)
-            {
-                Preview = Entry.Label;
-                break;
-            }
-        }
         // 목록에 없는 메시도 현재 이름을 표시함
-        FString FallbackLabel;
 
-        if (!Preview)
+        FString FallbackLabel;
+        std::filesystem::path SelectedPath = File::PathFromUtf8(SelectedKey.ToString());
+        if (std::filesystem::exists(SelectedPath))
+        {
+			FallbackLabel = File::PathToUtf8(SelectedPath.stem().filename());
+        }
+        else 
         {
             FallbackLabel = SelectedKey.ToString();
-            Preview = FallbackLabel.c_str();
         }
+        Preview = FallbackLabel.c_str();
 
         bool bChanged = false;
 
         if (ImGui::BeginCombo(Label, Preview, Flags))
         {
-            for (const FEntry& Entry : Entries)
+            for (const auto& Mesh : TObjectRange<UStaticMesh>())
             {
-                const bool bSelected = SelectedKey == Entry.Key;
+                const FString MeshName = Mesh->GetMeshKey().ToString();
+				const char* MeshPath = MeshName.c_str();
+                const std::filesystem::path MeshFilePath = File::PathFromUtf8(MeshPath);
+				const FString DisplayName = File::PathToUtf8(MeshFilePath.stem().filename());
 
-                if (ImGui::Selectable(Entry.Label, bSelected))
-                {
-                    if (!bSelected)
-                    {
-                        SelectedKey = Entry.Key;
-                        bChanged = true;
-                    }
-                }
+                ImGui::PushID(MeshName.c_str());
 
-                if (bSelected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
+				const bool bSelected = SelectedKey == Mesh->GetMeshKey();
+				if (ImGui::Selectable(DisplayName.c_str(), bSelected))
+				{
+					if (!bSelected)
+					{
+						SelectedKey = Mesh->GetMeshKey();
+						bChanged = true;
+					}
+				}
+				if (bSelected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+                ImGui::PopID();
             }
 
             ImGui::EndCombo();

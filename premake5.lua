@@ -67,7 +67,7 @@ local function ConfigureApplication(ProjectName, OutputDirectory)
         filter {}
 
         -- 모든 빌드 구성에 공통 라이브러리를 연결합니다.
-        links { "d3d11", "d3dcompiler", "dxgi", "user32" }
+        links { "d3d11", "d3dcompiler", "dxgi", "user32", "gdi32" }
 end
 
 -- 기존 에디터 프로젝트의 이름과 출력 위치를 유지합니다.

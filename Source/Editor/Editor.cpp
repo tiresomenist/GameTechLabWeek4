@@ -1013,7 +1013,6 @@ static void DrawShadowedText(ImDrawList* DrawList, ImVec2 Pos, ImU32 Color, cons
 	DrawList->AddText(Pos, Color, Text);
 }
 
-// TODO:: 뷰포트 크기 변해도 잘 나오게 
 void FEditor::DrawStatOverlay()
 {
 	if (!bShowStatFPS && !bShowStatUnit && !bShowStatMemory) return;
@@ -1022,15 +1021,28 @@ void FEditor::DrawStatOverlay()
 	const D3D11_VIEWPORT& D3DView = Viewports[CurrEditedViewportIndex].GetRenderView().Viewport;
 	if (D3DView.Width <= 0.0f || D3DView.Height <= 0.0f) return;
 
+	constexpr float ToolbarHeight = 40.0f;
+	constexpr float MarginX = 10.0f;
+	constexpr float MarginY = 8.0f;
+	if (D3DView.Width < 120.0f || D3DView.Height < (ToolbarHeight + 30.0f))
+	{
+		return;
+	}
+
 	ImVec2 MainOrigin = ImGui::GetMainViewport()->Pos;
-	float StartX = MainOrigin.x + D3DView.TopLeftX + D3DView.Width - 230.0f;
-	float StartY = MainOrigin.y + D3DView.TopLeftY + 12.0f;
+	float StartX = MainOrigin.x + D3DView.TopLeftX + MarginX;
+	float StartY = MainOrigin.y + D3DView.TopLeftY + ToolbarHeight + MarginY;
+	ImVec2 ClipMin(MainOrigin.x + D3DView.TopLeftX, MainOrigin.y + D3DView.TopLeftY + ToolbarHeight);
+	ImVec2 ClipMax(MainOrigin.x + D3DView.TopLeftX + D3DView.Width, MainOrigin.y + D3DView.TopLeftY + D3DView.Height);
 
 	ImDrawList* DrawList = ImGui::GetForegroundDrawList();
+	DrawList->PushClipRect(ClipMin, ClipMax);
 
 	if (bShowStatFPS)    StartY = DrawStatFPS(DrawList, StartX, StartY);
 	if (bShowStatUnit)   StartY = DrawStatUnit(DrawList, StartX, StartY);
 	if (bShowStatMemory) StartY = DrawStatMemory(DrawList, StartX, StartY);
+
+	DrawList->PopClipRect();
 }
 
 float FEditor::DrawStatFPS(ImDrawList* DrawList, float X, float Y)
