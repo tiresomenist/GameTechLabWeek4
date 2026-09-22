@@ -150,6 +150,7 @@ void FEditorMenuLayout::BuildDefaultLayout(bool bReset)
 		ConsoleNode->LocalFlags |= ImGuiDockNodeFlags_NoCloseButton;
 		ConsoleNode->UpdateMergedFlags();
 	}
+	ImGui::DockBuilderDockWindow("Asset Browser", ConsoleID);
 	ImGui::DockBuilderDockWindow("Console", ConsoleID);
 	ImGui::DockBuilderDockWindow("Debug", ConsoleID);
 
