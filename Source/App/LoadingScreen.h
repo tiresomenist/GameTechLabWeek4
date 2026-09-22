@@ -4,6 +4,23 @@
 #include <future>
 #include <thread>
 #include "Core/Container/String.h"
+#include <cstddef>
+#include <mutex>
+
+// 로딩 창에 표시할 값만 보관하며 엔진 객체나 리소스를 참조하지 않는다.
+struct FLoadingScreenStatus
+{
+    FWideString Stage = L"Loading...";
+    FWideString FileName;
+
+    std::size_t TotalCount = 0;
+    std::size_t LoadedCount = 0;
+    std::size_t SkippedCount = 0;
+    std::size_t FailedCount = 0;
+
+    // 전체 개수가 확정되었을 때만 실제 진행률을 표시한다.
+    bool bDeterminate = false;
+};
 
 class FLoadingScreen
 {
@@ -27,6 +44,8 @@ public:
     // 사용자가 로딩 창 닫기를 눌렀는지 확인한다.
     bool IsCancelRequested() const noexcept;
 
+    // 메인 스레드가 전달한 표시 상태를 안전하게 교체한다.
+    void SetStatus(FLoadingScreenStatus InStatus);
 private:
     // 별도 스레드에서 창 생성과 메시지 처리를 수행한다.
     void ThreadMain(HINSTANCE Instance, std::promise<void> Startup);
@@ -46,4 +65,11 @@ private:
 
     // 아이콘 생성·사용·해제는 UI 스레드에서만 수행한다.
     HICON LogoIcon = nullptr;
+
+    // UI 스레드에서 한 번의 그리기에 사용할 상태 복사본을 얻는다.
+    FLoadingScreenStatus CopyStatus();
+
+    static constexpr UINT_PTR RefreshTimerId = 1;
+    std::mutex StatusMutex;
+    FLoadingScreenStatus CurrentStatus;
 };
