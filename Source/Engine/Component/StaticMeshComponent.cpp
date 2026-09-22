@@ -7,21 +7,28 @@
 
 void UStaticMeshComponent::SetStaticMesh(const FName& InMeshKey)
 {
+	if (!InMeshKey.IsNone() && InMeshKey == MeshKey) return;
+
+	int32 NewSlotCount = 0;
 	if (!InMeshKey.IsNone())
 	{
-		// 로딩 실패 시 기존 MeshKey와 재질 슬롯을 유지한다.
+		// 새 메시를 확보하지 못하면 기존 상태를 변경하지 않는다.
 		UStaticMesh* Mesh = GResourceManager::GetInstance()->GetOrLoadStaticMesh(InMeshKey);
 		if (!Mesh)
 		{
 			throw std::runtime_error("Static mesh could not be loaded: " + InMeshKey.ToString());
 		}
-
-		// 기존 슬롯 조정 정책을 유지하되, 경로 확정보다 먼저 수행한다.
-		OverrideMaterialList.SetNum(Mesh->GetDefaultMeshMaterials().Num());
+		NewSlotCount = Mesh->GetDefaultMeshMaterials().Num();
 	}
 
-	// 필요한 준비가 끝난 경우에만 새 경로를 확정한다.
+	// 필요한 배열 용량을 먼저 확보하여 할당 실패 시 기존 재질을 보존한다.
+	OverrideMaterialList.Reserve(NewSlotCount);
+
+	// 이전 재질을 해제하고 새 메시의 슬롯을 nullptr로 초기화한다.
+	ClearOverrideMaterials();
+	OverrideMaterialList.SetNum(NewSlotCount);
 	MeshKey = InMeshKey;
+
 }
 
 void UStaticMeshComponent::SetStaticMesh(const FString& FilePath)
