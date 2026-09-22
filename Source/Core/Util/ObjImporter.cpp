@@ -551,8 +551,218 @@ namespace
                     ParseError(Path, LineNumber, "Invalid material numeric values");
             });
     }
+    // 투영 전에는 정규화된 3D 좌표, 투영 후에는 XY 평면 좌표를 보관한다.
+    struct FEarPoint
+    {
+        double X = 0.0, Y = 0.0, Z = 0.0;
+    };
+
+    // 2D 삼각형의 방향과 두 배 부호 면적을 계산한다.
+    double EarCross(const FEarPoint& A, const FEarPoint& B, const FEarPoint& C)
+    {
+        return (B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X);
+    }
+
+    // 두 선분이 교차하거나 접촉하는지 허용 오차를 포함해 검사한다.
+    bool EarSegmentsIntersect(const FEarPoint& A, const FEarPoint& B,
+        const FEarPoint& C, const FEarPoint& D, double Epsilon)
+    {
+        // 범위가 분리된 선분은 교차할 수 없다.
+        if (std::max(A.X, B.X) < std::min(C.X, D.X) - Epsilon
+            || std::max(C.X, D.X) < std::min(A.X, B.X) - Epsilon
+            || std::max(A.Y, B.Y) < std::min(C.Y, D.Y) - Epsilon
+            || std::max(C.Y, D.Y) < std::min(A.Y, B.Y) - Epsilon)
+            return false;
+
+        const double ABC = EarCross(A, B, C), ABD = EarCross(A, B, D);
+        const double CDA = EarCross(C, D, A), CDB = EarCross(C, D, B);
+        return !((ABC > Epsilon && ABD > Epsilon) || (ABC < -Epsilon && ABD < -Epsilon)
+            || (CDA > Epsilon && CDB > Epsilon) || (CDA < -Epsilon && CDB < -Epsilon));
+    }
+
+    // 단순 평면 다각형을 Ear Clipping으로 나누고 원본 코너와 면 속성을 보존한다.
+    TArray<FObjTriangle> TriangulateFace(const FObjInfo& Info,
+        const TArray<FObjVertexIndex>& Corners, const FObjTriangle& FaceInfo,
+        const std::filesystem::path& Path, size_t LineNumber)
+    {
+        const int32 Count = Corners.Num();
+        if (Count < 3) ParseError(Path, LineNumber, "A face requires at least three corners");
+
+        TArray<FObjTriangle> Triangles;
+        Triangles.Reserve(static_cast<size_t>(Count - 2));
+
+        // 출력은 원본 코너를 복사하므로 UV·법선 및 면 속성이 유지된다.
+        auto AddTriangle = [&](int32 A, int32 B, int32 C)
+            {
+                FObjTriangle Triangle = FaceInfo;
+                Triangle.Corners[0] = Corners[A];
+                Triangle.Corners[1] = Corners[B];
+                Triangle.Corners[2] = Corners[C];
+                Triangles.Add(Triangle);
+            };
+
+        // 이미 삼각형인 면은 기존 퇴화 필터와 출력 순서를 유지한다.
+        if (Count == 3)
+        {
+            const FVector& A = Info.Positions[Corners[0].PositionIndex];
+            const FVector& B = Info.Positions[Corners[1].PositionIndex];
+            const FVector& C = Info.Positions[Corners[2].PositionIndex];
+            if ((B - A).Cross(C - A).LengthSquared() > EPSILON * EPSILON)
+                AddTriangle(0, 1, 2);
+            return Triangles;
+        }
+
+        // 큰 절대 좌표와 모델 크기의 영향을 줄이기 위해 원점 이동 후 정규화한다.
+        const FVector& Origin = Info.Positions[Corners[0].PositionIndex];
+        TArray<FEarPoint> Points;
+        Points.Reserve(static_cast<size_t>(Count));
+        double Scale = 0.0;
+        for (const FObjVertexIndex& Corner : Corners)
+        {
+            const FVector& P = Info.Positions[Corner.PositionIndex];
+            FEarPoint Q{ double(P.X) - Origin.X, double(P.Y) - Origin.Y, double(P.Z) - Origin.Z };
+            Scale = std::max(Scale, std::max({ std::abs(Q.X), std::abs(Q.Y), std::abs(Q.Z) }));
+            Points.Add(Q);
+        }
+        if (Scale == 0.0) return {};
+        for (FEarPoint& P : Points) { P.X /= Scale; P.Y /= Scale; P.Z /= Scale; }
+
+        // 경계 전체의 면적 벡터로 투영 방향과 기준 평면을 구한다.
+        constexpr double Epsilon = 1e-12;
+        constexpr double PlaneTolerance = 1e-5;
+        FEarPoint Normal;
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const FEarPoint& A = Points[I];
+            const FEarPoint& B = Points[(I + 1) % Count];
+            Normal.X += A.Y * B.Z - A.Z * B.Y;
+            Normal.Y += A.Z * B.X - A.X * B.Z;
+            Normal.Z += A.X * B.Y - A.Y * B.X;
+        }
+        const double Length = std::sqrt(Normal.X * Normal.X + Normal.Y * Normal.Y + Normal.Z * Normal.Z);
+        if (Length <= Epsilon)
+        {
+            FEarPoint Axis;
+            double AxisLengthSquared = 0.0;
+            for (const FEarPoint& P : Points)
+            {
+                const double CandidateLength = P.X * P.X + P.Y * P.Y + P.Z * P.Z;
+                if (CandidateLength > AxisLengthSquared)
+                {
+                    Axis = P;
+                    AxisLengthSquared = CandidateLength;
+                }
+            }
+
+            // 첫 점에서 가장 먼 점으로 향하는 직선 밖의 점이 있으면 퇴화로 단정하지 않는다.
+            for (const FEarPoint& P : Points)
+            {
+                const double CX = Axis.Y * P.Z - Axis.Z * P.Y;
+                const double CY = Axis.Z * P.X - Axis.X * P.Z;
+                const double CZ = Axis.X * P.Y - Axis.Y * P.X;
+                if (CX * CX + CY * CY + CZ * CZ > Epsilon * Epsilon * AxisLengthSquared)
+                    ParseError(Path, LineNumber, "Polygon has no stable plane");
+            }
+            return {};
+        }
+        Normal.X /= Length; Normal.Y /= Length; Normal.Z /= Length;
+
+        const double NX = std::abs(Normal.X), NY = std::abs(Normal.Y), NZ = std::abs(Normal.Z);
+        const int32 DropAxis = NX >= NY && NX >= NZ ? 0 : (NY >= NZ ? 1 : 2);
+        for (FEarPoint& P : Points)
+        {
+            if (std::abs(P.X * Normal.X + P.Y * Normal.Y + P.Z * Normal.Z) > PlaneTolerance)
+                ParseError(Path, LineNumber, "Non-planar polygon is not supported");
+
+            if (DropAxis == 0) P = { P.Y, P.Z, 0.0 };
+            else if (DropAxis == 1) P = { P.X, P.Z, 0.0 };
+            else P.Z = 0.0;
+        }
+
+        // 중복·겹친 간선이 있는 면은 제외하고, 정상 경계의 진행 방향을 구한다.
+        double Area = 0.0;
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const FEarPoint& A = Points[(I + Count - 1) % Count];
+            const FEarPoint& B = Points[I];
+            const FEarPoint& C = Points[(I + 1) % Count];
+            const double DX = C.X - B.X, DY = C.Y - B.Y;
+
+            // 길이 없는 간선이나 이전 간선을 되짚는 경계는 면 전체를 제외한다.
+            if (DX * DX + DY * DY <= Epsilon * Epsilon
+                || (std::abs(EarCross(A, B, C)) <= Epsilon
+                    && (B.X - A.X) * DX + (B.Y - A.Y) * DY < 0.0))
+                return {};
+
+            Area += B.X * C.Y - B.Y * C.X;
+        }
+        if (std::abs(Area) <= Epsilon) return {};
+        const double Winding = Area > 0.0 ? 1.0 : -1.0;
+
+        // 이웃하지 않는 경계의 교차·접촉은 복구하지 않고 오류로 처리한다.
+        for (int32 I = 0; I < Count; ++I)
+        {
+            const int32 NextI = (I + 1) % Count;
+            for (int32 J = I + 1; J < Count; ++J)
+            {
+                const int32 NextJ = (J + 1) % Count;
+                if (NextI == J || NextJ == I) continue;
+                if (EarSegmentsIntersect(Points[I], Points[NextI], Points[J], Points[NextJ], Epsilon))
+                    ParseError(Path, LineNumber, "Polygon boundary intersects or touches itself");
+            }
+        }
+
+        // 원본 코너 배열은 유지하고 아직 제거하지 않은 코너 번호만 관리한다.
+        TArray<int32> Remaining;
+        Remaining.Reserve(static_cast<size_t>(Count));
+        for (int32 I = 0; I < Count; ++I) Remaining.Add(I);
+        while (Remaining.Num() > 3)
+        {
+            bool bClipped = false;
+            const int32 Num = Remaining.Num();
+            for (int32 I = 0; I < Num; ++I)
+            {
+                const int32 A = Remaining[(I + Num - 1) % Num];
+                const int32 B = Remaining[I];
+                const int32 C = Remaining[(I + 1) % Num];
+                if (Winding * EarCross(Points[A], Points[B], Points[C]) <= Epsilon) continue;
+
+                // 삼각형 내부나 경계에 다른 꼭짓점이 있으면 귀로 선택하지 않는다.
+                bool bBlocked = false;
+                for (int32 P : Remaining)
+                {
+                    if (P == A || P == B || P == C) continue;
+                    if (Winding * EarCross(Points[A], Points[B], Points[P]) >= -Epsilon
+                        && Winding * EarCross(Points[B], Points[C], Points[P]) >= -Epsilon
+                        && Winding * EarCross(Points[C], Points[A], Points[P]) >= -Epsilon)
+                    {
+                        bBlocked = true;
+                        break;
+                    }
+                }
+                if (bBlocked) continue;
+
+                AddTriangle(A, B, C);
+                Remaining.RemoveAt(static_cast<size_t>(I));
+                bClipped = true;
+                break;
+            }
+            if (!bClipped) ParseError(Path, LineNumber, "Cannot triangulate polygon");
+        }
+
+        // 마지막 삼각형이 퇴화했다면 해당 면에서 만든 중간 결과까지 모두 제외한다.
+        const double FinalArea = Winding * EarCross(
+            Points[Remaining[0]], Points[Remaining[1]], Points[Remaining[2]]);
+        if (FinalArea < -Epsilon)
+            ParseError(Path, LineNumber, "Invalid final triangle winding");
+        if (FinalArea <= Epsilon) return {};
+
+        AddTriangle(Remaining[0], Remaining[1], Remaining[2]);
+        return Triangles;
+    }
+
 }
-// OBJ와 참조 MTL을 읽고 면을 부채꼴로 삼각분할하여 FObjInfo를 반환하는 함수
+// OBJ와 참조 MTL을 읽고 면을 EarClipping로 삼각분할하여 FObjInfo를 반환하는 함수
 FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
 {
     //리턴값
@@ -657,12 +867,18 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
             //각 꼭짓점의 참조를 읽는 부분
             else if (Prefix == "f")
             {
-                // 별도 다각형 배열 없이 3개의 꼭짓점만 유지.
-                const FObjVertexIndex First = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                FObjVertexIndex Previous = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                FObjVertexIndex Current = ReadCorner(TakeToken(Line), Info, Path, LineNumber);
-                
-                // o 선언 전에 나온 면은 이름 없는 기본 객체에 소속시킨다.
+                // 한 면의 꼭짓점을 원본 순서대로 모으고 기존 인덱스 검증을 재사용한다.
+                TArray<FObjVertexIndex> Corners;
+                while (true)
+                {
+                    const FStringView Token = TakeToken(Line);
+                    if (Token.empty()) break;
+                    Corners.Add(ReadCorner(Token, Info, Path, LineNumber));
+                }
+                if (Corners.Num() < 3)
+                    ParseError(Path, LineNumber, "A face requires at least three corners");
+
+                // o 선언 전의 면은 기존처럼 이름 없는 기본 객체에 소속시킨다.
                 if (CurrentObject < 0)
                 {
                     FObjObjectInfo Object;
@@ -670,36 +886,14 @@ FObjInfo FObjImporter::Import(const std::filesystem::path& Path)
                     Info.Objects.Add(std::move(Object));
                 }
 
-                //현재는 볼록다각형까지만 처리가능, 오목다각형은 처리불가능
-                while (true)
-                {
-                    const FVector& P0 = Info.Positions[First.PositionIndex];
-                    const FVector& P1 = Info.Positions[Previous.PositionIndex];
-                    const FVector& P2 = Info.Positions[Current.PositionIndex];
-
-                    // 두 개 이상의 정점 인덱스가 같거나, 세 정점이 일직선/중복되어 면적이 0인 퇴화 삼각형 필터링
-                    const bool bDegenerate = (First.PositionIndex == Previous.PositionIndex) ||
-                                             (Previous.PositionIndex == Current.PositionIndex) ||
-                                             (Current.PositionIndex == First.PositionIndex) ||
-                                             ((P1 - P0).Cross(P2 - P0).LengthSquared() <= EPSILON * EPSILON);
-
-                    if (!bDegenerate)
-                    {
-                        FObjTriangle Triangle;
-                        Triangle.Corners[0] = First;
-                        Triangle.Corners[1] = Previous;
-                        Triangle.Corners[2] = Current;
-                        Triangle.ObjectIndex = CurrentObject;
-                        Triangle.MaterialIndex = CurrentMaterial;
-                        Triangle.SmoothingGroup = CurrentSmoothingGroup;
-                        Info.Triangles.Add(Triangle);
-                    }
-
-                    const FStringView Next = TakeToken(Line);
-                    if (Next.empty()) { break; }
-                    Previous = Current;
-                    Current = ReadCorner(Next, Info, Path, LineNumber);
-                }
+                // 면의 공통 속성을 모든 출력 삼각형에 전달한다.
+                FObjTriangle FaceInfo;
+                FaceInfo.ObjectIndex = CurrentObject;
+                FaceInfo.MaterialIndex = CurrentMaterial;
+                FaceInfo.SmoothingGroup = CurrentSmoothingGroup;
+                const TArray<FObjTriangle> FaceTriangles = TriangulateFace(Info, Corners, FaceInfo, Path, LineNumber);
+                for (const FObjTriangle& Triangle : FaceTriangles)
+                    Info.Triangles.Add(Triangle);
             }
             //객체 구분을 읽는 부분
             else if (Prefix == "o")
