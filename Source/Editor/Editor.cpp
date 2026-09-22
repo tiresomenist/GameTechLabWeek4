@@ -610,6 +610,7 @@ void FEditor::NewScene()
 
 void FEditor::LoadScene(FStringView SceneName)
 {
+	CancelWindowRenames();
 	SetSelectedActor(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
@@ -621,6 +622,7 @@ void FEditor::LoadScene(FStringView SceneName)
 
 void FEditor::LoadSceneFromPath(const std::filesystem::path& ScenePath)
 {
+	CancelWindowRenames();
 	SetSelectedComponent(nullptr);
 	GSceneManager* SceneManager = GSceneManager::GetInstance();
 	FSceneType* SceneType = GetCurrentScene()->GetSceneType();
@@ -712,7 +714,7 @@ void FEditor::RemoveSelectedComponent()
 	{
 		return;
 	}
-
+	CancelWindowRenames();
 	AActor* Actor = SelectedActor;
 	if (Actor->RemoveComponent(SelectedComponent))
 	{
@@ -724,6 +726,7 @@ void FEditor::DeleteSelectedActor()
 {
 	if (SelectedActor == nullptr) { return; }
 
+	CancelWindowRenames();
 	UScene* CurrentScene = GetCurrentScene();
 	CurrentScene->DestroyActor(SelectedActor);
 
@@ -1126,7 +1129,8 @@ void FEditor::ApplyPendingSceneCamera()
 	// 완료된 요청은 한 번만 처리하고, 실패 시 카메라를 변경하지 않는다.
 	bPendingCameraLoad = false;
 	if (Result != ESceneLoadResult::Succeeded) return;
-
+	CancelWindowRenames();
+	SetSelectedActor(nullptr);
 	UScene* Scene = GetCurrentScene();
 	if (!Scene) return;
 	const FCameraSaveData CameraData = Scene->GetMainCameraSaveData();
@@ -1151,5 +1155,21 @@ void FEditor::ApplyPendingSceneCamera()
 		Camera->SetRelativeLocation(CameraData.Location);
 		Camera->SetRelativeRotation(CameraData.Rotation);
 		break;
+	}
+}
+// 객체 삭제나 씬 전환 전에 이름 편집 대상과 입력 내용을 해제한다.
+void FEditor::CancelWindowRenames()
+{
+	// 닫혀 있는 창에도 편집 대상이 남을 수 있으므로 모든 등록 창을 확인한다.
+	for (UEditorWindow* Window : Windows)
+	{
+		if (Window->IsA(UPropertyWindow::GetClass()))
+		{
+			static_cast<UPropertyWindow*>(Window)->FinishRename(false);
+		}
+		else if (Window->IsA(UOutlinerWindow::GetClass()))
+		{
+			static_cast<UOutlinerWindow*>(Window)->FinishRename(false);
+		}
 	}
 }
