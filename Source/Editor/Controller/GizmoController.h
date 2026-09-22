@@ -25,13 +25,14 @@ public:
 	int32 GetActiveAxis() const { return bDragging ? ActiveAxis : -1; }
 	void ChangeMod();
 private:
-	bool GetRotationDirection(float NDCX, float NDCY, FVector& OutDirection) const;
-	FVector RotationPivot;
+	bool GetRotationDirection(float PixelX, float PixelY, FVector& OutDirection) const;
+	FVector RotationPivotPixel;
 	FVector PreviousRotationDirection;
+	float RotationSign = 1.0f;
 	double AccumulatedAngle = 0.0;
 	bool bHasRotationDirection = false;
+
 	USceneComponent* SelectedObject = nullptr;
-	
 	UObjectAxisGizmo* ObjectAxisGizmo = nullptr;
 	
 	FEditor* Editor = nullptr;
@@ -47,13 +48,15 @@ private:
 	// CalculateAxis()에서 축별로 계산
 	TArray<FVector> WorldDirections;	//오브젝트 움직일 월드방향
 	TArray<FVector> ScreenDirections; // 마우스 변위와 내적할 화면 방향
-	TArray<float> UnitsPerPixel = {};
 
 	EGizmoMode Mode = EGizmoMode::Translate; //0-Location,1-Rotation, 2-Scale
-	
 
 	// 드래그 시작 시 선택 축의 값을 고정.
 	FVector DragWorldDirection;
 	FVector DragScreenDirection;
-	float DragUnitsPerPixel = 0.0f;
+
+	FVector DragPlaneOrigin;
+	FVector DragPlaneNormal;
+	FVector DragCursorOffset;
+	FVector DragPivotPixel;
 };
